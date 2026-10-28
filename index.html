@@ -226,6 +226,21 @@
     animation: petBob 3.4s ease-in-out infinite;
   }
   #pet:active { animation: none; transform: translateX(-50%) scale(.94); }
+  #pet.thinking {
+    animation: petThink .8s ease-in-out infinite;
+    filter: drop-shadow(0 10px 22px rgba(110,168,254,.55));
+  }
+  @keyframes petThink {
+    0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+    50% { transform: translateX(-50%) translateY(-7px) scale(1.04); }
+  }
+  #pet.talking { animation: petPop .55s ease; }
+  @keyframes petPop {
+    0% { transform: translateX(-50%) scale(1); }
+    40% { transform: translateX(-50%) scale(1.12); }
+    70% { transform: translateX(-50%) scale(.97); }
+    100% { transform: translateX(-50%) scale(1); }
+  }
   @keyframes petBob {
     0%, 100% { transform: translateX(-50%) translateY(0); }
     50% { transform: translateX(-50%) translateY(-5px); }
@@ -852,6 +867,7 @@ async function poll() {
     date = data.date;
     offset = data.offset;
     (data.messages || []).forEach(addMessage);
+    if ((data.messages || []).some((m) => m.bot)) petTalking();
     syncPetFace();
   } catch (e) {
     if (e.auth) {
@@ -992,6 +1008,7 @@ async function send() {
     const data = await api(payload);
     if (data.botAvatarUrl !== undefined) botAvatarUrl = data.botAvatarUrl;
     (data.messages || []).forEach(addMessage);
+    if ((data.messages || []).some((m) => m.bot)) petTalking();
     syncPetFace();
   } catch (e) {
     addSystem('发送失败：' + e.message);
@@ -1002,14 +1019,17 @@ async function send() {
 
   // 她的回复在后台跑，不阻塞输入
   typingEl.textContent = '她可能在打字…';
+  petThinking(true);
   try {
     const r = await api({ action: 'reply', nick, text, force: forceReply });
     if (r.botAvatarUrl !== undefined) botAvatarUrl = r.botAvatarUrl;
     (r.messages || []).forEach(addMessage);
+    if ((r.messages || []).some((m) => m.bot)) petTalking();
     logEl.scrollTop = logEl.scrollHeight;
   } catch {
     /* 回复失败就靠轮询兜底 */
   } finally {
+    petThinking(false);
     typingEl.textContent = '';
     poll();
   }
@@ -1583,6 +1603,17 @@ function petSay(text) {
   petBubble.classList.add('on');
   clearTimeout(petSay._t);
   petSay._t = setTimeout(() => petBubble.classList.remove('on'), 2600);
+}
+
+function petThinking(on) {
+  petEl.classList.toggle('thinking', !!on);
+}
+
+function petTalking() {
+  petEl.classList.remove('talking');
+  void petEl.offsetWidth;
+  petEl.classList.add('talking');
+  setTimeout(() => petEl.classList.remove('talking'), 600);
 }
 
 function renderPet() {
