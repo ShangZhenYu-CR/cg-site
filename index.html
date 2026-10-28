@@ -220,15 +220,12 @@
   #avBox img, #botAvBox img { width: 100%; height: 100%; object-fit: cover; }
   #saveMsg { font-size: 13px; min-height: 18px; margin-top: 8px; }
   #pet {
-    position: fixed; left: 24px; bottom: 120px; z-index: 35;
-    font-size: 40px; line-height: 1; cursor: pointer; user-select: none;
-    transition: left 1.6s cubic-bezier(.4,0,.2,1), bottom 1.6s cubic-bezier(.4,0,.2,1);
-    filter: drop-shadow(0 6px 12px rgba(0,0,0,.45));
-    animation: petBob 3.2s ease-in-out infinite;
+    position: fixed; right: 18px; bottom: 96px; z-index: 35;
+    cursor: pointer; user-select: none;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,.45));
   }
-  @keyframes petBob {
-    0%, 100% { transform: translateY(0) rotate(-4deg); }
-    50% { transform: translateY(-9px) rotate(4deg); }
+  @media (max-width: 720px) {
+    #pet { transform: scale(.72); transform-origin: bottom right; }
   }
   #pet.hide { display: none; }
   #petBubble {
@@ -472,9 +469,10 @@
   </div>
 </div>
 
-<div id="pet" title="点我说话">🐳</div>
+<div id="pet" title="点我"><div id="petStage"></div></div>
 <div id="petBubble"></div>
 
+<script src="pet/bongocat.js"></script>
 <script>
 const API = 'https://site-chat-hkinbknrkv.cn-hangzhou.fcapp.run';
 const POLL_MS = 3000;
@@ -1594,10 +1592,12 @@ function togglePet() {
   petHidden = !petHidden;
   localStorage.setItem('room_pet', petHidden ? '0' : '1');
   renderPet();
+if (window.mountBongoPet) mountBongoPet(document.getElementById('petStage'), 168);
   return petHidden ? '藏起来了' : '回来了';
 }
 
 renderPet();
+if (window.mountBongoPet) mountBongoPet(document.getElementById('petStage'), 168);
 /* ---------------- 启动 ---------------- */
 function openSettingsOldRemoved() {}
 
