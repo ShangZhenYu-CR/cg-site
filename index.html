@@ -285,6 +285,8 @@
         <section class="cat on" data-cat="basic">
           <p class="note" id="myUidLine">我的身份 UID：—</p>
           <p class="note" id="ghLine">代码能力：—</p>
+          <div class="row-btns"><button class="ghost" id="ghTestBtn">测试仓库连接</button></div>
+          <pre id="ghTestOut" style="display:none;font-size:12px;background:#10131a;border:1px solid var(--line);border-radius:9px;padding:10px;white-space:pre-wrap;max-height:220px;overflow:auto;"></pre>
 
           <div id="tokenMeter">
             <span id="tokenNum">—</span>
@@ -1415,6 +1417,19 @@ document.addEventListener('click', (e) => {
 /* ---------------- 启动 ---------------- */
 function openSettingsOldRemoved() {}
 
+$('ghTestBtn').addEventListener('click', async () => {
+  const out = $('ghTestOut');
+  out.style.display = 'block';
+  out.textContent = '测试中…';
+  try {
+    const d = await api({ action: 'ghTest' });
+    out.textContent = d.ok
+      ? '仓库：' + d.repo + '\n\n' + (d.listing || '（空）')
+      : '仓库：' + (d.repo || '（未配置）') + '\n错误：' + d.error;
+  } catch (e) {
+    out.textContent = '请求失败：' + e.message;
+  }
+});
 /* ---------------- 成员权限管理 ---------------- */
 let memberCache = null;
 
