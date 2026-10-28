@@ -298,7 +298,8 @@
         <section class="cat on" data-cat="basic">
           <p class="note" id="myUidLine">我的身份 UID：—</p>
           <p class="note" id="ghLine">代码能力：—</p>
-          <div class="row-btns"><button class="ghost" id="ghTestBtn">测试仓库连接</button></div>
+          <div class="row-btns"><button class="ghost" id="ghTestBtn">测试仓库连接</button><button class="ghost" id="visionTestBtn">测试看图</button></div>
+          <pre id="visionTestOut" style="display:none;font-size:12px;background:#10131a;border:1px solid var(--line);border-radius:9px;padding:10px;white-space:pre-wrap;max-height:220px;overflow:auto;"></pre>
           <pre id="ghTestOut" style="display:none;font-size:12px;background:#10131a;border:1px solid var(--line);border-radius:9px;padding:10px;white-space:pre-wrap;max-height:220px;overflow:auto;"></pre>
 
           <div id="tokenMeter">
@@ -1508,6 +1509,17 @@ document.addEventListener('click', (e) => {
 /* ---------------- 启动 ---------------- */
 function openSettingsOldRemoved() {}
 
+$('visionTestBtn').addEventListener('click', async () => {
+  const out = $('visionTestOut');
+  out.style.display = 'block';
+  out.textContent = '测试中…';
+  try {
+    const d = await api({ action: 'visionTest' });
+    out.textContent = '模型：' + (d.model || '?') + '\n状态：' + (d.ok ? '成功 ' : '失败 ') + (d.status || '') + '\n\n' + (d.body || d.error || '');
+  } catch (e) {
+    out.textContent = '请求失败：' + e.message;
+  }
+});
 $('ghTestBtn').addEventListener('click', async () => {
   const out = $('ghTestOut');
   out.style.display = 'block';
