@@ -87,6 +87,45 @@
   .hr { border-top: 1px solid var(--line); margin: 20px 0; }
   .note { font-size: 12px; color: var(--dim); line-height: 1.5; }
 
+  .sec { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; }
+  .sec summary {
+    cursor: pointer; font-size: 13px; color: var(--dim); padding: 10px 0; list-style: none;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .sec summary::-webkit-details-marker { display: none; }
+  .sec summary::after { content: '展开'; font-size: 12px; }
+  .sec[open] summary::after { content: '收起'; }
+  .sec[open] summary { color: var(--text); }
+  .sec textarea {
+    width: 100%; padding: 9px 11px; border-radius: 9px; font: inherit; margin-bottom: 10px;
+    background: #10131a; border: 1px solid var(--line); color: var(--text); resize: vertical;
+  }
+  .sec textarea:focus { outline: 1px solid var(--accent); }
+
+  #tokenMeter {
+    display: flex; align-items: baseline; gap: 6px;
+    padding: 10px 12px; border-radius: 10px; background: #10131a;
+    border: 1px solid var(--line); margin-bottom: 16px;
+  }
+  #tokenNum { font-size: 20px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #tokenHint { font-size: 12px; color: var(--dim); }
+  #tokenMeter.warn #tokenNum { color: #ffcc66; }
+  #tokenMeter.over #tokenNum { color: var(--danger); }
+  #tokenMeter.over { border-color: var(--danger); }
+
+  .memlist {
+    font-size: 13px; color: var(--dim); max-height: 220px; overflow-y: auto;
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px;
+    line-height: 1.6;
+  }
+  .memlist div { padding: 3px 0; border-bottom: 1px dashed #22262f; }
+  .memlist div:last-child { border-bottom: 0; }
+  .memlist .t { color: #5f6b7d; margin-right: 6px; font-size: 12px; }
+  .memlist .memhead {
+    color: var(--accent); font-size: 12px; margin: 8px 0 4px; letter-spacing: .04em;
+  }
+  .memlist .memhead:first-child { margin-top: 0; }
+
   #avBox {
     width: 84px; height: 84px; border-radius: 50%; border: 1px dashed var(--line);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -142,7 +181,23 @@
     </div>
 
     <div class="hr"></div>
-    <h2>让她变成什么样</h2>
+    <h2>她的设定</h2>
+    <p class="note">这里显示的就是当前生效的原文，改哪段覆盖哪段。点「恢复默认」会回到最初那套。</p>
+
+    <div id="tokenMeter">
+      <span id="tokenNum">—</span>
+      <span id="tokenHint">/ 上限 4500 tokens</span>
+    </div>
+
+    <div class="field">
+      <label>名字</label>
+      <input type="text" id="fName" maxlength="12">
+    </div>
+
+    <div class="field">
+      <label>称呼大家</label>
+      <input type="text" id="fNickname" maxlength="12" placeholder="留空则正常称呼，例如：老板">
+    </div>
 
     <div class="field">
       <label>语气</label>
@@ -158,25 +213,40 @@
       <label>话量</label>
       <select id="fTalk">
         <option value="quiet">很少，一句话</option>
-        <option value="normal">正常，一两句</option>
-        <option value="chatty">话多，两三句</option>
+        <option value="normal">正常，一到三句</option>
+        <option value="wild">放开说，三到五句可分段</option>
       </select>
     </div>
 
     <div class="field">
-      <label>没叫她时主动接话的概率：<span class="val" id="fInterruptVal">12%</span></label>
-      <input type="range" id="fInterrupt" min="0" max="40" step="1" value="12" style="width:100%">
+      <label>没叫她时也接话的概率：<span class="val" id="fInterruptVal">100%</span></label>
+      <input type="range" id="fInterrupt" min="0" max="100" step="5" value="100" style="width:100%">
     </div>
 
-    <div class="field">
-      <label>她怎么称呼大家（留空则正常称呼）</label>
-      <input type="text" id="fNickname" maxlength="12" placeholder="比如：老板 / 你们">
-    </div>
-
-    <div class="field">
-      <label>额外要求（最多 200 字）</label>
-      <textarea id="fExtra" maxlength="200" placeholder="比如：少提白米饭 / 可以聊画画技巧"></textarea>
-    </div>
+    <details class="sec"><summary>外貌</summary>
+      <textarea id="fAppearance" rows="5"></textarea>
+    </details>
+    <details class="sec"><summary>打字习惯</summary>
+      <textarea id="fHabits" rows="6"></textarea>
+    </details>
+    <details class="sec"><summary>禁止事项</summary>
+      <textarea id="fBans" rows="6"></textarea>
+    </details>
+    <details class="sec"><summary>情绪反应</summary>
+      <textarea id="fEmotions" rows="4"></textarea>
+    </details>
+    <details class="sec"><summary>脾气与主见</summary>
+      <textarea id="fMind" rows="6"></textarea>
+    </details>
+    <details class="sec"><summary>她的生活与偏好</summary>
+      <textarea id="fLife" rows="4"></textarea>
+    </details>
+    <details class="sec"><summary>聊天室规则</summary>
+      <textarea id="fRules" rows="6"></textarea>
+    </details>
+    <details class="sec"><summary>额外要求（可为空）</summary>
+      <textarea id="fExtra" rows="3" placeholder="比如：少提白米饭 / 可以聊画画技巧"></textarea>
+    </details>
 
     <div class="field">
       <label>管理密钥（保存设置和导出记录需要）</label>
@@ -184,7 +254,8 @@
     </div>
 
     <div class="row-btns">
-      <button class="primary" id="saveBtn">保存设置</button>
+      <button class="primary" id="saveBtn">保存设定</button>
+      <button class="ghost" id="resetBtn">恢复默认</button>
       <button class="ghost" id="closeBtn">关闭</button>
     </div>
     <div id="saveMsg"></div>
@@ -200,6 +271,16 @@
       <button class="ghost" id="exportBtn">下载当日记录</button>
     </div>
     <p class="note">记录按天存在 OSS 里，不会自动删除。导出的是 JSON，一行一条。</p>
+
+    <div class="hr"></div>
+
+    <h2>她的记忆</h2>
+    <p class="note">她会在聊天中自己记下一些事。这里看到的就是她记住的原文。</p>
+    <div id="memList" class="memlist">—</div>
+    <div class="row-btns">
+      <button class="ghost" id="memRefresh">刷新</button>
+      <button class="ghost" id="memClear">清空</button>
+    </div>
   </div>
 </div>
 
@@ -530,21 +611,107 @@ $('avBox').addEventListener('click', () => $('avBox').focus());
 /* ---------------- 设置 ---------------- */
 const drawer = $('drawer');
 const saveMsg = $('saveMsg');
+let lastDefaults = null;
+
+const FIELDS = {
+  fName: 'name',
+  fNickname: 'nickname',
+  fTone: 'tone',
+  fTalk: 'talk',
+  fInterrupt: 'interrupt',
+  fAppearance: 'appearance',
+  fHabits: 'habits',
+  fBans: 'bans',
+  fEmotions: 'emotions',
+  fMind: 'mind',
+  fLife: 'life',
+  fRules: 'rules',
+  fExtra: 'extra',
+};
+
+function fillForm(cfg) {
+  for (const [elId, key] of Object.entries(FIELDS)) {
+    const el = $(elId);
+    if (!el) continue;
+    el.value = cfg[key] ?? '';
+  }
+  $('fInterruptVal').textContent = cfg.interrupt + '%';
+  refreshMeters();
+}
+
+function readForm() {
+  const cfg = {};
+  for (const [elId, key] of Object.entries(FIELDS)) {
+    const el = $(elId);
+    if (!el) continue;
+    cfg[key] = key === 'interrupt' ? Number(el.value) : el.value;
+  }
+  return cfg;
+}
+
+/* ---------- token 估算（和后端同一套算法） ---------- */
+const TOKEN_BUDGET = 4500;
+const SCAFFOLD_TOKENS = 200; // 模板里的固定句子
+
+function estTokens(text) {
+  let cjk = 0, other = 0;
+  for (const ch of String(text || '')) {
+    const code = ch.codePointAt(0);
+    if ((code >= 0x3000 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff) ||
+        (code >= 0xff00 && code <= 0xffef) || (code >= 0x20000 && code <= 0x2ffff)) {
+      cjk += 1;
+    } else {
+      other += 1;
+    }
+  }
+  return Math.ceil(cjk + other / 4);
+}
+
+function refreshMeters() {
+  const cfg = readForm();
+  let sum = 0;
+  for (const [elId, key] of Object.entries(FIELDS)) {
+    const el = $(elId);
+    if (!el) continue;
+    sum += estTokens(cfg[key]);
+  }
+  const total = sum + SCAFFOLD_TOKENS;
+
+  const meter = $('tokenMeter');
+  $('tokenNum').textContent = '≈ ' + total;
+  const hint = $('tokenHint');
+  meter.classList.remove('warn', 'over');
+  if (total > TOKEN_BUDGET) {
+    meter.classList.add('over');
+    hint.textContent = '/ 上限 ' + TOKEN_BUDGET + '，超了 ' + (total - TOKEN_BUDGET) + '，建议精简';
+  } else if (total > TOKEN_BUDGET * 0.85) {
+    meter.classList.add('warn');
+    hint.textContent = '/ 上限 ' + TOKEN_BUDGET + '，快到了';
+  } else {
+    hint.textContent = '/ 上限 ' + TOKEN_BUDGET + ' tokens';
+  }
+
+  // 每个段落也标一下
+  document.querySelectorAll('.sec').forEach((sec) => {
+    const ta = sec.querySelector('textarea');
+    const sumEl = sec.querySelector('summary');
+    if (!ta || !sumEl) return;
+    if (!sec.dataset.label) sec.dataset.label = sumEl.textContent.trim();
+    sumEl.textContent = sec.dataset.label + ' · ' + estTokens(ta.value);
+  });
+}
 
 $('gearBtn').addEventListener('click', async () => {
   drawer.classList.add('open');
   saveMsg.textContent = '';
   renderAvatarBox();
   try {
-    const { style } = await api({ action: 'getConfig' });
-    $('fTone').value = style.tone;
-    $('fTalk').value = style.talk;
-    $('fInterrupt').value = style.interrupt;
-    $('fInterruptVal').textContent = style.interrupt + '%';
-    $('fNickname').value = style.nickname;
-    $('fExtra').value = style.extra;
+    const { config, defaults } = await api({ action: 'getConfig' });
+    lastDefaults = defaults;
+    fillForm(config);
+    loadMemoryUI();
   } catch (e) {
-    saveMsg.textContent = '读不到当前设置：' + e.message;
+    saveMsg.textContent = '读不到当前设定：' + e.message;
   }
 });
 
@@ -552,24 +719,27 @@ $('fInterrupt').addEventListener('input', (e) => {
   $('fInterruptVal').textContent = e.target.value + '%';
 });
 
+drawer.addEventListener('input', refreshMeters);
+drawer.addEventListener('change', refreshMeters);
+
+$('resetBtn').addEventListener('click', () => {
+  if (!lastDefaults) return;
+  fillForm(lastDefaults);
+  saveMsg.style.color = 'var(--dim)';
+  saveMsg.textContent = '已填入默认值，记得点「保存设定」才会生效。';
+});
+
 $('closeBtn').addEventListener('click', () => drawer.classList.remove('open'));
 drawer.addEventListener('click', (e) => { if (e.target === drawer) drawer.classList.remove('open'); });
 
 $('saveBtn').addEventListener('click', async () => {
-  const style = {
-    tone: $('fTone').value,
-    talk: $('fTalk').value,
-    interrupt: Number($('fInterrupt').value),
-    nickname: $('fNickname').value.trim(),
-    extra: $('fExtra').value.trim(),
-  };
   saveMsg.style.color = 'var(--dim)';
   saveMsg.textContent = '保存中…';
   try {
-    await api({ action: 'setConfig', adminKey: $('fAdmin').value, style });
+    const { config } = await api({ action: 'setConfig', adminKey: $('fAdmin').value, config: readForm() });
+    fillForm(config);
     saveMsg.style.color = 'var(--accent)';
-    saveMsg.textContent = '已保存，下一条消息就按新设置来。';
-  } catch (e) {
+    saveMsg.textContent = '已保存，下一条消息就按新设定来。';  } catch (e) {
     saveMsg.style.color = 'var(--danger)';
     saveMsg.textContent = '保存失败：' + (e.auth ? '管理密钥不对' : e.message);
   }
@@ -598,6 +768,73 @@ $('exportBtn').addEventListener('click', async () => {
   } catch (e) {
     saveMsg.style.color = 'var(--danger)';
     saveMsg.textContent = '导出失败：' + (e.auth ? '管理密钥不对' : e.message);
+  }
+});
+
+/* ---------------- 记忆面板 ---------------- */
+function memRow(m) {
+  const row = document.createElement('div');
+  const dt = new Date(m.updatedAt || m.t);
+  const tag = document.createElement('span');
+  tag.className = 't';
+  tag.textContent = (dt.getMonth() + 1) + '/' + dt.getDate();
+  row.appendChild(tag);
+  row.appendChild(document.createTextNode(m.text));
+  return row;
+}
+
+async function loadMemoryUI() {
+  const box = $('memList');
+  box.textContent = '读取中…';
+  try {
+    const d = await api({ action: 'memories' });
+    const list = d.memories || [];
+    if (!list.length) {
+      box.textContent = '还没记住什么。多聊几句，或者直接跟她说「记住 xxx」。';
+      return;
+    }
+
+    const groups = new Map();
+    for (const m of list) {
+      const key = m.about || '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(m);
+    }
+
+    box.innerHTML = '';
+    const keys = [...groups.keys()].sort((a, b) => {
+      if (a === b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
+      return a.localeCompare(b, 'zh');
+    });
+
+    for (const key of keys) {
+      const head = document.createElement('div');
+      head.className = 'memhead';
+      head.textContent = key ? '关于 ' + key : '其他';
+      box.appendChild(head);
+      for (const m of groups.get(key)) box.appendChild(memRow(m));
+    }
+  } catch (e) {
+    box.textContent = '读取失败：' + e.message;
+  }
+}
+
+$('memRefresh').addEventListener('click', loadMemoryUI);
+
+$('memClear').addEventListener('click', async () => {
+  if (!confirm('清空她记住的所有事？这个操作不可撤销。')) return;
+  saveMsg.style.color = 'var(--dim)';
+  saveMsg.textContent = '清空中…';
+  try {
+    await api({ action: 'clearMemory', adminKey: $('fAdmin').value });
+    saveMsg.style.color = 'var(--accent)';
+    saveMsg.textContent = '已清空。';
+    loadMemoryUI();
+  } catch (e) {
+    saveMsg.style.color = 'var(--danger)';
+    saveMsg.textContent = '清空失败：' + (e.auth ? '管理密钥不对' : e.message);
   }
 });
 
