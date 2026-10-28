@@ -781,6 +781,9 @@ inputEl.addEventListener('paste', async (e) => {
 });
 
 document.addEventListener('paste', async (e) => {
+  // 头像框有自己的处理器，不要在这里再兜底一次（否则会覆盖成「我的头像」）
+  const t = e.target;
+  if (t && t.closest && t.closest('#botAvBox, #avBox')) return;
   if (document.activeElement === inputEl) return; // 已经由输入框处理
   if (!$('drawer').classList.contains('open')) return;
   const file = firstImageFrom(e.clipboardData && e.clipboardData.items);
@@ -835,6 +838,7 @@ $('avBox').addEventListener('paste', async (e) => {
   const file = firstImageFrom(e.clipboardData && e.clipboardData.items);
   if (!file) return;
   e.preventDefault();
+  e.stopPropagation();
   await setAvatarFromFile(file);
 });
 
@@ -852,6 +856,7 @@ $('botAvBox').addEventListener('paste', async (e) => {
   const file = firstImageFrom(e.clipboardData && e.clipboardData.items);
   if (!file) return;
   e.preventDefault();
+  e.stopPropagation();
   const msg = $('saveMsg');
   msg.style.color = 'var(--dim)';
   msg.textContent = '上传她的头像…';
