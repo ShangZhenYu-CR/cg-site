@@ -1283,13 +1283,15 @@ $('gearBtn').addEventListener('click', async () => {
   saveMsg.textContent = '';
   renderAvatarBox();
   try {
-    const { config, defaults, botAvatarUrl: bav, github } = await api({ action: 'getConfig' });
+    const { config, defaults, botAvatarUrl: bav, github, build } = await api({ action: 'getConfig' });
     lastDefaults = defaults;
     if (bav !== undefined) botAvatarUrl = bav;
     if (github) {
-      $('ghLine').textContent = github.configured
-        ? '代码能力：已连接 ' + github.repo + (github.allowWrite ? '（可读可写）' : '（只读）')
-        : '代码能力：未配置，检查 GITHUB_REPO / GITHUB_TOKEN';
+      $('ghLine').textContent =
+        (github.configured
+          ? '代码能力：已连接 ' + github.repo + (github.allowWrite ? '（可读可写）' : '（只读）')
+          : '代码能力：未配置，检查 GITHUB_REPO / GITHUB_TOKEN') +
+        '　| 后端 ' + (build || '旧版');
     }
     fillForm(config);
     renderBotAvatarBox();
