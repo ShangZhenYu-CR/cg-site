@@ -328,6 +328,15 @@
           </div>
 
           <div class="field">
+            <label>智力档位（同一模型，只调思考强度）</label>
+            <select id="fBrain">
+              <option value="fast">省电：不思考，最快最便宜</option>
+              <option value="normal">标准：轻思考，日常够用</option>
+              <option value="deep">深思：满强度，慢一些也贵一些</option>
+            </select>
+          </div>
+
+          <div class="field">
             <label>话量</label>
             <select id="fTalk">
               <option value="quiet">很少，一句话</option>
@@ -1128,6 +1137,7 @@ const FIELDS = {
   fNickname: 'nickname',
   fTone: 'tone',
   fTalk: 'talk',
+  fBrain: 'brain',
   fInterrupt: 'interrupt',
   fAppearance: 'appearance',
   fHabits: 'habits',
