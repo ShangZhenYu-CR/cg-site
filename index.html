@@ -244,6 +244,7 @@
       <div class="catbody">
         <section class="cat on" data-cat="basic">
           <p class="note" id="myUidLine">我的身份 UID：—</p>
+          <p class="note" id="ghLine">代码能力：—</p>
 
           <div id="tokenMeter">
             <span id="tokenNum">—</span>
@@ -988,9 +989,14 @@ $('gearBtn').addEventListener('click', async () => {
   saveMsg.textContent = '';
   renderAvatarBox();
   try {
-    const { config, defaults, botAvatarUrl: bav } = await api({ action: 'getConfig' });
+    const { config, defaults, botAvatarUrl: bav, github } = await api({ action: 'getConfig' });
     lastDefaults = defaults;
     if (bav !== undefined) botAvatarUrl = bav;
+    if (github) {
+      $('ghLine').textContent = github.configured
+        ? '代码能力：已连接 ' + github.repo + (github.allowWrite ? '（可读可写）' : '（只读）')
+        : '代码能力：未配置，检查 GITHUB_REPO / GITHUB_TOKEN';
+    }
     fillForm(config);
     renderBotAvatarBox();
     loadMemoryUI();
