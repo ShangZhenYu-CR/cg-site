@@ -209,6 +209,7 @@
 <header>
   <b>大肥鱼的聊天室</b>
   <div class="right">
+    <button class="btn-link" id="forceBtn" title="连续对话：每条都回">连续</button>
     <button class="btn-link" id="membersBtn">在线 <span id="onlineCount">0</span></button>
     <button class="btn-link" id="gearBtn">设置</button>
     <button class="btn-link" id="meBtn">—</button>
@@ -257,6 +258,7 @@
         <button data-cat="life" data-field="fLife">生活与偏好</button>
         <button data-cat="rules" data-field="fRules">聊天室规则</button>
         <button data-cat="extra" data-field="fExtra">额外要求</button>
+        <button data-cat="members">成员</button>
         <button data-cat="memory">记忆</button>
         <button data-cat="log">记录导出</button>
       </nav>
@@ -365,6 +367,15 @@
           <div class="field"><textarea id="fExtra" rows="7" placeholder="比如：少提白米饭 / 可以聊画画技巧"></textarea></div>
         </section>
 
+                <section class="cat" data-cat="members">
+          <h3>成员与权限</h3>
+          <p class="note">管理员可以给成员开「可写代码」或设成管理员。开关即时生效。</p>
+          <div id="memberAdminList" class="memlist">—</div>
+          <div class="row-btns">
+            <button class="ghost" id="memberAdminRefresh">刷新</button>
+          </div>
+        </section>
+
         <section class="cat" data-cat="memory">
           <h3>她的记忆</h3>
           <p class="note">她会在聊天中自己记下一些事。这里看到的就是她记住的原文。</p>
@@ -407,7 +418,8 @@ let pass = localStorage.getItem('room_pass') || '';
 let identity = localStorage.getItem('room_identity') || '';
 let myAv = localStorage.getItem('room_av') || '';       // 头像 key
 let myAvUrl = localStorage.getItem('room_av_url') || ''; // 头像预览地址
-let botAvatarUrl = '';                                    // 大肥鱼的头像地址
+let botAvatarUrl = '';
+let forceReply = localStorage.getItem('room_force') === '1';                                    // 大肥鱼的头像地址
 let pendingImg = null;   // { key, url }
 let offset = 0;
 let date = '';
@@ -729,30 +741,55 @@ function startHeartbeat() {
   });
 }
 
-function renderMembers(list) {
+function memberRow(m, online) {
+  const row = document.createElement('div');
+  row.className = 'member' + (m.nick === nick ? ' me' : '');
+  row.appendChild(makeAvatar(m.avUrl, m.nick));
+
+  const nm = document.createElement('span');
+  nm.className = 'nickname';
+  nm.textContent = m.nick + (m.nick === nick ? '（你）' : '');
+  row.appendChild(nm);
+
+  const t = document.createElement('span');
+  t.className = 'mt';
+  if (online) {
+    const sec = Math.max(0, Math.floor((Date.now() - m.t) / 1000));
+    t.textContent = sec < 10 ? '在线' : sec + 's 前';
+  } else {
+    const d = new Date(m.t);
+    t.textContent = (d.getMonth() + 1) + '/' + d.getDate() + ' 来过';
+  }
+  row.appendChild(t);
+  return row;
+}
+
+function renderMembers(data) {
   const box = $('membersList');
   box.innerHTML = '';
-  if (!list.length) {
+
+  const online = (data && data.online) || [];
+  const offline = (data && data.offline) || [];
+
+  if (!online.length && !offline.length) {
     box.innerHTML = '<div class="empty-tip">还没人</div>';
     return;
   }
-  for (const m of list) {
-    const row = document.createElement('div');
-    row.className = 'member' + (m.nick === nick ? ' me' : '');
-    row.appendChild(makeAvatar(m.avUrl, m.nick));
 
-    const nm = document.createElement('span');
-    nm.className = 'nickname';
-    nm.textContent = m.nick + (m.nick === nick ? '（你）' : '');
-    row.appendChild(nm);
+  if (online.length) {
+    const h = document.createElement('div');
+    h.className = 'memhead';
+    h.textContent = '在线 ' + online.length;
+    box.appendChild(h);
+    online.forEach((m) => box.appendChild(memberRow(m, true)));
+  }
 
-    const t = document.createElement('span');
-    t.className = 'mt';
-    const sec = Math.max(0, Math.floor((Date.now() - m.t) / 1000));
-    t.textContent = sec < 10 ? '在线' : sec + 's 前';
-    row.appendChild(t);
-
-    box.appendChild(row);
+  if (offline.length) {
+    const h = document.createElement('div');
+    h.className = 'memhead';
+    h.textContent = '离线 ' + offline.length;
+    box.appendChild(h);
+    offline.forEach((m) => box.appendChild(memberRow(m, false)));
   }
 }
 
@@ -760,10 +797,11 @@ async function refreshMembers() {
   try {
     const d = await api({ action: 'members' });
     $('onlineCount').textContent = d.count || 0;
-    lastMembers = d.members || [];
+    lastMembers = d;
     if ($('membersPop').classList.contains('open')) renderMembers(lastMembers);
   } catch {}
 }
+
 
 $('membersBtn').addEventListener('click', async () => {
   const pop = $('membersPop');
@@ -814,7 +852,7 @@ async function send() {
   // 她的回复在后台跑，不阻塞输入
   typingEl.textContent = '她可能在打字…';
   try {
-    const r = await api({ action: 'reply', nick, text });
+    const r = await api({ action: 'reply', nick, text, force: forceReply });
     if (r.botAvatarUrl !== undefined) botAvatarUrl = r.botAvatarUrl;
     (r.messages || []).forEach(addMessage);
     logEl.scrollTop = logEl.scrollHeight;
@@ -954,6 +992,8 @@ $('cats').addEventListener('click', (e) => {
   if (!btn) return;
   document.querySelectorAll('.cats button').forEach((b) => b.classList.toggle('on', b === btn));
   document.querySelectorAll('.cat').forEach((s) => s.classList.toggle('on', s.dataset.cat === btn.dataset.cat));
+  if (btn.dataset.cat === 'members') loadMemberAdmin();
+  if (btn.dataset.cat === 'memory') loadMemoryUI();
 });
 const saveMsg = $('saveMsg');
 let lastDefaults = null;
@@ -1189,6 +1229,108 @@ $('memClear').addEventListener('click', async () => {
     saveMsg.textContent = '清空失败：' + (e.auth ? '管理密钥不对' : e.message);
   }
 });
+
+/* ---------------- 连续回复开关 ---------------- */
+function renderForceBtn() {
+  const b = $('forceBtn');
+  b.textContent = forceReply ? '连续 · 开' : '连续';
+  b.style.color = forceReply ? 'var(--accent)' : '';
+}
+
+$('forceBtn').addEventListener('click', () => {
+  forceReply = !forceReply;
+  localStorage.setItem('room_force', forceReply ? '1' : '0');
+  renderForceBtn();
+});
+renderForceBtn();
+
+/* ---------------- 成员权限管理 ---------------- */
+let memberCache = null;
+
+function permBadge(text, tone) {
+  const s = document.createElement('span');
+  s.textContent = text;
+  s.style.cssText = 'font-size:11px;padding:1px 6px;border-radius:6px;margin-left:6px;background:' +
+    (tone === 'admin' ? '#3a2a4a;color:#c9a0ff' : '#1f3344;color:#7fc4ff');
+  return s;
+}
+
+async function loadMemberAdmin() {
+  const box = $('memberAdminList');
+  box.textContent = '读取中…';
+  try {
+    const d = await api({ action: 'members' });
+    memberCache = d;
+    const all = [...(d.online || []), ...(d.offline || [])];
+    if (!all.length) {
+      box.textContent = '还没有成员记录。';
+      return;
+    }
+
+    box.innerHTML = '';
+    const isAdmin = d.me && d.me.admin;
+
+    for (const m of all) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px dashed #22262f;';
+
+      const nm = document.createElement('span');
+      nm.textContent = m.nick;
+      nm.style.fontSize = '13px';
+      row.appendChild(nm);
+
+      if (m.admin) row.appendChild(permBadge('管理员', 'admin'));
+
+      const uidEl = document.createElement('span');
+      uidEl.textContent = (m.uid || '').slice(0, 8);
+      uidEl.style.cssText = 'color:#5f6b7d;font-size:11px;font-family:monospace;';
+      row.appendChild(uidEl);
+
+      if (isAdmin && m.uid) {
+        const sp = document.createElement('span');
+        sp.style.marginLeft = 'auto';
+        row.appendChild(sp);
+
+        const mk = (label, active, onClick) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'font-size:11px;padding:3px 8px;margin-left:6px;border-radius:6px;cursor:pointer;' +
+            (active ? 'background:#232c42;color:#6ea8fe;' : 'background:#10131a;color:#98a0ae;') +
+            'border:1px solid #262b35;';
+          b.addEventListener('click', onClick);
+          sp.appendChild(b);
+        };
+
+        mk('可写代码', !!m.code, async () => {
+          try {
+            await api({ action: 'setPerm', target: m.uid, code: !m.code });
+            loadMemberAdmin();
+          } catch (e) { alert('改不了：' + e.message); }
+        });
+
+        mk('管理员', !!m.admin, async () => {
+          try {
+            await api({ action: 'setPerm', target: m.uid, admin: !m.admin, code: m.code });
+            loadMemberAdmin();
+          } catch (e) { alert('改不了：' + e.message); }
+        });
+      }
+
+      box.appendChild(row);
+    }
+
+    if (!isAdmin) {
+      const tip = document.createElement('p');
+      tip.className = 'note';
+      tip.textContent = '你不是管理员，只能看不能改。把你的 UID 加到函数的 ADMIN_UIDS 就能成为管理员。';
+      box.appendChild(tip);
+    }
+  } catch (e) {
+    box.textContent = '读取失败：' + e.message;
+  }
+}
+
+$('memberAdminRefresh').addEventListener('click', loadMemberAdmin);
 
 /* ---------------- 启动 ---------------- */
 $('fDate').value = new Date().toISOString().slice(0, 10);
