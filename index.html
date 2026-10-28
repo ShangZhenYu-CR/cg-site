@@ -226,8 +226,13 @@
     </div>
 
     <div class="field">
-      <label>没叫她时也接话的概率：<span class="val" id="fInterruptVal">100%</span></label>
-      <input type="range" id="fInterrupt" min="0" max="100" step="5" value="100" style="width:100%">
+      <label>她感兴趣的话题（逗号分隔，聊到这些她会主动接）</label>
+      <input type="text" id="fInterest" maxlength="300">
+    </div>
+
+    <div class="field">
+      <label>上面都不沾时的随机插话概率：<span class="val" id="fInterruptVal">15%</span></label>
+      <input type="range" id="fInterrupt" min="0" max="100" step="5" value="15" style="width:100%">
     </div>
 
     <details class="sec"><summary>外貌</summary>
@@ -738,6 +743,7 @@ const FIELDS = {
   fLife: 'life',
   fRules: 'rules',
   fExtra: 'extra',
+  fInterest: 'interest',
 };
 
 function fillForm(cfg) {
