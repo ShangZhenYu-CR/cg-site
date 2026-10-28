@@ -501,9 +501,7 @@
 </div>
 
 
-<div id="petBubble"></div>
 
-<script src="pet/whale.js"></script>
 <script>
 const API = 'https://site-chat-hkinbknrkv.cn-hangzhou.fcapp.run';
 const POLL_MS = 3000;
@@ -1503,7 +1501,7 @@ const COMMANDS = [
   { cmd: '/设定', desc: '打开她的设定', run: () => openSettings('basic') },
   { cmd: '/权限', desc: '管理成员权限（需管理员）', run: () => openSettings('members') },
   { cmd: '/工具', desc: '打开工具箱页面', run: () => window.open('/code/', '_blank') },
-  { cmd: '/桌宠', desc: '把桌宠叫出来或藏起来', run: () => petSay(togglePet()) },
+  { cmd: '/桌宠', desc: '把桌宠叫出来或藏起来', run: () => { const on = togglePet(); addSystem(on); } },
   { cmd: '/帮助', desc: '列出所有命令', run: showHelp },
 ];
 
@@ -1578,32 +1576,8 @@ document.addEventListener('click', (e) => {
 
 /* ---------------- 桌宠 ---------------- */
 const petEl = $('pet');
-const petBubble = $('petBubble');
-
-const PET_LINES = [
-  '…',
-  '你在干嘛',
-  '困了',
-  '别点我',
-  '好无聊',
-  '这页好长',
-  '想吃饭',
-  '嗯？',
-  '我在呢',
-  '摸鱼中',
-];
 
 let petHidden = localStorage.getItem('room_pet') === '0';
-
-function petSay(text) {
-  const r = petEl.getBoundingClientRect();
-  petBubble.textContent = text;
-  petBubble.style.left = Math.min(r.left + 10, window.innerWidth - 230) + 'px';
-  petBubble.style.top = Math.max(10, r.top - 48) + 'px';
-  petBubble.classList.add('on');
-  clearTimeout(petSay._t);
-  petSay._t = setTimeout(() => petBubble.classList.remove('on'), 2600);
-}
 
 function petThinking(on) {
   petEl.classList.toggle('thinking', !!on);
@@ -1620,69 +1594,23 @@ function renderPet() {
   petEl.classList.toggle('hide', petHidden);
 }
 
-/** 桌宠形象：她的立绘（透明底）；加载失败退回头像，再失败退默认鲸鱼 */
 function syncPetFace() {
   const stage = $('petStage');
-  if (!stage) return;
-  if (stage.dataset.face) return;
+  if (!stage || stage.dataset.face) return;
 
   stage.dataset.face = 'dafeiyu';
   stage.innerHTML = '<img class="petimg petimg-plain" alt="大肥鱼" src="pet/dafeiyu.png">';
-
-  const img = stage.querySelector('img');
-  img.addEventListener('error', () => {
-    stage.dataset.face = '';
-    if (botAvatarUrl) {
-      stage.innerHTML = '<img class="petimg" alt="大肥鱼" src="' + botAvatarUrl + '">';
-    } else if (window.mountWhalePet) {
-      mountWhalePet(stage, 150);
-    }
-  });
 }
-
-petEl.addEventListener('click', () => {
-  petSay(PET_LINES[Math.floor(Math.random() * PET_LINES.length)]);
-});
 
 function togglePet() {
   petHidden = !petHidden;
   localStorage.setItem('room_pet', petHidden ? '0' : '1');
   renderPet();
-if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 150);
-syncPetFace();
   return petHidden ? '藏起来了' : '回来了';
 }
 
 renderPet();
-if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 150);
 syncPetFace();
-/* ---------------- 启动 ---------------- */
-function openSettingsOldRemoved() {}
-
-$('visionTestBtn').addEventListener('click', async () => {
-  const out = $('visionTestOut');
-  out.style.display = 'block';
-  out.textContent = '测试中…';
-  try {
-    const d = await api({ action: 'visionTest' });
-    out.textContent = '模型：' + (d.model || '?') + '\n状态：' + (d.ok ? '成功 ' : '失败 ') + (d.status || '') + '\n\n' + (d.body || d.error || '');
-  } catch (e) {
-    out.textContent = '请求失败：' + e.message;
-  }
-});
-$('ghTestBtn').addEventListener('click', async () => {
-  const out = $('ghTestOut');
-  out.style.display = 'block';
-  out.textContent = '测试中…';
-  try {
-    const d = await api({ action: 'ghTest' });
-    out.textContent = d.ok
-      ? '仓库：' + d.repo + '\n\n' + (d.listing || '（空）')
-      : '仓库：' + (d.repo || '（未配置）') + '\n错误：' + d.error;
-  } catch (e) {
-    out.textContent = '请求失败：' + e.message;
-  }
-});
 /* ---------------- 成员权限管理 ---------------- */
 let memberCache = null;
 
