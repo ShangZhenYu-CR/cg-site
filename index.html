@@ -243,6 +243,8 @@
 
       <div class="catbody">
         <section class="cat on" data-cat="basic">
+          <p class="note" id="myUidLine">我的身份 UID：—</p>
+
           <div id="tokenMeter">
             <span id="tokenNum">—</span>
             <span id="tokenHint">/ 上限 4500 tokens</span>
@@ -481,9 +483,13 @@ async function enter(name, code, idStr) {
 
 /** 拉取这个身份的服务器档案（头像跨设备同步）；服务器没有就补传本机头像 */
 async function syncPerson() {
-  if (!identity) return;
+  if (!identity) {
+    $('myUidLine').textContent = '我的身份 UID：未设置身份 ID';
+    return;
+  }
   try {
     const d = await api({ action: 'whoami' });
+    if (d.uid) $('myUidLine').textContent = '我的身份 UID：' + d.uid;
 
     if (d.person && d.person.avUrl) {
       myAv = d.person.av || '';
