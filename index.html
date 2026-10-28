@@ -141,9 +141,10 @@
 <div id="login">
   <div class="login-box">
     <h1>大肥鱼的聊天室</h1>
-    <p>起个名字就能进，大家都在同一个房间里。</p>
+    <p>起个名字就能进。想换电脑还认得出你，就填一个身份 ID。</p>
     <input id="nickInput" maxlength="16" placeholder="你的昵称" autocomplete="off">
     <input id="passInput" maxlength="32" type="password" placeholder="房间口令（没设置就留空）" autocomplete="off">
+    <input id="idInput" maxlength="64" placeholder="身份 ID（自定，换电脑输同一个就同步）" autocomplete="off">
     <div id="loginErr"></div>
     <button id="enterBtn">进去</button>
   </div>
@@ -290,6 +291,7 @@ const POLL_MS = 3000;
 
 let nick = localStorage.getItem('room_nick') || '';
 let pass = localStorage.getItem('room_pass') || '';
+let identity = localStorage.getItem('room_identity') || '';
 let myAv = localStorage.getItem('room_av') || '';       // 头像 key
 let myAvUrl = localStorage.getItem('room_av_url') || ''; // 头像预览地址
 let pendingImg = null;   // { key, url }
@@ -307,7 +309,7 @@ async function api(body) {
   const res = await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ passcode: pass, ...body }),
+    body: JSON.stringify({ passcode: pass, identity, ...body }),
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) {
@@ -364,34 +366,52 @@ function firstImageFrom(items) {
 }
 
 /* ---------------- 登录 ---------------- */
-async function enter(name, code) {
+async function enter(name, code, idStr) {
   loginErr.textContent = '';
-  const sPass = pass, sNick = nick;
-  pass = code; nick = name;
+  const sPass = pass, sNick = nick, sId = identity;
+  pass = code; nick = name; identity = idStr;
   try {
     await api({ action: 'getConfig' });
   } catch (e) {
-    pass = sPass; nick = sNick;
+    pass = sPass; nick = sNick; identity = sId;
     loginErr.textContent = e.auth ? '口令不对' : ('连不上：' + e.message);
     return;
   }
   localStorage.setItem('room_nick', name);
   localStorage.setItem('room_pass', code);
+  localStorage.setItem('room_identity', idStr);
   loginEl.classList.add('hide');
   $('meBtn').textContent = nick + ' · 换名';
+  await syncPerson();
   start();
+}
+
+/** 拉取这个身份的服务器档案（头像跨设备同步） */
+async function syncPerson() {
+  if (!identity) return;
+  try {
+    const d = await api({ action: 'whoami' });
+    if (d.person && d.person.avUrl) {
+      myAv = d.person.av || '';
+      myAvUrl = d.person.avUrl;
+      localStorage.setItem('room_av', myAv);
+      localStorage.setItem('room_av_url', myAvUrl);
+    }
+  } catch {}
 }
 
 $('enterBtn').addEventListener('click', () => {
   const n = nickInput.value.trim();
-  if (n) enter(n, passInput.value);
+  if (n) enter(n, passInput.value, $('idInput').value.trim());
 });
-passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('enterBtn').click(); });
+passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('idInput').focus(); });
+$('idInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('enterBtn').click(); });
 nickInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passInput.focus(); });
 $('meBtn').addEventListener('click', () => {
   loginEl.classList.remove('hide');
   nickInput.value = nick;
   passInput.value = pass;
+  $('idInput').value = identity;
   nickInput.focus();
 });
 
@@ -583,9 +603,16 @@ async function setAvatarFromFile(file) {
     myAvUrl = r.url;
     localStorage.setItem('room_av', myAv);
     localStorage.setItem('room_av_url', myAvUrl);
+    if (identity) {
+      try {
+        await api({ action: 'setPerson', nick, av: myAv });
+      } catch {}
+    }
     renderAvatarBox();
     msg.style.color = 'var(--accent)';
-    msg.textContent = '头像已更新，之后发的消息都会带这个头像。';
+    msg.textContent = identity
+      ? '头像已更新，并同步到你的身份，换电脑登录会自动带上。'
+      : '头像已更新。填了身份 ID 才能跨电脑同步。';
   } catch (e) {
     msg.style.color = 'var(--danger)';
     msg.textContent = '头像上传失败：' + e.message;
@@ -840,11 +867,12 @@ $('memClear').addEventListener('click', async () => {
 
 /* ---------------- 启动 ---------------- */
 $('fDate').value = new Date().toISOString().slice(0, 10);
+$('idInput').value = identity;
 
 if (nick) {
   loginEl.classList.add('hide');
   $('meBtn').textContent = nick + ' · 换名';
-  start();
+  syncPerson().finally(start);
 } else {
   nickInput.focus();
 }
