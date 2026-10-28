@@ -230,6 +230,9 @@
     0%, 100% { transform: translateX(-50%) translateY(0); }
     50% { transform: translateX(-50%) translateY(-5px); }
   }
+  #pet .petimg-plain {
+    width: 132px; height: 132px; border-radius: 0; border: 0; background: none;
+  }
   #pet .petimg {
     display: block; width: 104px; height: 104px; border-radius: 50%;
     object-fit: cover; border: 2px solid #2c3a4f; background: #171a21;
@@ -238,6 +241,7 @@
   @media (max-width: 720px) {
     #pet { bottom: 52px; }
     #pet .petimg { width: 72px; height: 72px; }
+    #pet .petimg-plain { width: 96px; height: 96px; }
   }
   #pet.hide { display: none; }
   #petBubble {
@@ -1585,19 +1589,24 @@ function renderPet() {
   petEl.classList.toggle('hide', petHidden);
 }
 
-/** 用她自己的样子当桌宠；没有头像就退回默认鲸鱼 */
+/** 桌宠形象：她的立绘（透明底）；加载失败退回头像，再失败退默认鲸鱼 */
 function syncPetFace() {
   const stage = $('petStage');
   if (!stage) return;
+  if (stage.dataset.face) return;
 
-  if (botAvatarUrl) {
-    if (stage.dataset.face !== botAvatarUrl) {
-      stage.dataset.face = botAvatarUrl;
+  stage.dataset.face = 'dafeiyu';
+  stage.innerHTML = '<img class="petimg petimg-plain" alt="大肥鱼" src="pet/dafeiyu.png">';
+
+  const img = stage.querySelector('img');
+  img.addEventListener('error', () => {
+    stage.dataset.face = '';
+    if (botAvatarUrl) {
       stage.innerHTML = '<img class="petimg" alt="大肥鱼" src="' + botAvatarUrl + '">';
+    } else if (window.mountWhalePet) {
+      mountWhalePet(stage, 150);
     }
-  } else if (!stage.querySelector('svg') && window.mountWhalePet) {
-    mountWhalePet(stage, 150);
-  }
+  });
 }
 
 petEl.addEventListener('click', () => {
