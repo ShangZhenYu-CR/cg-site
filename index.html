@@ -472,7 +472,7 @@
 <div id="pet" title="点我"><div id="petStage"></div></div>
 <div id="petBubble"></div>
 
-<script src="pet/bongocat.js"></script>
+<script src="pet/whale.js"></script>
 <script>
 const API = 'https://site-chat-hkinbknrkv.cn-hangzhou.fcapp.run';
 const POLL_MS = 3000;
@@ -1592,12 +1592,12 @@ function togglePet() {
   petHidden = !petHidden;
   localStorage.setItem('room_pet', petHidden ? '0' : '1');
   renderPet();
-if (window.mountBongoPet) mountBongoPet(document.getElementById('petStage'), 168);
+if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 190);
   return petHidden ? '藏起来了' : '回来了';
 }
 
 renderPet();
-if (window.mountBongoPet) mountBongoPet(document.getElementById('petStage'), 168);
+if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 190);
 /* ---------------- 启动 ---------------- */
 function openSettingsOldRemoved() {}
 
