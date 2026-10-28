@@ -52,6 +52,18 @@
   .member.me .nickname { color: var(--accent); }
   .empty-tip { color: var(--dim); font-size: 12px; padding: 12px; text-align: center; }
 
+  .filecard {
+    display: flex; align-items: center; gap: 10px; margin: 8px 0;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: #12161d; max-width: 420px;
+  }
+  .filecard .fname { font-size: 13px; color: var(--text); font-family: ui-monospace, Consolas, monospace; }
+  .filecard .fpath { font-size: 11px; color: #5f6b7d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .filecard button {
+    font: inherit; font-size: 12px; padding: 5px 12px; border-radius: 7px; cursor: pointer; flex: none;
+    background: #1d2230; border: 1px solid var(--line); color: var(--text);
+  }
+  .filecard button:hover { border-color: var(--accent); color: var(--accent); }
   .codeblock {
     margin: 8px 0; border: 1px solid var(--line); border-radius: 9px;
     overflow: hidden; background: #0d1016;
@@ -600,65 +612,114 @@ function makeAvatar(url, name) {
   return div;
 }
 
+/* ---------- 代码块（折叠） ---------- */
+function renderCodeBlock(el, lang, raw) {
+  const code = raw.replace(/\n+$/, '');
+
+  const wrap = document.createElement('div');
+  wrap.className = 'codeblock';
+
+  const head = document.createElement('div');
+  head.className = 'codehead';
+
+  const lines = code.split('\n').length;
+
+  const label = document.createElement('span');
+  label.textContent = (lang || 'code') + ' · ' + lines + ' 行（已折叠）';
+
+  const pre = document.createElement('pre');
+  const cd = document.createElement('code');
+  cd.textContent = code;
+  pre.appendChild(cd);
+  pre.style.display = 'none';
+
+  const toggle = document.createElement('button');
+  toggle.textContent = '展开';
+  toggle.addEventListener('click', () => {
+    const open = pre.style.display !== 'none';
+    pre.style.display = open ? 'none' : 'block';
+    toggle.textContent = open ? '展开' : '收起';
+  });
+
+  const btn = document.createElement('button');
+  btn.textContent = '复制';
+  btn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      btn.textContent = '已复制';
+      setTimeout(() => (btn.textContent = '复制'), 1400);
+    } catch {
+      btn.textContent = '复制失败';
+      setTimeout(() => (btn.textContent = '复制'), 1400);
+    }
+  });
+
+  head.append(label, toggle, btn);
+  wrap.append(head, pre);
+  el.appendChild(wrap);
+}
+
+/* ---------- 文件卡片（复制的是文件全文） ---------- */
+function renderFileCard(el, path) {
+  const card = document.createElement('div');
+  card.className = 'filecard';
+
+  const icon = document.createElement('span');
+  icon.textContent = '📄';
+  icon.style.fontSize = '16px';
+
+  const info = document.createElement('div');
+  info.style.cssText = 'display:flex;flex-direction:column;min-width:0;';
+
+  const name = document.createElement('span');
+  name.className = 'fname';
+  name.textContent = path.split('/').pop();
+
+  const sub = document.createElement('span');
+  sub.className = 'fpath';
+  sub.textContent = path;
+
+  info.append(name, sub);
+
+  const copy = document.createElement('button');
+  copy.textContent = '复制';
+  copy.style.marginLeft = 'auto';
+  copy.addEventListener('click', async () => {
+    const old = copy.textContent;
+    copy.textContent = '读取中…';
+    try {
+      const d = await api({ action: 'file', path });
+      if (!d.ok) throw new Error(d.error || '读取失败');
+      await navigator.clipboard.writeText(d.text);
+      copy.textContent = '已复制 ' + d.text.split('\n').length + ' 行';
+      setTimeout(() => (copy.textContent = old), 1800);
+    } catch (e) {
+      copy.textContent = '失败';
+      setTimeout(() => (copy.textContent = old), 1800);
+    }
+  });
+
+  card.append(icon, info, copy);
+  el.appendChild(card);
+}
+
 function fillBubble(el, text) {
-  const re = /```([a-zA-Z0-9#+-]*)\r?\n?([\s\S]*?)```/g;
+  const re = /```([a-zA-Z0-9#+-]*)\r?\n?([\s\S]*?)```|\[\[file:([^\]]+)\]\]/g;
   let last = 0;
   let m;
+
   while ((m = re.exec(text))) {
     if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
-    const lang = m[1];
-    const code = m[2].replace(/\n+$/, '');
 
-    const wrap = document.createElement('div');
-    wrap.className = 'codeblock';
-
-    const head = document.createElement('div');
-    head.className = 'codehead';
-
-    const lines = code.split('\n').length;
-    const fold = true; // 无论多长都折叠成一行
-
-    const label = document.createElement('span');
-    label.textContent = (lang || 'code') + ' · ' + lines + ' 行' + (fold ? '（已折叠）' : '');
-
-    const btn = document.createElement('button');
-    btn.textContent = '复制';
-    btn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(code);
-        btn.textContent = '已复制';
-        setTimeout(() => (btn.textContent = '复制'), 1400);
-      } catch {
-        btn.textContent = '复制失败';
-        setTimeout(() => (btn.textContent = '复制'), 1400);
-      }
-    });
-
-    head.append(label);
-
-    const pre = document.createElement('pre');
-    const cd = document.createElement('code');
-    cd.textContent = code;
-    pre.appendChild(cd);
-
-    if (fold) {
-      pre.style.display = 'none';
-      const toggle = document.createElement('button');
-      toggle.textContent = '展开';
-      toggle.addEventListener('click', () => {
-        const open = pre.style.display !== 'none';
-        pre.style.display = open ? 'none' : 'block';
-        toggle.textContent = open ? '展开' : '收起';
-      });
-      head.append(toggle);
+    if (m[3]) {
+      renderFileCard(el, m[3].trim());
+    } else {
+      renderCodeBlock(el, m[1], m[2]);
     }
 
-    head.append(btn);
-
-    wrap.append(head, pre);
-    el.appendChild(wrap);
     last = re.lastIndex;
   }
+
   if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
 }
 
