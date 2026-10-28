@@ -265,6 +265,7 @@
   <div id="composer">
     <button id="forceChip" class="chip" title="连续回复：每条都回">连续</button>
     <textarea id="input" rows="1" placeholder="说点什么…（打 / 唤出命令）" autocomplete="off"></textarea>
+    <button id="saveFileBtn" class="chip" style="display:none">存文件</button>
     <button id="send">发送</button>
   </div>
 </footer>
@@ -1350,6 +1351,35 @@ $('memClear').addEventListener('click', async () => {
   } catch (e) {
     saveMsg.style.color = 'var(--danger)';
     saveMsg.textContent = '清空失败：' + (e.auth ? '管理密钥不对' : e.message);
+  }
+});
+
+/* ---------------- 长文本直接存文件 ---------------- */
+const saveFileBtn = $('saveFileBtn');
+
+inputEl.addEventListener('input', () => {
+  saveFileBtn.style.display = inputEl.value.length > 600 ? '' : 'none';
+});
+
+saveFileBtn.addEventListener('click', async () => {
+  const content = inputEl.value;
+  if (!content.trim()) return;
+
+  const guess = content.includes('def ') || content.includes('import ') ? 'code/tool.py' : 'code/snippet.txt';
+  const path = prompt('保存到哪个路径？', guess);
+  if (!path) return;
+
+  saveFileBtn.textContent = '保存中…';
+  try {
+    const d = await api({ action: 'saveFile', path: path.trim(), content });
+    if (!d.ok) throw new Error(d.error || '保存失败');
+    inputEl.value = '';
+    saveFileBtn.style.display = 'none';
+    saveFileBtn.textContent = '存文件';
+    addSystem('已保存到 ' + d.path);
+  } catch (e) {
+    saveFileBtn.textContent = '存文件';
+    alert('保存失败：' + e.message);
   }
 });
 
