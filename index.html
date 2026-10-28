@@ -71,8 +71,26 @@
   /* drawer */
   #drawer { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.55); display: none; justify-content: flex-end; }
   #drawer.open { display: flex; }
-  .panel { width: min(400px, 100%); height: 100%; background: var(--panel); border-left: 1px solid var(--line); padding: 18px; overflow-y: auto; }
-  .panel h2 { font-size: 17px; margin: 0 0 16px; }
+  .panel { width: min(820px, 100%); height: 100%; background: var(--panel); border-left: 1px solid var(--line); padding: 16px 18px 12px; display: flex; flex-direction: column; min-height: 0; }
+  .panel h2 { font-size: 17px; margin: 0; }
+  .panel h3 { font-size: 14px; margin: 0 0 10px; color: var(--text); }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid var(--line); flex: none; }
+  .settings { flex: 1; min-height: 0; display: grid; grid-template-columns: 132px 1fr; gap: 14px; padding: 14px 0; }
+  .cats { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; min-height: 0; }
+  .cats button { background: none; border: 0; text-align: left; padding: 8px 10px; border-radius: 8px; color: var(--dim); cursor: pointer; font: inherit; font-size: 13px; white-space: nowrap; }
+  .cats button:hover { background: #1c2130; color: var(--text); }
+  .cats button.on { background: #232c42; color: var(--text); }
+  .catbody { overflow-y: auto; min-height: 0; padding-right: 6px; }
+  .cat { display: none; }
+  .cat.on { display: block; }
+  .panel-foot { display: flex; gap: 8px; align-items: center; flex: none; padding-top: 12px; border-top: 1px solid var(--line); }
+  .panel-foot input { flex: 1; padding: 9px 11px; border-radius: 9px; font: inherit; min-width: 0; background: #10131a; border: 1px solid var(--line); color: var(--text); }
+  #saveMsg { flex: none; padding-top: 6px; font-size: 13px; min-height: 18px; }
+  @media (max-width: 720px) {
+    .settings { grid-template-columns: 1fr; }
+    .cats { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; }
+    .cats button { flex: none; }
+  }
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 6px; }
   .field select, .field input[type=text], .field input[type=password], .field input[type=date], .field textarea {
@@ -175,124 +193,158 @@
 
 <div id="drawer">
   <div class="panel">
-    <h2>我的头像</h2>
-    <div class="field">
-      <div id="avBox" tabindex="0">点这里<br>Ctrl+V 粘贴</div>
-      <p class="note">复制一张图片后点上面的圆圈再按 Ctrl+V。粘贴即上传，不走文件选择。</p>
-    </div>
-
-    <h2>她的头像</h2>
-    <div class="field">
-      <div id="botAvBox" tabindex="0">点这里<br>Ctrl+V 粘贴</div>
-      <p class="note">需要下面的管理密钥。改完之后所有历史消息也会换成新头像。</p>
-    </div>
-
-    <div class="hr"></div>
-    <h2>她的设定</h2>
-    <p class="note">这里显示的就是当前生效的原文，改哪段覆盖哪段。点「恢复默认」会回到最初那套。</p>
-
-    <div id="tokenMeter">
-      <span id="tokenNum">—</span>
-      <span id="tokenHint">/ 上限 4500 tokens</span>
-    </div>
-
-    <div class="field">
-      <label>名字</label>
-      <input type="text" id="fName" maxlength="12">
-    </div>
-
-    <div class="field">
-      <label>称呼大家</label>
-      <input type="text" id="fNickname" maxlength="12" placeholder="留空则正常称呼，例如：老板">
-    </div>
-
-    <div class="field">
-      <label>语气</label>
-      <select id="fTone">
-        <option value="sweet">温柔黏人</option>
-        <option value="cool">冷淡话少</option>
-        <option value="sharp">毒舌吐槽</option>
-        <option value="genki">元气活泼</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>话量</label>
-      <select id="fTalk">
-        <option value="quiet">很少，一句话</option>
-        <option value="normal">正常，一到三句</option>
-        <option value="wild">放开说，三到五句可分段</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>她感兴趣的话题（逗号分隔，聊到这些她会主动接）</label>
-      <input type="text" id="fInterest" maxlength="300">
-    </div>
-
-    <div class="field">
-      <label>上面都不沾时的随机插话概率：<span class="val" id="fInterruptVal">15%</span></label>
-      <input type="range" id="fInterrupt" min="0" max="100" step="5" value="15" style="width:100%">
-    </div>
-
-    <details class="sec"><summary>外貌</summary>
-      <textarea id="fAppearance" rows="5"></textarea>
-    </details>
-    <details class="sec"><summary>打字习惯</summary>
-      <textarea id="fHabits" rows="6"></textarea>
-    </details>
-    <details class="sec"><summary>禁止事项</summary>
-      <textarea id="fBans" rows="6"></textarea>
-    </details>
-    <details class="sec"><summary>情绪反应</summary>
-      <textarea id="fEmotions" rows="4"></textarea>
-    </details>
-    <details class="sec"><summary>脾气与主见</summary>
-      <textarea id="fMind" rows="6"></textarea>
-    </details>
-    <details class="sec"><summary>她的生活与偏好</summary>
-      <textarea id="fLife" rows="4"></textarea>
-    </details>
-    <details class="sec"><summary>聊天室规则</summary>
-      <textarea id="fRules" rows="6"></textarea>
-    </details>
-    <details class="sec"><summary>额外要求（可为空）</summary>
-      <textarea id="fExtra" rows="3" placeholder="比如：少提白米饭 / 可以聊画画技巧"></textarea>
-    </details>
-
-    <div class="field">
-      <label>管理密钥（保存设置和导出记录需要）</label>
-      <input type="password" id="fAdmin" placeholder="ADMIN_KEY">
-    </div>
-
-    <div class="row-btns">
-      <button class="primary" id="saveBtn">保存设定</button>
-      <button class="ghost" id="resetBtn">恢复默认</button>
+    <div class="panel-head">
+      <h2>设置</h2>
       <button class="ghost" id="closeBtn">关闭</button>
     </div>
+
+    <div class="settings">
+      <nav class="cats" id="cats">
+        <button data-cat="basic" class="on">基本</button>
+        <button data-cat="avatar">头像</button>
+        <button data-cat="appearance" data-field="fAppearance">外貌</button>
+        <button data-cat="habits" data-field="fHabits">打字习惯</button>
+        <button data-cat="bans" data-field="fBans">禁止事项</button>
+        <button data-cat="emotions" data-field="fEmotions">情绪反应</button>
+        <button data-cat="mind" data-field="fMind">脾气与主见</button>
+        <button data-cat="life" data-field="fLife">生活与偏好</button>
+        <button data-cat="rules" data-field="fRules">聊天室规则</button>
+        <button data-cat="extra" data-field="fExtra">额外要求</button>
+        <button data-cat="memory">记忆</button>
+        <button data-cat="log">记录导出</button>
+      </nav>
+
+      <div class="catbody">
+        <section class="cat on" data-cat="basic">
+          <div id="tokenMeter">
+            <span id="tokenNum">—</span>
+            <span id="tokenHint">/ 上限 4500 tokens</span>
+          </div>
+
+          <div class="field">
+            <label>名字</label>
+            <input type="text" id="fName" maxlength="12">
+          </div>
+
+          <div class="field">
+            <label>称呼大家</label>
+            <input type="text" id="fNickname" maxlength="12" placeholder="留空则正常称呼，例如：老板">
+          </div>
+
+          <div class="field">
+            <label>语气</label>
+            <select id="fTone">
+              <option value="sweet">温柔黏人</option>
+              <option value="cool">冷淡话少</option>
+              <option value="sharp">毒舌吐槽</option>
+              <option value="genki">元气活泼</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>话量</label>
+            <select id="fTalk">
+              <option value="quiet">很少，一句话</option>
+              <option value="normal">正常，一到三句</option>
+              <option value="wild">放开说，三到五句可分段</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>她感兴趣的话题（逗号分隔，聊到这些她会主动接）</label>
+            <input type="text" id="fInterest" maxlength="300">
+          </div>
+
+          <div class="field">
+            <label>上面都不沾时的随机插话概率：<span class="val" id="fInterruptVal">15%</span></label>
+            <input type="range" id="fInterrupt" min="0" max="100" step="5" value="15" style="width:100%">
+          </div>
+        </section>
+
+        <section class="cat" data-cat="avatar">
+          <h3>我的头像</h3>
+          <div class="field">
+            <div id="avBox" tabindex="0">点这里<br>Ctrl+V 粘贴</div>
+            <p class="note">复制一张图片后点上面的圆圈再按 Ctrl+V。粘贴即上传，不走文件选择。</p>
+          </div>
+
+          <h3>她的头像</h3>
+          <div class="field">
+            <div id="botAvBox" tabindex="0">点这里<br>Ctrl+V 粘贴</div>
+            <p class="note">需要管理密钥。改完之后所有历史消息也会换成新头像。</p>
+          </div>
+        </section>
+
+        <section class="cat" data-cat="appearance">
+          <h3>外貌</h3>
+          <div class="field"><textarea id="fAppearance" rows="9"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="habits">
+          <h3>打字习惯</h3>
+          <div class="field"><textarea id="fHabits" rows="9"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="bans">
+          <h3>禁止事项</h3>
+          <div class="field"><textarea id="fBans" rows="9"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="emotions">
+          <h3>情绪反应</h3>
+          <div class="field"><textarea id="fEmotions" rows="9"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="mind">
+          <h3>脾气与主见</h3>
+          <div class="field"><textarea id="fMind" rows="9"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="life">
+          <h3>她的生活与偏好</h3>
+          <div class="field"><textarea id="fLife" rows="9"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="rules">
+          <h3>聊天室规则</h3>
+          <div class="field"><textarea id="fRules" rows="9"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="extra">
+          <h3>额外要求（可为空）</h3>
+          <div class="field"><textarea id="fExtra" rows="7" placeholder="比如：少提白米饭 / 可以聊画画技巧"></textarea></div>
+        </section>
+
+        <section class="cat" data-cat="memory">
+          <h3>她的记忆</h3>
+          <p class="note">她会在聊天中自己记下一些事。这里看到的就是她记住的原文。</p>
+          <div id="memList" class="memlist">—</div>
+          <div class="row-btns">
+            <button class="ghost" id="memRefresh">刷新</button>
+            <button class="ghost" id="memClear">清空</button>
+          </div>
+        </section>
+
+        <section class="cat" data-cat="log">
+          <h3>导出聊天记录</h3>
+          <div class="field">
+            <label>日期</label>
+            <input type="date" id="fDate">
+          </div>
+          <div class="row-btns">
+            <button class="ghost" id="exportBtn">下载当日记录</button>
+          </div>
+          <p class="note">记录按天存在 OSS 里，不会自动删除。导出的是 JSON，一行一条。</p>
+        </section>
+      </div>
+    </div>
+
+    <div class="panel-foot">
+      <input type="password" id="fAdmin" placeholder="ADMIN_KEY">
+      <button class="primary" id="saveBtn">保存设定</button>
+      <button class="ghost" id="resetBtn">恢复默认</button>
+    </div>
     <div id="saveMsg"></div>
-
-    <div class="hr"></div>
-
-    <h2>导出聊天记录</h2>
-    <div class="field">
-      <label>日期</label>
-      <input type="date" id="fDate">
-    </div>
-    <div class="row-btns">
-      <button class="ghost" id="exportBtn">下载当日记录</button>
-    </div>
-    <p class="note">记录按天存在 OSS 里，不会自动删除。导出的是 JSON，一行一条。</p>
-
-    <div class="hr"></div>
-
-    <h2>她的记忆</h2>
-    <p class="note">她会在聊天中自己记下一些事。这里看到的就是她记住的原文。</p>
-    <div id="memList" class="memlist">—</div>
-    <div class="row-btns">
-      <button class="ghost" id="memRefresh">刷新</button>
-      <button class="ghost" id="memClear">清空</button>
-    </div>
   </div>
 </div>
 
@@ -726,6 +778,14 @@ $('botAvBox').addEventListener('click', () => $('botAvBox').focus());
 
 /* ---------------- 设置 ---------------- */
 const drawer = $('drawer');
+
+// 左侧分类切换
+$('cats').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-cat]');
+  if (!btn) return;
+  document.querySelectorAll('.cats button').forEach((b) => b.classList.toggle('on', b === btn));
+  document.querySelectorAll('.cat').forEach((s) => s.classList.toggle('on', s.dataset.cat === btn.dataset.cat));
+});
 const saveMsg = $('saveMsg');
 let lastDefaults = null;
 
@@ -808,13 +868,12 @@ function refreshMeters() {
     hint.textContent = '/ 上限 ' + TOKEN_BUDGET + ' tokens';
   }
 
-  // 每个段落也标一下
-  document.querySelectorAll('.sec').forEach((sec) => {
-    const ta = sec.querySelector('textarea');
-    const sumEl = sec.querySelector('summary');
-    if (!ta || !sumEl) return;
-    if (!sec.dataset.label) sec.dataset.label = sumEl.textContent.trim();
-    sumEl.textContent = sec.dataset.label + ' · ' + estTokens(ta.value);
+  // 左侧分类也标上各自用量
+  document.querySelectorAll('.cats button[data-field]').forEach((b) => {
+    const el = $(b.dataset.field);
+    if (!el) return;
+    if (!b.dataset.label) b.dataset.label = b.textContent.trim();
+    b.textContent = b.dataset.label + ' · ' + estTokens(el.value);
   });
 }
 
