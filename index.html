@@ -168,7 +168,7 @@
     <button id="pendingCancel">取消</button>
   </div>
   <div id="composer">
-    <textarea id="input" rows="1" placeholder="说点什么…（可 Ctrl+V 粘贴图片，叫「大肥鱼」她会回你）" autocomplete="off"></textarea>
+    <textarea id="input" rows="1" placeholder="说点什么…" autocomplete="off"></textarea>
     <button id="send">发送</button>
   </div>
 </footer>
@@ -306,6 +306,7 @@ let offset = 0;
 let date = '';
 let polling = false;
 let seen = new Set();
+const recentLocal = new Map(); // 本地先渲染的消息，防回声
 
 const $ = (id) => document.getElementById(id);
 const logEl = $('log'), inputEl = $('input'), sendBtn = $('send'), typingEl = $('typing');
@@ -458,6 +459,17 @@ function makeAvatar(url, name) {
 
 function addMessage(m) {
   if (!m || seen.has(m.id)) return;
+
+  // 本地已经先渲染过同一条（回声），跳过
+  if (m.nick === nick && !m.bot) {
+    const ago = recentLocal.get(m.text);
+    if (ago && Date.now() - ago < 15000) {
+      recentLocal.delete(m.text);
+      seen.add(m.id);
+      return;
+    }
+  }
+
   seen.add(m.id);
 
   const row = document.createElement('div');
@@ -555,22 +567,40 @@ async function send() {
   if (pendingImg) payload.img = pendingImg.key;
   if (myAv) payload.av = myAv;
 
+  const imgUrl = pendingImg ? pendingImg.url : '';
+
   inputEl.value = '';
   clearPending();
   sendBtn.disabled = true;
-  typingEl.textContent = '她可能在打字…';
+  inputEl.focus();
+
+  // 先本地立刻显示，不等服务器
+  if (text) recentLocal.set(text, Date.now());
+  addMessage({ id: 'local-' + Date.now(), t: Date.now(), nick, text, imgUrl });
+  logEl.scrollTop = logEl.scrollHeight;
 
   try {
     const data = await api(payload);
     if (data.botAvatarUrl !== undefined) botAvatarUrl = data.botAvatarUrl;
     (data.messages || []).forEach(addMessage);
-    logEl.scrollTop = logEl.scrollHeight;
   } catch (e) {
     addSystem('发送失败：' + e.message);
   } finally {
     sendBtn.disabled = false;
-    typingEl.textContent = '';
     inputEl.focus();
+  }
+
+  // 她的回复在后台跑，不阻塞输入
+  typingEl.textContent = '她可能在打字…';
+  try {
+    const r = await api({ action: 'reply', nick, text });
+    if (r.botAvatarUrl !== undefined) botAvatarUrl = r.botAvatarUrl;
+    (r.messages || []).forEach(addMessage);
+    logEl.scrollTop = logEl.scrollHeight;
+  } catch {
+    /* 回复失败就靠轮询兜底 */
+  } finally {
+    typingEl.textContent = '';
     poll();
   }
 }
