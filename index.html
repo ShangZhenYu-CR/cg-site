@@ -786,6 +786,7 @@ function fillBubble(el, text) {
 
 function addMessage(m) {
   if (!m || seen.has(m.id)) return;
+  if (m.reset) { seen.add(m.id); return; }
 
   // 本地已经先渲染过同一条（回声），跳过
   if (m.nick === nick && !m.bot) {
@@ -1497,7 +1498,8 @@ function showHelp() {
 
 const COMMANDS = [
   { cmd: '/连续', desc: '开或关连续回复（每条都回）', run: toggleForce },
-  { cmd: '/清屏', desc: '清空当前聊天显示', run: () => { logEl.innerHTML = ''; seen = new Set(); } },
+  { cmd: '/清屏', desc: '只清空你屏幕上的显示', run: () => { logEl.innerHTML = ''; seen = new Set(); } },
+  { cmd: '/清空上下文', desc: '让她忘掉之前聊的，重新开始（所有人）', run: async () => { try { await api({ action: 'resetContext' }); start(); addSystem('上下文已清空'); } catch (e) { addSystem('清空失败：' + e.message); } } },
   { cmd: '/成员', desc: '看看谁在房间', run: () => { $('membersPop').classList.add('open'); refreshMembers(); } },
   { cmd: '/记忆', desc: '看她记住了什么', run: () => openSettings('memory') },
   { cmd: '/设定', desc: '打开她的设定', run: () => openSettings('basic') },
