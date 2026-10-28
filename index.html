@@ -126,13 +126,13 @@
   }
   .memlist .memhead:first-child { margin-top: 0; }
 
-  #avBox {
+  #avBox, #botAvBox {
     width: 84px; height: 84px; border-radius: 50%; border: 1px dashed var(--line);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     background: #10131a; overflow: hidden; font-size: 12px; color: var(--dim); text-align: center;
   }
-  #avBox:focus { outline: 1px solid var(--accent); }
-  #avBox img { width: 100%; height: 100%; object-fit: cover; }
+  #avBox:focus, #botAvBox:focus { outline: 1px solid var(--accent); }
+  #avBox img, #botAvBox img { width: 100%; height: 100%; object-fit: cover; }
   #saveMsg { font-size: 13px; min-height: 18px; margin-top: 8px; }
 </style>
 </head>
@@ -179,6 +179,12 @@
     <div class="field">
       <div id="avBox" tabindex="0">点这里<br>Ctrl+V 粘贴</div>
       <p class="note">复制一张图片后点上面的圆圈再按 Ctrl+V。粘贴即上传，不走文件选择。</p>
+    </div>
+
+    <h2>她的头像</h2>
+    <div class="field">
+      <div id="botAvBox" tabindex="0">点这里<br>Ctrl+V 粘贴</div>
+      <p class="note">需要下面的管理密钥。改完之后所有历史消息也会换成新头像。</p>
     </div>
 
     <div class="hr"></div>
@@ -294,6 +300,7 @@ let pass = localStorage.getItem('room_pass') || '';
 let identity = localStorage.getItem('room_identity') || '';
 let myAv = localStorage.getItem('room_av') || '';       // 头像 key
 let myAvUrl = localStorage.getItem('room_av_url') || ''; // 头像预览地址
+let botAvatarUrl = '';                                    // 大肥鱼的头像地址
 let pendingImg = null;   // { key, url }
 let offset = 0;
 let date = '';
@@ -371,7 +378,8 @@ async function enter(name, code, idStr) {
   const sPass = pass, sNick = nick, sId = identity;
   pass = code; nick = name; identity = idStr;
   try {
-    await api({ action: 'getConfig' });
+    const boot = await api({ action: 'getConfig' });
+    botAvatarUrl = boot.botAvatarUrl || '';
   } catch (e) {
     pass = sPass; nick = sNick; identity = sId;
     loginErr.textContent = e.auth ? '口令不对' : ('连不上：' + e.message);
@@ -455,7 +463,7 @@ function addMessage(m) {
   const row = document.createElement('div');
   row.className = 'row' + (m.nick === nick ? ' mine' : '') + (m.bot ? ' bot' : '');
 
-  const avUrl = m.nick === nick ? myAvUrl : m.avUrl;
+  const avUrl = m.bot ? botAvatarUrl : m.nick === nick ? myAvUrl : m.avUrl;
   row.appendChild(makeAvatar(avUrl, m.nick));
 
   const col = document.createElement('div');
@@ -514,6 +522,7 @@ async function poll() {
       date = data.date;
       return;
     }
+    if (data.botAvatarUrl !== undefined) botAvatarUrl = data.botAvatarUrl;
     date = data.date;
     offset = data.offset;
     (data.messages || []).forEach(addMessage);
@@ -553,6 +562,7 @@ async function send() {
 
   try {
     const data = await api(payload);
+    if (data.botAvatarUrl !== undefined) botAvatarUrl = data.botAvatarUrl;
     (data.messages || []).forEach(addMessage);
     logEl.scrollTop = logEl.scrollHeight;
   } catch (e) {
@@ -647,6 +657,37 @@ $('avBox').addEventListener('paste', async (e) => {
 });
 
 $('avBox').addEventListener('click', () => $('avBox').focus());
+
+/* ---------------- 她的头像 ---------------- */
+function renderBotAvatarBox() {
+  const box = $('botAvBox');
+  box.innerHTML = botAvatarUrl
+    ? '<img src="' + botAvatarUrl + '" alt="她的头像">'
+    : '点这里<br>Ctrl+V 粘贴';
+}
+
+$('botAvBox').addEventListener('paste', async (e) => {
+  const file = firstImageFrom(e.clipboardData && e.clipboardData.items);
+  if (!file) return;
+  e.preventDefault();
+  const msg = $('saveMsg');
+  msg.style.color = 'var(--dim)';
+  msg.textContent = '上传她的头像…';
+  try {
+    const r = await uploadImage(file, 'avatar');
+    const d = await api({ action: 'setBotAvatar', adminKey: $('fAdmin').value, av: r.key });
+    botAvatarUrl = d.botAvatarUrl || r.url;
+    renderBotAvatarBox();
+    msg.style.color = 'var(--accent)';
+    msg.textContent = '她的头像已更新，历史消息也换过来了。';
+    start();
+  } catch (err) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = '更新失败：' + (err.auth ? '管理密钥不对' : err.message);
+  }
+});
+
+$('botAvBox').addEventListener('click', () => $('botAvBox').focus());
 
 /* ---------------- 设置 ---------------- */
 const drawer = $('drawer');
@@ -746,9 +787,11 @@ $('gearBtn').addEventListener('click', async () => {
   saveMsg.textContent = '';
   renderAvatarBox();
   try {
-    const { config, defaults } = await api({ action: 'getConfig' });
+    const { config, defaults, botAvatarUrl: bav } = await api({ action: 'getConfig' });
     lastDefaults = defaults;
+    if (bav !== undefined) botAvatarUrl = bav;
     fillForm(config);
+    renderBotAvatarBox();
     loadMemoryUI();
   } catch (e) {
     saveMsg.textContent = '读不到当前设定：' + e.message;
