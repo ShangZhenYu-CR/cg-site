@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工具箱 · 大肥鱼</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b35;
+    --text: #e6e8ec; --dim: #98a0ae; --accent: #6ea8fe;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.65 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .sub { color: var(--dim); font-size: 14px; margin: 0 0 28px; }
+  .sub a { color: var(--accent); text-decoration: none; }
+  .sub a:hover { text-decoration: underline; }
+
+  .tool {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 10px;
+  }
+  .tool h2 { font-size: 15px; margin: 0 0 4px; font-family: ui-monospace, Consolas, monospace; }
+  .tool p { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button, a.btn {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: #10131a; color: var(--text);
+    cursor: pointer; text-decoration: none; display: inline-block;
+  }
+  button:hover, a.btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.done { border-color: #4a8f5f; color: #7fd79b; }
+  .hint { color: var(--dim); font-size: 12px; margin-top: 24px; line-height: 1.7; }
+  code { background: #10131a; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>工具箱</h1>
+  <p class="sub">Maya 小脚本。点「复制」把整段代码放到剪贴板，黏进 Maya 的脚本编辑器执行。<a href="../">← 回聊天室</a></p>
+
+  <div id="list"></div>
+
+  <p class="hint">
+    用法：Maya → 右下角脚本编辑器 → Python 标签 → 粘贴 → 全选执行。<br>
+    或者点「下载」，丢进 <code>Documents/maya/scripts/</code>。
+  </p>
+</main>
+
+<script>
+const TOOLS = [
+  { f: 'add_old_prefix.py', d: '给选中物体加 old_ 前缀，支持多选和层级。' },
+  { f: 'align_model_to_last.py', d: '先选要对齐的模型，最后 Shift 选参考物体，对齐过去。' },
+  { f: 'duplicate_rotate_180.py', d: '复制选中物体，并沿当前旋转轴转 180 度。' },
+  { f: 'match_all_transforms_keep_mesh.py', d: '快速匹配枢轴位置与移动工具朝向，不改顶点。' },
+  { f: 'naming_tools_panel.py', d: '命名工具面板。' },
+  { f: 'prefix_tools_panel.py', d: '前缀工具面板。' },
+  { f: 'remove_pasted_prefix.py', d: '去掉粘贴产生的 pasted__ 前缀。' },
+  { f: 'rename_uv_channels.py', d: '重命名选中模型的 UV 通道。' },
+  { f: 'sync_axes_to_active.py', d: '把选中物体的坐标轴朝向同步成活动物体。' },
+  { f: 'unlock_normals_soften_edges.py', d: '解锁法线、软化边缘，再删除历史。' },
+];
+
+const list = document.getElementById('list');
+
+for (const t of TOOLS) {
+  const card = document.createElement('div');
+  card.className = 'tool';
+
+  const h = document.createElement('h2');
+  h.textContent = t.f;
+
+  const p = document.createElement('p');
+  p.textContent = t.d;
+
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = '复制';
+  copyBtn.addEventListener('click', async () => {
+    const old = copyBtn.textContent;
+    copyBtn.textContent = '读取中…';
+    try {
+      const res = await fetch('./maya/' + t.f);
+      const text = await res.text();
+      await navigator.clipboard.writeText(text);
+      copyBtn.textContent = '已复制';
+      copyBtn.classList.add('done');
+      setTimeout(() => {
+        copyBtn.textContent = old;
+        copyBtn.classList.remove('done');
+      }, 1600);
+    } catch (e) {
+      copyBtn.textContent = '复制失败';
+      setTimeout(() => (copyBtn.textContent = old), 1600);
+    }
+  });
+
+  const dl = document.createElement('a');
+  dl.className = 'btn';
+  dl.textContent = '下载';
+  dl.href = './maya/' + t.f;
+  dl.download = t.f;
+
+  const view = document.createElement('a');
+  view.className = 'btn';
+  view.textContent = '查看';
+  view.href = './maya/' + t.f;
+  view.target = '_blank';
+
+  row.append(copyBtn, dl, view);
+  card.append(h, p, row);
+  list.appendChild(card);
+}
+</script>
+</body>
+</html>
