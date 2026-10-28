@@ -220,12 +220,24 @@
   #avBox img, #botAvBox img { width: 100%; height: 100%; object-fit: cover; }
   #saveMsg { font-size: 13px; min-height: 18px; margin-top: 8px; }
   #pet {
-    position: fixed; right: 18px; bottom: 96px; z-index: 35;
-    cursor: pointer; user-select: none;
-    filter: drop-shadow(0 8px 16px rgba(0,0,0,.45));
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: 58px; z-index: 35; cursor: pointer; user-select: none;
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,.5));
+    animation: petBob 3.4s ease-in-out infinite;
+  }
+  #pet:active { animation: none; transform: translateX(-50%) scale(.94); }
+  @keyframes petBob {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-5px); }
+  }
+  #pet .petimg {
+    display: block; width: 104px; height: 104px; border-radius: 50%;
+    object-fit: cover; border: 2px solid #2c3a4f; background: #171a21;
+    pointer-events: none;
   }
   @media (max-width: 720px) {
-    #pet { transform: scale(.72); transform-origin: bottom right; }
+    #pet { bottom: 52px; }
+    #pet .petimg { width: 72px; height: 72px; }
   }
   #pet.hide { display: none; }
   #petBubble {
@@ -836,6 +848,7 @@ async function poll() {
     date = data.date;
     offset = data.offset;
     (data.messages || []).forEach(addMessage);
+    syncPetFace();
   } catch (e) {
     if (e.auth) {
       loginEl.classList.remove('hide');
@@ -975,6 +988,7 @@ async function send() {
     const data = await api(payload);
     if (data.botAvatarUrl !== undefined) botAvatarUrl = data.botAvatarUrl;
     (data.messages || []).forEach(addMessage);
+    syncPetFace();
   } catch (e) {
     addSystem('发送失败：' + e.message);
   } finally {
@@ -1556,17 +1570,6 @@ const PET_LINES = [
 ];
 
 let petHidden = localStorage.getItem('room_pet') === '0';
-let petTimer = null;
-
-function petPosition() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  if (w < 520) return;
-  const left = 20 + Math.random() * Math.max(60, w - 160);
-  const bottom = 90 + Math.random() * Math.max(60, h - 300);
-  petEl.style.left = left + 'px';
-  petEl.style.bottom = bottom + 'px';
-}
 
 function petSay(text) {
   const r = petEl.getBoundingClientRect();
@@ -1580,8 +1583,21 @@ function petSay(text) {
 
 function renderPet() {
   petEl.classList.toggle('hide', petHidden);
-  clearInterval(petTimer);
-  if (!petHidden) petTimer = setInterval(petPosition, 7000);
+}
+
+/** 用她自己的样子当桌宠；没有头像就退回默认鲸鱼 */
+function syncPetFace() {
+  const stage = $('petStage');
+  if (!stage) return;
+
+  if (botAvatarUrl) {
+    if (stage.dataset.face !== botAvatarUrl) {
+      stage.dataset.face = botAvatarUrl;
+      stage.innerHTML = '<img class="petimg" alt="大肥鱼" src="' + botAvatarUrl + '">';
+    }
+  } else if (!stage.querySelector('svg') && window.mountWhalePet) {
+    mountWhalePet(stage, 150);
+  }
 }
 
 petEl.addEventListener('click', () => {
@@ -1592,12 +1608,14 @@ function togglePet() {
   petHidden = !petHidden;
   localStorage.setItem('room_pet', petHidden ? '0' : '1');
   renderPet();
-if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 190);
+if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 150);
+syncPetFace();
   return petHidden ? '藏起来了' : '回来了';
 }
 
 renderPet();
-if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 190);
+if (window.mountWhalePet) mountWhalePet(document.getElementById('petStage'), 150);
+syncPetFace();
 /* ---------------- 启动 ---------------- */
 function openSettingsOldRemoved() {}
 
