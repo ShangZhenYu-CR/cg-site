@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-从剪切板读取 .ma 路径并打开
-用法：把 .ma 文件路径复制到剪切板（带不带引号都行），然后跑这个脚本
+从剪切板读取 .ma / .mb 路径并打开
+用法：把 .ma 或 .mb 文件路径复制到剪切板（带不带引号都行），然后跑这个脚本
 """
 
 import os
 import maya.cmds as cmds
 from PySide2.QtWidgets import QApplication
+
+VALID_EXT = (".ma", ".mb")
 
 
 def open_ma_from_clipboard():
@@ -25,11 +27,11 @@ def open_ma_from_clipboard():
         print("剪切板是空的")
         return
 
-    if not txt.lower().endswith(".ma"):
-        print("剪切板内容不是 .ma 路径:", txt)
+    if not txt.lower().endswith(VALID_EXT):
+        print("剪切板内容不是 .ma / .mb 路径:", txt)
         cmds.confirmDialog(
             title="错误",
-            message="剪切板内容不是一个有效的 .ma 文件路径。",
+            message="剪切板内容不是一个有效的 .ma / .mb 文件路径。",
             button=["OK"],
         )
         return
