@@ -386,16 +386,29 @@ async function enter(name, code, idStr) {
   start();
 }
 
-/** 拉取这个身份的服务器档案（头像跨设备同步） */
+/** 拉取这个身份的服务器档案（头像跨设备同步）；服务器没有就补传本机头像 */
 async function syncPerson() {
   if (!identity) return;
   try {
     const d = await api({ action: 'whoami' });
+
     if (d.person && d.person.avUrl) {
       myAv = d.person.av || '';
       myAvUrl = d.person.avUrl;
       localStorage.setItem('room_av', myAv);
       localStorage.setItem('room_av_url', myAvUrl);
+      return;
+    }
+
+    // 服务器上没有头像：把本机已有的补传上去（兼容加身份 ID 之前设过头像的情况）
+    if (myAv) {
+      try {
+        const p = await api({ action: 'setPerson', nick, av: myAv });
+        if (p.person && p.person.avUrl) {
+          myAvUrl = p.person.avUrl;
+          localStorage.setItem('room_av_url', myAvUrl);
+        }
+      } catch {}
     }
   } catch {}
 }
