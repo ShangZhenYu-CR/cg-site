@@ -596,7 +596,7 @@ function fillBubble(el, text) {
     head.className = 'codehead';
 
     const lines = code.split('\n').length;
-    const fold = lines > 6;
+    const fold = true; // 无论多长都折叠成一行
 
     const label = document.createElement('span');
     label.textContent = (lang || 'code') + ' · ' + lines + ' 行' + (fold ? '（已折叠）' : '');
