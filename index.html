@@ -14,14 +14,13 @@
     margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
   }
-  main { max-width: 720px; margin: 0 auto; padding: 64px 20px 140px; }
-  h1 { font-size: 28px; margin: 0 0 12px; }
-  p { color: var(--dim); margin: 0 0 14px; }
-  .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 14px; padding: 18px 20px; margin: 24px 0;
+  main {
+    min-height: 100vh; max-width: 720px; margin: 0 auto;
+    padding: 0 20px; display: flex; flex-direction: column; justify-content: center;
   }
-  .card b { color: var(--text); font-weight: 600; }
+  h1 { font-size: 40px; margin: 0 0 10px; letter-spacing: .02em; }
+  .lead { color: var(--text); opacity: .85; font-size: 16px; margin: 0 0 8px; }
+  .hint { color: var(--dim); font-size: 14px; margin: 0; }
 
   /* 聊天浮窗 */
   #chatBtn {
@@ -65,19 +64,8 @@
 <body>
 <main>
   <h1>大肥鱼</h1>
-  <p>CG 角色 / 场景 / 资产。资产库预览整理中。</p>
-
-  <div class="card">
-    <b>关于</b><br>
-    这里放你的简介、作品方向、常用工具。两三句就够。
-  </div>
-
-  <div class="card">
-    <b>约稿与合作</b><br>
-    邮箱 / 站内联系方式放在这里。报价一律走这里，别在聊天里定。
-  </div>
-
-  <p>右下角可以聊两句，她会回答关于作品和工具的问题。</p>
+  <p class="lead">CG 角色 · 场景 · 资产</p>
+  <p class="hint">右下角，随便聊。</p>
 </main>
 
 <button id="chatBtn" aria-label="打开聊天">💬</button>
@@ -116,6 +104,12 @@ function addMsg(cls, text) {
   log.appendChild(el);
   log.scrollTop = log.scrollHeight;
   return el;
+}
+
+// 桌面端直接展开，页面本来就只有她
+if (window.innerWidth >= 900) {
+  panel.classList.add('open');
+  addMsg('bot', '在呢 随便问');
 }
 
 input.addEventListener('keydown', (e) => {
