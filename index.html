@@ -878,11 +878,33 @@ async function poll() {
   }
 }
 
-function start() {
+async function start() {
   logEl.innerHTML = '';
   seen = new Set();
   offset = 0;
   date = '';
+
+  // 先把昨天的记录接在前面，跨天不至于一片空白
+  try {
+    const y = new Date(Date.now() + 8 * 3600 * 1000 - 86400 * 1000).toISOString().slice(0, 10);
+    const prev = await api({ action: 'log', date: y, offset: 0 });
+    const list = prev.messages || [];
+    if (list.length) {
+      const tip = document.createElement('div');
+      tip.className = 'sys';
+      tip.style.color = '#5f6b7d';
+      tip.textContent = '—— ' + y + ' ——';
+      logEl.appendChild(tip);
+      list.forEach(addMessage);
+
+      const end = document.createElement('div');
+      end.className = 'sys';
+      end.style.color = '#5f6b7d';
+      end.textContent = '—— 今天 ——';
+      logEl.appendChild(end);
+    }
+  } catch {}
+
   poll();
   setInterval(poll, POLL_MS);
   startHeartbeat();
