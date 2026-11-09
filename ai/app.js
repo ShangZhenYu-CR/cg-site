@@ -575,7 +575,9 @@ async function sendChat(text) {
 
   const model = LS.model;
   const effort = LS.effort;
-  reply.meta = labelOf(model) + ' · ' + (EFFORT_LABEL[effort] || effort);
+  // 图像生成模型不接受 reasoning 参数，所以只在明确要图时才挂工具
+  const wantsImage = /(画一|画个|画只|画张|画幅|生成.{0,6}图|来张图|出图|绘图|插画|海报|头像|表情包|配图|draw|image|picture|illustration)/i.test(text);
+  reply.meta = labelOf(model) + ' · ' + (wantsImage ? '图像' : (EFFORT_LABEL[effort] || effort));
 
   const node = thread.lastElementChild;
   const body = node && node.querySelector('.bd');
@@ -597,7 +599,8 @@ async function sendChat(text) {
     const res = await api('/chat', {
       method: 'POST', signal: state.controller.signal,
       body: {
-        model, effort, search: state.search, imageTool: true, convId: cv.id, projectId: cv.projectId || null,
+        model, search: state.search, convId: cv.id, projectId: cv.projectId || null,
+        ...(wantsImage ? { imageTool: true } : { effort }),
         codeMode: state.codeMode,
         fileNames: (cv.files || []).map(f => f.name),
         messages: sentMessages(cv).map(m => ({
