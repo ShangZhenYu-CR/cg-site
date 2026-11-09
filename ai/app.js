@@ -1149,6 +1149,34 @@ $('#codePreview').addEventListener('click', () => {
 
 $('#codeClose').addEventListener('click', () => setCap('code', false));
 
+/* 复制当前文件全文（Maya 脚本这类直接粘贴运行，不用下载） */
+$('#codeCopy').addEventListener('click', async () => {
+  const cv = current();
+  const f = cv && cv.files && cv.files[state.fileIdx];
+  if (!f) return;
+  const text = f.content || '';
+  const btn = $('#codeCopy');
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.append(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    btn.textContent = '✓';
+    btn.title = '已复制 ' + text.length + ' 字符';
+    setTimeout(() => { btn.textContent = '⧉'; btn.title = '复制当前文件全文'; }, 1200);
+  } catch {
+    alert('复制失败，请手动全选复制');
+  }
+});
+
 /* 功能简介 */
 $('#btnAbout').addEventListener('click', () => { $('#dlgAbout').hidden = false; });
 $('#aboutClose').addEventListener('click', () => { $('#dlgAbout').hidden = true; });
