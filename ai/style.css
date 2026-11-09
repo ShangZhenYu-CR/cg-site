@@ -133,6 +133,63 @@ a { color: var(--accent); }
   line-height: 1.5;
 }
 .conn { font-size: 12px; color: var(--faint); }
+#btnHandoff {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 13px;
+}
+#btnHandoff:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+#btnHandoff:disabled { opacity: .5; cursor: default; }
+
+/* 上下文统计 */
+.ctx {
+  width: min(760px, 100%);
+  margin: 0 auto 4px;
+  font-size: 11px;
+  color: var(--faint);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ctx b { color: var(--dim); font-weight: 600; }
+
+/* 归档分界线 */
+.msg.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  color: var(--faint);
+  font-size: 11px;
+}
+.msg.divider::before,
+.msg.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--line), transparent);
+}
+.msg.divider span {
+  white-space: nowrap;
+  padding: 2px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+}
+
+/* 交接文档 */
+.msg .body .handoff-tag {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
 
 /* 成员列表 */
 .user-list { display: grid; gap: 8px; max-height: 52vh; overflow-y: auto; }
