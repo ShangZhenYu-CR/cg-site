@@ -791,6 +791,42 @@ function uploadWithProgress(dataUrl, mime, onProgress) {
   });
 }
 
+/** OSS 直传：浏览器直接把文件 POST 给阿里云，不经过隧道 */
+async function uploadViaOss(file, onProgress) {
+  let sign;
+  try {
+    const r = await api('/oss/sign', { method: 'POST', body: { mime: file.type } });
+    if (r.status === 501) return { skipped: true };
+    sign = await r.json().catch(() => ({}));
+    if (!r.ok) return { skipped: true, error: errText(r.status, sign) };
+  } catch {
+    return { skipped: true };
+  }
+
+  const fd = new FormData();
+  fd.append('key', sign.key);
+  fd.append('policy', sign.policy);
+  fd.append('OSSAccessKeyId', sign.accessId);
+  fd.append('signature', sign.signature);
+  fd.append('success_action_status', '200');
+  fd.append('file', file);
+
+  try {
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', sign.host, true);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error('OSS ' + xhr.status));
+      xhr.onerror = () => reject(new Error('直传被浏览器拦下（OSS 跨域未配置）'));
+      xhr.timeout = 120000;
+      xhr.send(fd);
+    });
+    return { url: sign.url };
+  } catch (e) {
+    return { skipped: true, error: e.message };
+  }
+}
+
 async function uploadFile(file) {
   if (!file || !/^image\//.test(file.type)) { alert('只支持图片'); return; }
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
@@ -805,7 +841,17 @@ async function uploadFile(file) {
 
     const kb = Math.max(1, Math.round(small.size / 1024));
     hint.textContent = '上传中 0% · ' + kb + 'KB';
+    const prog = (p) => { hint.textContent = '上传中 ' + Math.round(p * 100) + '% · ' + kb + 'KB'; };
 
+    // 1) 优先走 OSS 直传（绕开跨境隧道）
+    const oss = await uploadViaOss(small, prog);
+    if (oss.url) {
+      state.attachments.push({ url: oss.url, name: small.name, oss: true });
+      return;
+    }
+    if (oss.error) hint.textContent = '直传失败，改走服务器…（' + oss.error + '）';
+
+    // 2) 回退：经隧道分片上传
     const dataUrl = await new Promise((res, rej) => {
       const fr = new FileReader();
       fr.onload = () => res(fr.result);
@@ -813,9 +859,7 @@ async function uploadFile(file) {
       fr.readAsDataURL(small);
     });
 
-    const { status, ok, j } = await uploadChunked(dataUrl, small.type, (p) => {
-      hint.textContent = '上传中 ' + Math.round(p * 100) + '% · ' + kb + 'KB';
-    });
+    const { status, ok, j } = await uploadChunked(dataUrl, small.type, prog);
     if (!ok) { alert(errText(status, j)); return; }
     state.attachments.push({ url: j.url, name: small.name });
   } catch (err) {
