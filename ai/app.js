@@ -283,6 +283,7 @@ async function loadConvs() {
 const current = () => state.convs.find(c => c.id === state.currentId) || null;
 
 async function createConv(opts = {}) {
+  modelPinned = false;
   const r = await api('/convs', {
     method: 'POST',
     body: {
@@ -338,7 +339,7 @@ function applyConvSettings(cv) {
   if (!s) return;
   applyingSettings = true;
   try {
-    if (s.model) LS.model = s.model;   // 会话记录的就是它当时用的模型，直接恢复
+    if (s.model) { modelPinned = true; LS.model = s.model; }   // 会话记录的就是它当时用的模型，直接恢复
     if (s.effort) LS.effort = s.effort;
 
     // 五个开关全部按会话重置，缺省即为关闭（否则会带到别的对话上）
@@ -587,6 +588,8 @@ function updateCtx() {
 }
 
 /* ---------------- 模型 / 强度 ---------------- */
+let modelPinned = false;   // 会话指定的模型，不要被列表自动纠正掉
+
 function visibleModels() {
   const all = LS.models;
   return canAstra() ? all : all.filter(m => !/astra/i.test(m));
@@ -604,14 +607,14 @@ function renderModels() {
     if (title) box.append(el('h4', null, title));
     for (const id of arr) {
       const b = el('button', 'opt' + (id === LS.model ? ' on' : ''), labelOf(id));
-      b.addEventListener('click', () => { LS.model = id; renderModels(); renderEffort(); updateCtx(); persistSettings(); });
+      b.addEventListener('click', () => { modelPinned = false; LS.model = id; renderModels(); renderEffort(); updateCtx(); persistSettings(); });
       box.append(b);
     }
   };
   addGroup('推荐', rec);
   addGroup('全部', rest);
 
-  if (!list.includes(LS.model) && list.length) LS.model = rec[0] || list[0];
+  if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = rec[0] || list[0];
   $('#modelName').textContent = labelOf(LS.model);
   renderEffort();
 }
