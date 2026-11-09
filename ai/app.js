@@ -523,7 +523,7 @@ function renderThread() {
   updateCtx();
 
   const restore = () => {
-    if (stickBottom || prevDist < 60) {
+    if (prevDist < 60) {
       scrollBox.scrollTop = scrollBox.scrollHeight;
     } else {
       scrollBox.scrollTop = Math.max(0, scrollBox.scrollHeight - scrollBox.clientHeight - prevDist);
@@ -670,7 +670,7 @@ async function sendDraw(prompt, imageUrl) {
   const reply = { role: 'assistant', text: '正在画…', ts: Date.now() };
   cv.messages.push(reply);
   renderThread();
-  scrollBottom(true);
+  if (lastDist < 120) scrollBox.scrollTop = scrollBox.scrollHeight;
   state.controller = new AbortController();
   setBusy(true);
 
@@ -723,7 +723,7 @@ async function sendGif(prompt, imageUrl, frames, dur) {
   const reply = { role: 'assistant', text: '正在生成动图…', ts: Date.now() };
   cv.messages.push(reply);
   renderThread();
-  scrollBottom(true);
+  if (lastDist < 120) scrollBox.scrollTop = scrollBox.scrollHeight;
   setBusy(true);
 
   try {
@@ -765,7 +765,7 @@ async function sendChat(text) {
   const reply = { role: 'assistant', text: '', streaming: true, ts: Date.now() };
   cv.messages.push(reply);
   renderThread();
-  scrollBottom(true);
+  if (lastDist < 120) scrollBox.scrollTop = scrollBox.scrollHeight;
 
   const model = LS.model;
   const effort = LS.effort;
@@ -881,10 +881,12 @@ function scrollBottom(force) {
 
 /* 粘底：默认跟随新内容；用户主动往上滚才解除 */
 let stickBottom = true;
+let lastDist = 0;
 const atBottom = () => scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight < 80;
 
 scrollBox.addEventListener('scroll', () => {
   const d = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight;
+  lastDist = d;
   if (d < 80) stickBottom = true;
   else if (d > 240) stickBottom = false;   // 死区，避免重建瞬间误判
 }, { passive: true });
@@ -893,7 +895,8 @@ scrollBox.addEventListener('touchmove', () => { if (!atBottom()) stickBottom = f
 
 /* 图片/代码块等异步撑高内容时，只要在底部就继续贴底（这是“往上弹”的根因） */
 const threadRO = new ResizeObserver(() => {
-  if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
+  // 用「变化之前」的离底距离判断：当前值已经被新内容撑大了
+  if (lastDist < 120) scrollBox.scrollTop = scrollBox.scrollHeight;
 });
 try { threadRO.observe(thread); } catch {}
 
@@ -1748,7 +1751,7 @@ $('#composer').addEventListener('submit', (e) => {
 
   if (decision.ref) { state.attachments = []; renderAttach(); }
 
-  const repin = () => { if (stickBottom || wasBottom) scrollBox.scrollTop = scrollBox.scrollHeight; };
+  const repin = () => { if (wasBottom) scrollBox.scrollTop = scrollBox.scrollHeight; };
   requestAnimationFrame(repin);
   setTimeout(repin, 80);
 
