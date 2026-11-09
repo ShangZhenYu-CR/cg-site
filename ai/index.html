@@ -97,6 +97,7 @@
   <div class="code-head">
     <div class="tabs" id="codeTabs"></div>
     <div class="code-actions">
+      <button id="codePreview" title="预览 HTML">▶</button>
       <button id="codeNew" title="新建文件">＋</button>
       <button id="codeDownload" title="下载当前文件">⤓</button>
       <button id="codeClose" title="关闭面板">×</button>
@@ -104,6 +105,7 @@
   </div>
   <div class="code-meta"><span id="codeName">—</span><span id="codeStat"></span></div>
   <textarea id="codeArea" spellcheck="false" placeholder="这里会显示 GPT 写出的文件；也可以直接编辑。"></textarea>
+  <iframe id="codeFrame" sandbox="allow-scripts allow-forms allow-modals" hidden title="预览"></iframe>
 </aside>
 
 <input type="file" id="fileInput" accept="image/*" multiple hidden>
