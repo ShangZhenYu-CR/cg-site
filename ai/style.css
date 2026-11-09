@@ -308,3 +308,11 @@ body:not(.noside) #sideToggle{display:none}
 
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:520px){ .two{grid-template-columns:1fr} }
+
+/* 画图参数条 */
+.drawbar{width:min(780px,100%);margin:0 auto 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--faint)}
+.drawbar label{display:flex;align-items:center;gap:4px}
+.drawbar select{background:#10141b;border:1px solid var(--line);border-radius:8px;padding:3px 6px;font-size:12px;color:var(--text);outline:0}
+.drawbar select:focus{border-color:#35507a}
+.bar-more{margin-left:auto;font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.bar-more:hover{color:var(--accent);border-color:var(--accent)}

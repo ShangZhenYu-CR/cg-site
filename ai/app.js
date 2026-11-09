@@ -1551,7 +1551,9 @@ function renderCaps() {
 function setCap(kind, on) {
   if (kind === 'image') {
     state.imageMode = on;
-    input.placeholder = on ? '描述你想生成的画面…' : DEFAULT_PH;
+    input.placeholder = on ? '描述你想生成的画面…（参数在下方选）' : DEFAULT_PH;
+    const bar = $('#drawBar');
+    if (bar) { bar.hidden = !on; if (on) renderDrawBar(); }
   } else if (kind === 'search') {
     state.search = on;
   } else if (kind === 'raw') {
@@ -1574,6 +1576,31 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
     setCap(mode, !capOn(mode));
   });
 });
+
+/* 画图参数条：直接在这里选，不用开弹窗 */
+function renderDrawBar() {
+  const d = LS.draw;
+  $('#barSize').value = d.size;
+  $('#barQuality').value = d.quality;
+  $('#barBg').value = d.bg || '';
+  $('#barN').value = String(d.n || 1);
+  $('#barFormat').value = d.format || 'png';
+}
+
+const BAR_MAP = { barSize: 'size', barQuality: 'quality', barBg: 'bg', barN: 'n', barFormat: 'format' };
+Object.keys(BAR_MAP).forEach((id) => {
+  const elx = $('#' + id);
+  if (!elx) return;
+  elx.addEventListener('change', (e) => {
+    const key = BAR_MAP[id];
+    const d = LS.draw;
+    d[key] = key === 'n' ? Number(e.target.value) : e.target.value;
+    LS.draw = d;
+    input.focus();
+  });
+});
+
+$('#barMore').addEventListener('click', openDrawDialog);
 
 /* 画图设置 */
 function openDrawDialog() {
@@ -1610,6 +1637,7 @@ $('#drawSave').addEventListener('click', () => {
     dur: Number($('#gifDur').value) || 150,
   };
   $('#dlgDraw').hidden = true;
+  renderDrawBar();
 });
 
 $('#composer').addEventListener('submit', (e) => {
