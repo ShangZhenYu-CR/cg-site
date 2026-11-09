@@ -523,7 +523,7 @@ function renderThread() {
   updateCtx();
 
   const restore = () => {
-    if (prevDist < 60) {
+    if (stickBottom || prevDist < 60) {
       scrollBox.scrollTop = scrollBox.scrollHeight;
     } else {
       scrollBox.scrollTop = Math.max(0, scrollBox.scrollHeight - scrollBox.clientHeight - prevDist);
@@ -785,7 +785,7 @@ async function sendChat(text) {
   const paint = () => {
     raf = 0;
     if (host) host.innerHTML = md(acc) + '<span class="cursor"></span>';
-    scrollBottom();
+    if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
@@ -870,6 +870,18 @@ function scrollBottom(force) {
   const near = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight < 200;
   if (force || near) scrollBox.scrollTop = scrollBox.scrollHeight;
 }
+
+/* 粘底：默认跟随新内容；用户主动往上滚才解除 */
+let stickBottom = true;
+const atBottom = () => scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight < 80;
+
+scrollBox.addEventListener('scroll', () => {
+  const d = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight;
+  if (d < 80) stickBottom = true;
+  else if (d > 240) stickBottom = false;   // 死区，避免重建瞬间误判
+}, { passive: true });
+scrollBox.addEventListener('wheel', (e) => { if (e.deltaY < 0) stickBottom = false; }, { passive: true });
+scrollBox.addEventListener('touchmove', () => { if (!atBottom()) stickBottom = false; }, { passive: true });
 
 /* ---------------- 附件 / 上传 ---------------- */
 function renderAttach() {
@@ -1722,7 +1734,7 @@ $('#composer').addEventListener('submit', (e) => {
 
   if (decision.ref) { state.attachments = []; renderAttach(); }
 
-  const repin = () => { if (wasBottom) scrollBox.scrollTop = scrollBox.scrollHeight; };
+  const repin = () => { if (stickBottom || wasBottom) scrollBox.scrollTop = scrollBox.scrollHeight; };
   requestAnimationFrame(repin);
   setTimeout(repin, 80);
 
