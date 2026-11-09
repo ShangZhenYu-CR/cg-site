@@ -53,6 +53,12 @@ const LS = {
   set effort(v) { localStorage.setItem('ai.effort', v); },
   get side() { return localStorage.getItem('ai.side') !== '0'; },
   set side(v) { localStorage.setItem('ai.side', v ? '1' : '0'); },
+  get convCache() {
+    try { return JSON.parse(localStorage.getItem('ai.convs.cache') || 'null'); } catch { return null; }
+  },
+  set convCache(list) {
+    try { localStorage.setItem('ai.convs.cache', JSON.stringify(list)); } catch {}
+  },
 };
 
 const RANK = { user: 1, astra: 2, admin: 3 };
@@ -150,12 +156,18 @@ const base = () => (LS.backend || DEFAULT_BACKEND).replace(/\/+$/, '');
 const fileUrl = (u) => (!u ? '' : (/^https?:\/\//.test(u) ? u : base() + u));
 
 async function api(path, opts = {}) {
-  return fetch(base() + path, {
-    method: opts.method || 'GET',
-    headers: { 'content-type': 'application/json', 'x-token': LS.token },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal,
-  });
+  const ctrl = opts.signal ? null : new AbortController();
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), opts.timeout || 30000) : null;
+  try {
+    return await fetch(base() + path, {
+      method: opts.method || 'GET',
+      headers: { 'content-type': 'application/json', 'x-token': LS.token },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal || (ctrl && ctrl.signal),
+    });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function errText(status, data) {
@@ -215,7 +227,8 @@ function renderIdentity() {
 
 /* ---------------- 数据 ---------------- */
 async function loadProjects() {
-  const r = await api('/projects');
+  let r;
+  try { r = await api('/projects'); } catch { return; }
   if (r.status === 401) { logout(); return; }
   if (!r.ok) return;
   state.projects = (await r.json()).projects || [];
@@ -223,12 +236,20 @@ async function loadProjects() {
 }
 
 async function loadConvs() {
-  const r = await api('/convs');
-  if (r.status === 401) { logout(); return; }
-  if (!r.ok) return;
-  state.convs = (await r.json()).conversations || [];
+  let r;
+  try { r = await api('/convs'); } catch { return false; }   // 超时/断网保留缓存
+  if (r.status === 401) { logout(); return false; }
+  if (!r.ok) return false;
+  const data = await r.json().catch(() => null);
+  if (!data) return false;
+  state.convs = (data.conversations || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   for (const cv of state.convs) if (!Array.isArray(cv.files)) cv.files = [];
-  state.convs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  // 只缓存列表元信息，避免塞满 localStorage
+  LS.convCache = state.convs.map(c => ({
+    id: c.id, title: c.title, updatedAt: c.updatedAt,
+    projectId: c.projectId || null, private: !!c.private, owner: c.owner || '',
+  }));
+  return true;
 }
 
 const current = () => state.convs.find(c => c.id === state.currentId) || null;
@@ -1456,9 +1477,19 @@ document.addEventListener('click', (e) => {
 
 /* ---------------- 启动 ---------------- */
 async function bootData() {
+  // 先用缓存把侧栏点亮（隧道慢时不至于像“历史没了”）
+  const cached = LS.convCache;
+  if (cached && cached.length && !state.convs.length) {
+    state.convs = cached.map(c => ({ ...c, messages: [], files: [] }));
+    state.currentId = state.convs[0].id;
+    renderAll();
+  }
+
   await Promise.all([loadProjects(), loadConvs()]);
   if (!state.convs.length) await createConv();
-  if (!state.currentId) state.currentId = state.convs[0] ? state.convs[0].id : null;
+  if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
+    state.currentId = state.convs[0] ? state.convs[0].id : null;
+  }
   renderAll();
   scrollBottom(true);
   await verify();
