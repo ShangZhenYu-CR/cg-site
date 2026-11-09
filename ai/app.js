@@ -1100,7 +1100,7 @@ $('#cfgSave').addEventListener('click', () => {
 });
 
 /* ---------------- 弹层 / 交互 ---------------- */
-const pops = ['modelPop', 'menuPop', 'userPop', 'plusPop'];
+const pops = ['modelPop', 'menuPop', 'userPop', 'plusPop', 'newPop'];
 function closePops(except) { pops.forEach(id => { if (id !== except) $('#' + id).hidden = true; }); }
 
 $('#modelBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#modelPop'); const h = p.hidden; closePops(); p.hidden = !h; });
@@ -1195,6 +1195,27 @@ input.addEventListener('input', () => {
 });
 
 $('#newChat').addEventListener('click', async () => { await createConv(); renderAll(); closeNav(); input.focus(); });
+
+$('#newMore').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const p = $('#newPop');
+  const h = p.hidden;
+  closePops();
+  p.hidden = !h;
+});
+
+$('#newPrivate2').addEventListener('click', async () => {
+  closePops();
+  await createConv({ private: true });
+  renderAll();
+  closeNav();
+  input.focus();
+});
+
+$('#newProject2').addEventListener('click', () => {
+  closePops();
+  openProjectDialog(null);
+});
 $('#newPrivateBtn').addEventListener('click', async () => { closePops(); await createConv({ private: true }); renderAll(); input.focus(); });
 $('#newProjectBtn').addEventListener('click', () => { closePops(); openProjectDialog(null); });
 $('#insBtn').addEventListener('click', () => { closePops(); openInstructions(); });

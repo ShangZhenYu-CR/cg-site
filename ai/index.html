@@ -12,7 +12,14 @@
 <div id="app">
   <aside id="side">
     <div class="side-head">
-      <button class="new-btn" id="newChat">＋ 新对话</button>
+      <div class="new-split">
+        <button class="new-btn" id="newChat">＋ 新对话</button>
+        <button class="new-caret" id="newMore" title="更多新建方式" aria-label="更多新建方式">▾</button>
+        <div class="pop" id="newPop" hidden>
+          <button class="opt" id="newPrivate2">🔒　私人对话</button>
+          <button class="opt" id="newProject2">📁　新建项目</button>
+        </div>
+      </div>
       <div class="search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
         <input id="q" placeholder="搜索对话">

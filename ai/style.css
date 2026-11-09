@@ -17,7 +17,17 @@ button{cursor:pointer;background:none;border:0}
 /* ---------- 侧栏 ---------- */
 #side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
 .side-head{padding:14px 14px 8px;display:grid;gap:10px}
-.new-btn{display:flex;align-items:center;justify-content:center;gap:8px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);font-weight:600;font-size:14px}
+.new-split{position:relative;display:flex;gap:6px}
+.new-btn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:8px;height:38px;
+  border-radius:10px;border:1px solid var(--line);background:var(--panel2);font-weight:600;font-size:14px;
+}
+.new-caret{
+  flex:0 0 34px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--dim);font-size:11px;
+}
+.new-caret:hover{border-color:#3a4a66;color:var(--accent)}
+#newPop{left:0;top:44px;width:210px}
 .new-btn:hover{border-color:#3a4a66;color:#cfe1ff}
 .search{position:relative}
 .search input{width:100%;height:34px;padding:0 10px 0 30px;border-radius:9px;border:1px solid var(--line);background:#10141b;outline:0;font-size:13px}
