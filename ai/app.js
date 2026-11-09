@@ -619,6 +619,7 @@ function setBusy(b) {
 async function sendDraw(prompt, imageUrl) {
   const cv = current() || await createConv();
   if (!cv) return;
+  prompt = (prompt || '').trim() || (imageUrl ? '在保持主体和构图的前提下生成一张新图' : '一张图');
   if (!cv.messages.length) cv.title = prompt.slice(0, 24);
   cv.messages.push({ role: 'user', text: prompt, who: LS.name, ts: Date.now(), images: imageUrl ? [imageUrl] : undefined });
   const reply = { role: 'assistant', text: '正在画…', ts: Date.now() };
