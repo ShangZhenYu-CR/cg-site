@@ -1704,9 +1704,6 @@ $('#composer').addEventListener('submit', (e) => {
   input.value = '';
   input.style.height = 'auto';
 
-  // 挂着图就走看图对话：生图接口只接受文字提示，带图会被忽略
-  if (state.imageMode && hasAttach) setCap('image', false);
-
   const wantsGif = state.gifMode || /(gif|动图|动画|动起来|会动的图)/i.test(text);
   if (wantsGif) {
     const ref = hasAttach ? state.attachments[0].url : null;
@@ -1719,7 +1716,6 @@ $('#composer').addEventListener('submit', (e) => {
   if (state.imageMode) {
     const ref = hasAttach ? state.attachments[0].url : null;
     if (hasAttach) { state.attachments = []; renderAttach(); }
-    setCap('image', false);
     sendDraw(text, ref);
     return;
   }
