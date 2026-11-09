@@ -600,7 +600,12 @@ async function sendChat(text) {
         model, effort, search: state.search, convId: cv.id, projectId: cv.projectId || null,
         codeMode: state.codeMode,
         fileNames: (cv.files || []).map(f => f.name),
-        messages: sentMessages(cv).map(m => ({ role: m.role, text: m.text, images: m.images })),
+        messages: sentMessages(cv).map(m => ({
+          role: m.role,
+          text: m.text,
+          // 只有用户消息能带图；assistant 的内容只允许 output_text / refusal
+          images: m.role === 'user' ? m.images : undefined,
+        })),
       },
     });
     if (!res.ok) {
