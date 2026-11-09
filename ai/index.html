@@ -100,6 +100,7 @@
         <span class="num" id="ctxNum">0 / 400,000</span>
         <span class="arch" id="ctxArch" hidden></span>
         <span class="spacer"></span>
+        <button type="button" class="handoff-btn" id="btnAbout" title="这个网站能做什么">功能简介</button>
         <button type="button" class="handoff-btn" id="handoffBtn" title="把上文压成交接文档，之后只带文档继续">交接文档</button>
       </div>
     </div>
@@ -213,6 +214,69 @@
       <button class="ghost" style="flex:1" id="cfgCancel">取消</button>
       <button class="primary" style="flex:1" id="cfgSave">保存</button>
     </div>
+  </div>
+</div>
+
+<!-- 功能简介 -->
+<div class="overlay" id="dlgAbout" hidden>
+  <div class="card wide about">
+    <h2>这个网站能做什么</h2>
+    <p>一个自建的 AI 工作台：聊天、看图、出图、联网、写代码，历史存在自己的服务器上。</p>
+
+    <div class="about-grid">
+      <section>
+        <h3>聊天</h3>
+        <ul>
+          <li>多模型切换，推理强度可调（低→最高，按模型上限）</li>
+          <li>流式输出、随时停止、一键复制</li>
+          <li>每条回复标注模型与档位</li>
+        </ul>
+      </section>
+      <section>
+        <h3>图片</h3>
+        <ul>
+          <li>生成图片（gpt-image-2.6）</li>
+          <li>粘贴或上传图片提问，支持多张</li>
+          <li><b>原图</b>开关：跳过压缩，保留细节</li>
+        </ul>
+      </section>
+      <section>
+        <h3>联网</h3>
+        <ul>
+          <li>开启后自动检索网页并给出引用链接</li>
+          <li>适合问时效性内容</li>
+        </ul>
+      </section>
+      <section>
+        <h3>编程模式</h3>
+        <ul>
+          <li>代码写进右侧面板，不刷屏对话</li>
+          <li>多文件标签、直接编辑、下载</li>
+          <li>HTML/SVG 预览，自动内联同会话的 css/js</li>
+        </ul>
+      </section>
+      <section>
+        <h3>对话与项目</h3>
+        <ul>
+          <li>对话共享给所有人；可建 <b>私人对话</b>（仅你和管理员可见）</li>
+          <li><b>项目</b>＝文件夹，带项目指令，对话可拖进去</li>
+          <li>自定义指令：告诉 AI 你的偏好和背景，只对自己生效</li>
+        </ul>
+      </section>
+      <section>
+        <h3>长对话</h3>
+        <ul>
+          <li>底部圆环显示上下文占用（绿/黄/红）</li>
+          <li><b>交接文档</b>：把上文压成摘要，之后只发摘要，旧内容仍可回看</li>
+        </ul>
+      </section>
+    </div>
+
+    <p class="about-note">
+      说明：所有代码与对话都在浏览器和这台服务器之间，不读取你电脑上的文件；
+      图片单张上限 20MB；私人对话管理员可见（用于管理，不用于偷看）。
+    </p>
+    <button class="ghost" style="width:100%;margin-top:12px" id="aboutClose">知道了</button>
   </div>
 </div>
 

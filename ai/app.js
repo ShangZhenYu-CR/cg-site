@@ -958,6 +958,10 @@ $('#codePreview').addEventListener('click', () => {
 
 $('#codeClose').addEventListener('click', () => setCap('code', false));
 
+/* 功能简介 */
+$('#btnAbout').addEventListener('click', () => { $('#dlgAbout').hidden = false; });
+$('#aboutClose').addEventListener('click', () => { $('#dlgAbout').hidden = true; });
+
 
 $('#handoffBtn').addEventListener('click', async () => {
   const cv = current();
