@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const DEFAULT_BACKEND = 'https://chat.coldrain-aichat.com/ai-api';
+const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
   'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.1-terra', 'gpt-6-luna',
@@ -40,7 +40,12 @@ const LS = {
   set name(v) { v ? localStorage.setItem('ai.name', v) : localStorage.removeItem('ai.name'); },
   get role() { return localStorage.getItem('ai.role') || ''; },
   set role(v) { v ? localStorage.setItem('ai.role', v) : localStorage.removeItem('ai.role'); },
-  get backend() { return localStorage.getItem('ai.backend') || DEFAULT_BACKEND; },
+  get backend() {
+    const v = localStorage.getItem('ai.backend');
+    // 旧地址自动迁到新服务器，用户不用手动改
+    if (!v || v === 'https://chat.coldrain-aichat.com/ai-api') return DEFAULT_BACKEND;
+    return v;
+  },
   set backend(v) { v ? localStorage.setItem('ai.backend', v) : localStorage.removeItem('ai.backend'); },
   get models() {
     const raw = localStorage.getItem('ai.models');
