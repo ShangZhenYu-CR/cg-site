@@ -686,19 +686,49 @@ function renderAttach() {
   });
 }
 
+const MAX_IMAGE_MB = 20;
+
+/** 上传前压缩：长边超过 2000px 或文件较大时重编码，显著减小体积 */
+async function shrinkImage(file) {
+  try {
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return file;
+    const bmp = await createImageBitmap(file);
+    const maxEdge = 2000;
+    const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+    const needResize = scale < 1;
+    const needReencode = file.size > 1.2 * 1024 * 1024;
+    if (!needResize && !needReencode) return file;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bmp.width * scale));
+    canvas.height = Math.max(1, Math.round(bmp.height * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+
 async function uploadFile(file) {
   if (!file || !/^image\//.test(file.type)) { alert('只支持图片'); return; }
-  if (file.size > 6 * 1024 * 1024) { alert('图片不能超过 6MB'); return; }
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
+
+  const small = await shrinkImage(file);
+  if (small.size > MAX_IMAGE_MB * 1024 * 1024) { alert('压缩后仍超过 ' + MAX_IMAGE_MB + 'MB'); return; }
+
   const dataUrl = await new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(fr.result);
     fr.onerror = rej;
-    fr.readAsDataURL(file);
+    fr.readAsDataURL(small);
   });
-  const r = await api('/upload', { method: 'POST', body: { b64: dataUrl, mime: file.type } });
+  const r = await api('/upload', { method: 'POST', body: { b64: dataUrl, mime: small.type } });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { alert(errText(r.status, j)); return; }
-  state.attachments.push({ url: j.url, name: file.name });
+  state.attachments.push({ url: j.url, name: small.name });
   renderAttach();
 }
 
