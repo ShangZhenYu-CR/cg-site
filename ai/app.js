@@ -79,6 +79,7 @@ const state = {
   currentId: null,
   streaming: false,
   imageMode: false,
+  gifMode: false,
   search: false,
   rawUpload: false,
   attachments: [],
@@ -1520,6 +1521,7 @@ $('#effRange').addEventListener('input', (e) => {
 const DEFAULT_PH = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
 const CAP_DEFS = [
   { k: 'image', icon: '🖼️', label: '画图' },
+  { k: 'gif', icon: '🎞️', label: '动图' },
   { k: 'code', icon: '🧑‍💻', label: '编程模式' },
   { k: 'search', icon: '🌐', label: '联网搜索' },
   { k: 'raw', icon: '📷', label: '原图' },
@@ -1527,6 +1529,7 @@ const CAP_DEFS = [
 
 function capOn(k) {
   if (k === 'image') return state.imageMode;
+  if (k === 'gif') return state.gifMode;
   if (k === 'code') return state.codeMode;
   if (k === 'search') return state.search;
   if (k === 'raw') return state.rawUpload;
@@ -1545,7 +1548,7 @@ function renderCaps() {
     b.title = c.k === 'image' ? '鼠标移上来调参数，点击关闭' : '点击关闭「' + c.label + '」';
     b.innerHTML = '<span class="ci">' + c.icon + '</span>' + c.label + '<span class="x">×</span>';
     b.addEventListener('click', () => setCap(c.k, false));
-    if (c.k === 'image') {
+    if (c.k === 'image' || c.k === 'gif') {
       b.addEventListener('mouseenter', () => showDrawPanel(b));
       b.addEventListener('mouseleave', hideDrawPanelSoon);
     }
@@ -1558,6 +1561,9 @@ function setCap(kind, on) {
   if (kind === 'image') {
     state.imageMode = on;
     input.placeholder = on ? '描述你想生成的画面…（鼠标移到「画图」标签上可调参数）' : DEFAULT_PH;
+  } else if (kind === 'gif') {
+    state.gifMode = on;
+    input.placeholder = on ? '描述动作（挂着图就是让这张图动起来）…' : DEFAULT_PH;
   } else if (kind === 'search') {
     state.search = on;
   } else if (kind === 'raw') {
@@ -1701,7 +1707,7 @@ $('#composer').addEventListener('submit', (e) => {
   // 挂着图就走看图对话：生图接口只接受文字提示，带图会被忽略
   if (state.imageMode && hasAttach) setCap('image', false);
 
-  const wantsGif = /(gif|动图|动画|动起来|会动的图)/i.test(text);
+  const wantsGif = state.gifMode || /(gif|动图|动画|动起来|会动的图)/i.test(text);
   if (wantsGif) {
     const ref = hasAttach ? state.attachments[0].url : null;
     if (hasAttach) { state.attachments = []; renderAttach(); }
