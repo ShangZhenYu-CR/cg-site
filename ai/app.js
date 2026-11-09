@@ -17,6 +17,7 @@ const RECOMMENDED = [
   'gpt-5.6-terra',
   'gpt-5.6-luna',
 ];
+const DEFAULT_MODEL = 'gpt-6.1-terra';   // 新建对话默认用 Terra
 const DEFAULT_MODELS = RECOMMENDED.slice();
 
 function labelOf(id) {
@@ -63,8 +64,8 @@ const LS = {
     return raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : DEFAULT_MODELS.slice();
   },
   set models(v) { v && v.length ? localStorage.setItem('ai.models', v.join(',')) : localStorage.removeItem('ai.models'); },
-  get model() { return localStorage.getItem('ai.model') || RECOMMENDED[0]; },
-  set model(v) { localStorage.setItem('ai.model', v); },
+  get model() { return localStorage.getItem('ai.model') || DEFAULT_MODEL; },
+  set model(v) { v ? localStorage.setItem('ai.model', v) : localStorage.removeItem('ai.model'); },
   get effort() { return localStorage.getItem('ai.effort') || 'medium'; },
   set effort(v) { localStorage.setItem('ai.effort', v); },
 };
@@ -437,7 +438,9 @@ function renderModels() {
     sel.append(g);
   }
 
-  if (!models.includes(LS.model) && models.length) LS.model = rec[0] || models[0];
+  if (!models.includes(LS.model) && models.length) {
+    LS.model = models.includes(DEFAULT_MODEL) ? DEFAULT_MODEL : (rec[0] || models[0]);
+  }
   sel.value = LS.model;
   renderEffort();
 }
@@ -823,6 +826,12 @@ $('#menuBtn').addEventListener('click', () => document.body.classList.toggle('na
 $('#newChat').addEventListener('click', async () => {
   if (state.streaming) return;
   await createConv();
+  // 新对话回到默认模型（Terra）
+  const models = visibleModels();
+  if (models.includes(DEFAULT_MODEL)) {
+    LS.model = DEFAULT_MODEL;
+    renderModels();
+  }
   renderAll();
   closeNav();
   input.focus();
