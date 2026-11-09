@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>AI 助手 · 大肥鱼的小站</title>
+<meta name="description" content="聊天咨询与图片生成">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+  <!-- 侧栏：会话 -->
+  <aside id="sidebar">
+    <div id="side-top">
+      <button id="newChat">＋ 新对话</button>
+    </div>
+    <nav id="convList" aria-label="历史对话"></nav>
+    <div id="side-bottom">
+      <div class="row">
+        <button id="btnPass">修改口令</button>
+        <button id="btnCfg">接口设置</button>
+      </div>
+      <div id="whoAmI" class="row" style="color:var(--faint);font-size:12px">未验证口令</div>
+    </div>
+  </aside>
+
+  <!-- 主区 -->
+  <main id="main">
+    <header id="topbar">
+      <button id="menuBtn" aria-label="菜单">☰</button>
+      <select id="model" aria-label="模型"></select>
+      <div class="spacer"></div>
+      <button id="gear" title="设置">⚙</button>
+    </header>
+
+    <div id="scroll">
+      <div id="empty">
+        <h1>今天想聊点什么？</h1>
+        <p>可以问问题、写东西、看代码；点左边 🎨 也能直接生成图片。</p>
+        <div class="chips">
+          <button data-p="帮我把这段需求拆成可执行的任务清单">拆解需求</button>
+          <button data-p="用通俗的话解释一下注意力机制是什么">解释概念</button>
+          <button data-p="写一段 Python 脚本，扫描目录下所有超过 100MB 的文件">写脚本</button>
+          <button data-p="画一只在雨里打伞的橘猫，赛博朋克霓虹夜景" data-img="1">生成一张图</button>
+        </div>
+      </div>
+      <div id="thread" role="log" aria-live="polite"></div>
+    </div>
+
+    <div id="composer-wrap">
+      <form id="composer">
+        <button type="button" class="ic" id="imgToggle" title="图片模式：开启后发的提示词会去生成图片">🎨</button>
+        <textarea id="input" rows="1" placeholder="发消息…（Enter 发送，Shift+Enter 换行）" autocomplete="off"></textarea>
+        <button type="submit" id="sendBtn" title="发送">↑</button>
+      </form>
+      <div id="hint">内容由 AI 生成，注意甄别。对话只存在你自己的浏览器里。</div>
+    </div>
+  </main>
+</div>
+
+<!-- 口令 -->
+<dialog id="dlgPass">
+  <form method="dialog" class="dlg" id="passForm">
+    <h2>输入访问口令</h2>
+    <p>这个页面只对拿到口令的人开放。口令只保存在本机浏览器。</p>
+    <label>口令
+      <input type="password" id="passInput" autocomplete="current-password" placeholder="和站长要">
+    </label>
+    <div class="msg-err" id="passErr"></div>
+    <div class="actions">
+      <button value="cancel" type="submit">取消</button>
+      <button value="ok" type="submit" class="primary" id="passOk">进入</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 设置 -->
+<dialog id="dlgCfg">
+  <form method="dialog" class="dlg">
+    <h2>接口设置</h2>
+    <p>一般不用改。只有后端换了地址才需要动这里。</p>
+    <label>后端地址
+      <input type="url" id="cfgBackend" placeholder="https://ai.example.workers.dev">
+    </label>
+    <label>模型
+      <input type="text" id="cfgModels" placeholder="用英文逗号分隔，例如 gpt-5,gpt-4o">
+    </label>
+    <div class="actions">
+      <button value="cancel" type="submit">取消</button>
+      <button value="ok" type="submit" class="primary" id="cfgOk">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js" type="module"></script>
+</body>
+</html>
