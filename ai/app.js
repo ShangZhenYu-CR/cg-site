@@ -639,6 +639,20 @@ function setBusy(b) {
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5 12 7-7 7 7"/></svg>';
 }
 
+/* 一闪而过的提示，贴在输入框上方 */
+let flashTimer = null;
+function flashHint(msg) {
+  let h = $('#flashHint');
+  if (!h) {
+    h = el('div', 'up-hint');
+    h.id = 'flashHint';
+    $('#attach').append(h);
+  }
+  h.textContent = msg;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => h.remove(), 2800);
+}
+
 /** GIF：官方 output_format=gif，帧数 2–16 */
 /** 画图 / 改图（带附件就是改图） */
 async function sendDraw(prompt, imageUrl) {
@@ -651,6 +665,7 @@ async function sendDraw(prompt, imageUrl) {
   cv.messages.push(reply);
   renderThread();
   scrollBottom(true);
+  state.controller = new AbortController();
   setBusy(true);
 
   const d = LS.draw;
@@ -658,6 +673,7 @@ async function sendDraw(prompt, imageUrl) {
     const res = await api('/draw', {
       method: 'POST',
       timeout: 300000,
+      signal: state.controller.signal,
       body: {
         prompt,
         image: imageUrl || undefined,
@@ -683,12 +699,13 @@ async function sendDraw(prompt, imageUrl) {
     delete reply.err;
   } catch (e) {
     reply.err = true;
-    reply.text = (e && e.message) || '生成失败';
+    reply.text = (e && e.name === 'AbortError') ? '（已取消）' : ((e && e.message) || '生成失败');
   } finally {
+    state.controller = null;
     await saveConv(cv);
     setBusy(false);
     renderAll();
-    scrollBottom(true);
+    scrollBottom();
   }
 }
 
@@ -718,12 +735,13 @@ async function sendGif(prompt, imageUrl, frames, dur) {
     delete reply.err;
   } catch (e) {
     reply.err = true;
-    reply.text = (e && e.message) || '生成失败';
+    reply.text = (e && e.name === 'AbortError') ? '（已取消）' : ((e && e.message) || '生成失败');
   } finally {
+    state.controller = null;
     await saveConv(cv);
     setBusy(false);
     renderAll();
-    scrollBottom(true);
+    scrollBottom();
   }
 }
 
@@ -1671,7 +1689,12 @@ function decideRoute({ text, hasAttach, attachUrl, gifMode, imageMode }) {
 
 $('#composer').addEventListener('submit', (e) => {
   e.preventDefault();
-  if (state.streaming) { state.controller && state.controller.abort(); return; }
+  if (state.streaming) {
+    if (state.controller) { state.controller.abort(); return; }
+    // 出图/动图没有可中断的流，直接提示，别把输入吞掉
+    flashHint('正在生成，稍等下再发；想取消等它结束');
+    return;
+  }
 
   const text = input.value.trim();
   const hasAttach = state.attachments.length > 0;
