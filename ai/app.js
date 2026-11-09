@@ -891,6 +891,12 @@ scrollBox.addEventListener('scroll', () => {
 scrollBox.addEventListener('wheel', (e) => { if (e.deltaY < 0) stickBottom = false; }, { passive: true });
 scrollBox.addEventListener('touchmove', () => { if (!atBottom()) stickBottom = false; }, { passive: true });
 
+/* 图片/代码块等异步撑高内容时，只要在底部就继续贴底（这是“往上弹”的根因） */
+const threadRO = new ResizeObserver(() => {
+  if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
+});
+try { threadRO.observe(thread); } catch {}
+
 /* ---------------- 附件 / 上传 ---------------- */
 function renderAttach() {
   const box = $('#attach');
