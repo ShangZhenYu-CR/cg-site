@@ -642,6 +642,8 @@ async function sendDraw(prompt, imageUrl) {
         format: d.format || 'png',
         compression: d.compression,
         n: d.n || 1,
+        frames: d.frames,
+        duration: d.dur,
       },
     });
     const data = await res.json().catch(() => ({}));
