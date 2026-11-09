@@ -776,6 +776,10 @@ async function sendChat(text) {
   const node = thread.lastElementChild;
   const body = node && node.querySelector('.bd');
   const host = body ? body.querySelector('div') : null;
+  // 流式期间只更新一个纯文本节点 + 光标，避免整块 innerHTML 重建导致高度抖动
+  const textNode = document.createTextNode('');
+  const caret = el('span', 'cursor');
+  if (host) { host.textContent = ''; host.append(textNode, caret); }
 
   setBusy(true);
   state.controller = new AbortController();
@@ -784,7 +788,7 @@ async function sendChat(text) {
   let raf = 0;
   const paint = () => {
     raf = 0;
-    if (host) host.innerHTML = md(acc) + '<span class="cursor"></span>';
+    textNode.nodeValue = acc;
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
@@ -846,6 +850,10 @@ async function sendChat(text) {
     reply.text = acc;
     delete reply.streaming;
 
+    // 结束后一次性渲染 Markdown（流式期间只有纯文本）
+    if (host) host.innerHTML = md(reply.text || '');
+    if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
+
     const parsed = extractFiles(reply.text || '');
     if (parsed.files.length) {
       applyFiles(cv, parsed.files);
@@ -862,7 +870,7 @@ async function sendChat(text) {
     await saveConv(cv);
     setBusy(false);
     renderAll();
-    scrollBottom(true);
+    if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   }
 }
 
