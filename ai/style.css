@@ -161,6 +161,10 @@ button{cursor:pointer;background:none;border:0}
 .attach .chip img{width:42px;height:42px;object-fit:cover;border-radius:6px;display:block}
 .attach .chip button{color:var(--faint);font-size:12px;padding:0 3px}
 .attach .chip button:hover{color:var(--danger)}
+.up-hint{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--faint);
+  border:1px dashed var(--line);border-radius:10px;padding:8px 12px;background:var(--panel);
+}
 .composer{width:min(780px,100%);margin:0 auto;display:flex;align-items:flex-end;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:8px 8px 8px 10px;position:relative}
 .composer:focus-within{border-color:#35507a}
 .composer textarea{flex:1;resize:none;border:0;outline:0;background:none;padding:8px 4px;max-height:170px;min-height:24px;line-height:1.6}

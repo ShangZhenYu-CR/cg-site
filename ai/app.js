@@ -725,21 +725,31 @@ async function uploadFile(file) {
   if (!file || !/^image\//.test(file.type)) { alert('只支持图片'); return; }
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
-  // 「原图」开着就跳过压缩，保真优先（体积仍受 20MB 限制）
-  const small = state.rawUpload ? file : await shrinkImage(file);
-  if (small.size > MAX_IMAGE_MB * 1024 * 1024) { alert('压缩后仍超过 ' + MAX_IMAGE_MB + 'MB'); return; }
+  const box = $('#attach');
+  const hint = el('div', 'up-hint', '上传中… ' + (file.name || ''));
+  box.append(hint);
 
-  const dataUrl = await new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onload = () => res(fr.result);
-    fr.onerror = rej;
-    fr.readAsDataURL(small);
-  });
-  const r = await api('/upload', { method: 'POST', body: { b64: dataUrl, mime: small.type } });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) { alert(errText(r.status, j)); return; }
-  state.attachments.push({ url: j.url, name: small.name });
-  renderAttach();
+  try {
+    // 「原图」开着就跳过压缩，保真优先（体积仍受 20MB 限制）
+    const small = state.rawUpload ? file : await shrinkImage(file);
+    if (small.size > MAX_IMAGE_MB * 1024 * 1024) { alert('压缩后仍超过 ' + MAX_IMAGE_MB + 'MB'); return; }
+
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = rej;
+      fr.readAsDataURL(small);
+    });
+    const r = await api('/upload', { method: 'POST', body: { b64: dataUrl, mime: small.type } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(errText(r.status, j)); return; }
+    state.attachments.push({ url: j.url, name: small.name });
+  } catch (err) {
+    alert('上传失败：' + ((err && err.message) || err));
+  } finally {
+    hint.remove();
+    renderAttach();
+  }
 }
 
 $('#fileInput').addEventListener('change', async (e) => {
@@ -747,12 +757,42 @@ $('#fileInput').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-input.addEventListener('paste', async (e) => {
-  const items = [...(e.clipboardData ? e.clipboardData.items : [])];
-  const files = items.filter(i => i.kind === 'file' && /^image\//.test(i.type)).map(i => i.getAsFile()).filter(Boolean);
+/* 粘贴图片：监听整页，不要求焦点在输入框 */
+function pickImageFiles(dt) {
+  if (!dt) return [];
+  const out = [];
+  if (dt.files && dt.files.length) {
+    for (const f of dt.files) if (/^image\//.test(f.type)) out.push(f);
+  }
+  if (!out.length && dt.items) {
+    for (const it of dt.items) {
+      if (it.kind === 'file' && /^image\//.test(it.type)) {
+        const f = it.getAsFile();
+        if (f) out.push(f);
+      }
+    }
+  }
+  return out;
+}
+
+document.addEventListener('paste', (e) => {
+  if (!LS.token) return;
+  const files = pickImageFiles(e.clipboardData);
   if (!files.length) return;
   e.preventDefault();
-  for (const f of files) await uploadFile(f);
+  for (const f of files) uploadFile(f);
+}, true);
+
+/* 拖图进输入区也能上传 */
+['dragover', 'drop'].forEach((evt) => {
+  $('#composer').addEventListener(evt, (e) => {
+    if (!e.dataTransfer) return;
+    e.preventDefault();
+    if (evt === 'drop') {
+      const files = pickImageFiles(e.dataTransfer);
+      for (const f of files) uploadFile(f);
+    }
+  });
 });
 
 /* ---------------- 代码面板 ---------------- */
