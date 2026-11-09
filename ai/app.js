@@ -14,15 +14,40 @@
  */
 
 const DEFAULT_BACKEND = 'https://chat.coldrain-aichat.com/ai-api';
-const RECOMMENDED = ['gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna'];
+
+/* 推荐模型集：照 ChatGPT 的排序（6.1 Sol → 6 Astra → 6.1 Terra → 6 Sol → 6 Luna → 5.6 三个） */
+const RECOMMENDED = [
+  'gpt-6.1-sol',
+  'gpt-6-astra',
+  'gpt-6.1-terra',
+  'gpt-6-sol',
+  'gpt-6-luna',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+];
 const DEFAULT_MODELS = RECOMMENDED.slice();
 
-/* 思考强度：按模型家族限制上限 */
+/* 模型 id → 展示名 */
+function labelOf(id) {
+  return String(id)
+    .replace(/^gpt-/, 'GPT-')
+    .replace(/-sol$/, ' Sol')
+    .replace(/-terra$/, ' Terra')
+    .replace(/-luna$/, ' Luna')
+    .replace(/-astra$/, ' Astra')
+    .replace(/-pro$/, ' Pro')
+    .replace(/-mini$/, ' Mini')
+    .replace(/-nano$/, ' Nano');
+}
+
+/* 推理强度：按模型家族限制上限 */
 const EFFORT_ORDER = ['minimal', 'low', 'medium', 'high', 'max'];
 const EFFORT_CAP = [
   { test: /sol/i, max: 'medium' },
   { test: /terra/i, max: 'high' },
   { test: /luna/i, max: 'max' },
+  { test: /astra/i, max: 'max' },
 ];
 const EFFORT_LABEL = { minimal: '极低', low: '低', medium: '中', high: '高', max: '最高' };
 
@@ -327,15 +352,15 @@ function renderModels() {
   const rec = RECOMMENDED.filter(m => models.includes(m));
   if (rec.length) {
     const g = el('optgroup');
-    g.label = '推荐';
-    for (const m of rec) { const o = el('option', null, m); o.value = m; g.append(o); }
+    g.label = '推荐模型集';
+    for (const m of rec) { const o = el('option', null, labelOf(m)); o.value = m; g.append(o); }
     sel.append(g);
   }
   const rest = models.filter(m => !rec.includes(m));
   if (rest.length) {
     const g = el('optgroup');
     g.label = '全部模型';
-    for (const m of rest) { const o = el('option', null, m); o.value = m; g.append(o); }
+    for (const m of rest) { const o = el('option', null, labelOf(m)); o.value = m; g.append(o); }
     sel.append(g);
   }
   if (!models.includes(LS.model) && models.length) LS.model = rec[0] || models[0];
@@ -343,18 +368,43 @@ function renderModels() {
   renderEffort();
 }
 
+/* 推理强度：chip + 滑块（档位数量随模型上限变化） */
 function renderEffort() {
-  const sel = $('#effort');
   const list = effortsFor($('#model').value || LS.model);
-  const cur = LS.effort;
-  sel.textContent = '';
-  for (const e of list) {
-    const o = el('option', null, EFFORT_LABEL[e] || e);
-    o.value = e;
-    sel.append(o);
-  }
-  sel.value = list.includes(cur) ? cur : (list.includes('medium') ? 'medium' : list[list.length - 1]);
-  LS.effort = sel.value;
+  const range = $('#effortRange');
+  const ticks = $('#effortTicks');
+  const note = $('#effortNote');
+
+  range.min = '0';
+  range.max = String(Math.max(0, list.length - 1));
+  range.step = '1';
+
+  let idx = list.indexOf(LS.effort);
+  if (idx < 0) idx = Math.min(list.length - 1, list.indexOf('medium') >= 0 ? list.indexOf('medium') : 0);
+  LS.effort = list[idx];
+  range.value = String(idx);
+
+  ticks.textContent = '';
+  list.forEach((e, i) => {
+    const b = el('button', 'tick' + (i === idx ? ' on' : ''), EFFORT_LABEL[e] || e);
+    b.type = 'button';
+    b.addEventListener('click', () => { setEffort(i); });
+    ticks.append(b);
+  });
+
+  $('#effortLabel').textContent = EFFORT_LABEL[LS.effort] || LS.effort;
+  note.textContent = list.length >= 4
+    ? '这个模型支持到「' + (EFFORT_LABEL[list[list.length - 1]] || '') + '」，档位越高越慢、越贵。'
+    : '这个模型最多到「' + (EFFORT_LABEL[list[list.length - 1]] || '') + '」。';
+}
+
+function setEffort(i) {
+  const list = effortsFor($('#model').value || LS.model);
+  const v = list[Math.max(0, Math.min(list.length - 1, i))];
+  LS.effort = v;
+  $('#effortRange').value = String(list.indexOf(v));
+  $('#effortLabel').textContent = EFFORT_LABEL[v] || v;
+  [...$('#effortTicks').children].forEach((b, k) => b.classList.toggle('on', k === list.indexOf(v)));
 }
 
 /* ---------------- 聊天 ---------------- */
@@ -371,7 +421,7 @@ async function sendChat(text) {
   scrollToBottom(true);
 
   const model = $('#model').value || LS.model;
-  const effort = $('#effort').value || LS.effort;
+  const effort = LS.effort;
   reply.meta = model + ' · ' + (EFFORT_LABEL[effort] || effort);
 
   const node = thread.lastElementChild;
@@ -649,7 +699,30 @@ $('#model').addEventListener('change', (e) => {
   input.focus();
 });
 
-$('#effort').addEventListener('change', (e) => { LS.effort = e.target.value; });
+$('#effortChip').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const pop = $('#effortPop');
+  const open = pop.hidden;
+  pop.hidden = !open;
+  $('#effortChip').setAttribute('aria-expanded', String(open));
+});
+
+$('#effortRange').addEventListener('input', (e) => setEffort(Number(e.target.value)));
+
+document.addEventListener('click', (e) => {
+  const pop = $('#effortPop');
+  if (pop.hidden) return;
+  if (pop.contains(e.target) || $('#effortChip').contains(e.target)) return;
+  pop.hidden = true;
+  $('#effortChip').setAttribute('aria-expanded', 'false');
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#effortPop').hidden) {
+    $('#effortPop').hidden = true;
+    $('#effortChip').setAttribute('aria-expanded', 'false');
+  }
+});
 
 $('#gear').addEventListener('click', () => $('#btnCfg').click());
 
