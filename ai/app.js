@@ -1714,10 +1714,17 @@ $('#composer').addEventListener('submit', (e) => {
     imageMode: state.imageMode,
   });
 
+  // 发送前记录：原本是否贴在底部（决定发送后要不要继续贴底）
+  const wasBottom = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight < 80;
+
   input.value = '';
   input.style.height = 'auto';
 
   if (decision.ref) { state.attachments = []; renderAttach(); }
+
+  const repin = () => { if (wasBottom) scrollBox.scrollTop = scrollBox.scrollHeight; };
+  requestAnimationFrame(repin);
+  setTimeout(repin, 80);
 
   if (decision.route === 'gif') {
     const d = LS.draw;
