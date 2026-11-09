@@ -1265,11 +1265,31 @@ function applySide() {
   const b = $('#sideToggle');
   b.textContent = open ? '«' : '»';
   b.title = open ? '收起侧栏' : '展开侧栏';
+
+  const narrow = window.matchMedia('(max-width:820px)').matches;
+  const c = $('#sideCollapse');
+  if (c) {
+    c.textContent = narrow ? '×' : '«';
+    c.title = narrow ? '关闭侧栏' : '收起侧栏';
+  }
 }
 
 $('#sideToggle').addEventListener('click', () => {
-  LS.side = !LS.side;
+  LS.side = true;
   applySide();
+});
+
+/* 侧栏内的收起按钮：窄屏关抽屉，宽屏收起整列 */
+$('#sideCollapse').addEventListener('click', () => {
+  if (window.matchMedia('(max-width:820px)').matches) closeNav();
+  else { LS.side = false; applySide(); }
+});
+
+/* 窄屏点空白处关抽屉 */
+document.addEventListener('click', (e) => {
+  if (!document.body.classList.contains('nav')) return;
+  if (e.target.closest && (e.target.closest('#side') || e.target.closest('#burger'))) return;
+  closeNav();
 });
 
 /* ---------------- 启动 ---------------- */

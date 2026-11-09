@@ -251,8 +251,18 @@ body.coding #main{margin-right:min(600px,46vw)}
 /* 侧栏收起 */
 body.noside #app{grid-template-columns:0 1fr}
 body.noside #side{display:none}
+.search-row{display:flex;gap:6px;align-items:center}
+.search-row .search{flex:1;min-width:0}
+.side-collapse{
+  flex:0 0 34px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--faint);font-size:14px;line-height:1;
+}
+.side-collapse:hover{border-color:#3a4a66;color:var(--accent)}
+/* 顶栏的展开按钮只在侧栏收起时出现 */
 .side-toggle{font-size:14px;color:var(--faint)}
 .side-toggle:hover{color:var(--accent)}
+body:not(.noside) #sideToggle{display:none}
+
 @media (max-width:820px){ .side-toggle{display:none} }
 
 @media (max-width:820px){
