@@ -691,7 +691,7 @@ function renderAttach() {
 
 const MAX_IMAGE_MB = 20;
 
-/** 上传前压缩：长边 1600px；压完还大就再来一轮 1280px / q0.8 */
+/** 上传前压缩：按体积分级降分辨率，目标 ≤400KB（跨境链路下行很慢） */
 async function shrinkImage(file) {
   try {
     if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return file;
@@ -705,7 +705,7 @@ async function shrinkImage(file) {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
 
-      const keepPng = keepPngOk && /png/i.test(file.type) && file.size < 2 * 1024 * 1024;
+      const keepPng = keepPngOk && /png/i.test(file.type) && file.size < 1024 * 1024;
       const type = keepPng ? 'image/png' : 'image/jpeg';
       const blob = await new Promise(r => canvas.toBlob(r, type, quality));
       if (!blob) return null;
@@ -713,21 +713,60 @@ async function shrinkImage(file) {
       return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + ext, { type });
     };
 
-    const need = file.size > 800 * 1024 || true; // 总是走一次，顺带统一长边
-    if (!need) return file;
-
     let out = await encode(1600, 0.88, true);
     if (!out || out.size >= file.size) out = file;
 
-    // 还是太大就再压一轮（目标是几百 KB，隧道上行慢）
-    if (out.size > 900 * 1024) {
-      const second = await encode(1280, 0.8, false);
-      if (second && second.size < out.size) out = second;
+    const tiers = [
+      [1280, 0.8, 400 * 1024],
+      [1024, 0.72, 250 * 1024],
+    ];
+    for (const [edge, q, ceiling] of tiers) {
+      if (out.size <= ceiling) break;
+      const next = await encode(edge, q, false);
+      if (next && next.size < out.size) out = next;
     }
     return out;
   } catch {
     return file;
   }
+}
+
+/** 分片并行上传：4 条连接同时发，绕开单连接的拥塞窗口限制 */
+async function uploadChunked(dataUrl, mime, onProgress) {
+  const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const N = b64.length > 700 * 1024 ? 4 : b64.length > 250 * 1024 ? 2 : 1;
+
+  if (N === 1) {
+    const r = await uploadWithProgress(dataUrl, mime, onProgress);
+    return { status: r.status, ok: r.ok, j: r.j };
+  }
+
+  const init = await api('/upload/init', { method: 'POST', body: { mime } });
+  const ij = await init.json().catch(() => ({}));
+  if (!init.ok) return { status: init.status, ok: false, j: ij };
+
+  const chunk = Math.ceil(b64.length / N);
+  const parts = Array.from({ length: N }, (_, i) => b64.slice(i * chunk, (i + 1) * chunk));
+  const prog = new Array(N).fill(0);
+  const tick = () => onProgress(prog.reduce((a, b) => a + b, 0) / N);
+
+  await Promise.all(parts.map((part, i) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', base() + '/upload/part');
+    xhr.setRequestHeader('content-type', 'application/json');
+    xhr.setRequestHeader('x-token', LS.token);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) { prog[i] = e.loaded / e.total; tick(); }
+    };
+    xhr.onload = () => { prog[i] = 1; tick(); resolve(); };
+    xhr.onerror = () => reject(new Error('分片 ' + (i + 1) + ' 上传失败'));
+    xhr.timeout = 180000;
+    xhr.send(JSON.stringify({ id: ij.id, index: i, b64: part }));
+  })));
+
+  const fin = await api('/upload/finish', { method: 'POST', body: { id: ij.id } });
+  const fj = await fin.json().catch(() => ({}));
+  return { status: fin.status, ok: fin.ok, j: fj };
 }
 
 /** 带进度的上传（fetch 拿不到上传进度，用 XHR） */
@@ -774,7 +813,7 @@ async function uploadFile(file) {
       fr.readAsDataURL(small);
     });
 
-    const { status, ok, j } = await uploadWithProgress(dataUrl, small.type, (p) => {
+    const { status, ok, j } = await uploadChunked(dataUrl, small.type, (p) => {
       hint.textContent = '上传中 ' + Math.round(p * 100) + '% · ' + kb + 'KB';
     });
     if (!ok) { alert(errText(status, j)); return; }
