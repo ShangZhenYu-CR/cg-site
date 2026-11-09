@@ -688,15 +688,15 @@ function renderAttach() {
 
 const MAX_IMAGE_MB = 20;
 
-/** 上传前压缩：长边超过 2000px 或文件较大时重编码，显著减小体积 */
+/** 上传前压缩：长边最多 1600px，较大文件统一重编码，目标几百 KB */
 async function shrinkImage(file) {
   try {
     if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return file;
     const bmp = await createImageBitmap(file);
-    const maxEdge = 2000;
+    const maxEdge = 1600;
     const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
     const needResize = scale < 1;
-    const needReencode = file.size > 1.2 * 1024 * 1024;
+    const needReencode = file.size > 800 * 1024;
     if (!needResize && !needReencode) return file;
 
     const canvas = document.createElement('canvas');
@@ -704,9 +704,15 @@ async function shrinkImage(file) {
     canvas.height = Math.max(1, Math.round(bmp.height * scale));
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
+
+    // PNG 且有透明通道时保留缩放后的 PNG，其余走 JPEG
+    const keepPng = /png/i.test(file.type) && file.size < 2 * 1024 * 1024;
+    const type = keepPng ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise(r => canvas.toBlob(r, type, 0.88));
     if (!blob || blob.size >= file.size) return file;
-    return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+
+    const ext = keepPng ? '.png' : '.jpg';
+    return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + ext, { type });
   } catch {
     return file;
   }
@@ -817,6 +823,11 @@ function renderCode() {
   }
   const lines = (f.content || '').split('\n').length;
   $('#codeStat').textContent = lines + ' 行 · ' + (f.content || '').length + ' 字符';
+
+  if (!$('#codeFrame').hidden) {
+    if (canPreview(f)) renderPreview();
+    else closePreview();
+  }
 }
 
 let codeSaveTimer = null;
@@ -836,6 +847,10 @@ $('#codeArea').addEventListener('input', () => {
   cv.files[state.fileIdx].updatedAt = Date.now();
   const f = cv.files[state.fileIdx];
   $('#codeStat').textContent = f.content.split('\n').length + ' 行 · ' + f.content.length + ' 字符';
+  if (!$('#codeFrame').hidden) {
+    clearTimeout(window.__pvTimer);
+    window.__pvTimer = setTimeout(renderPreview, 500);
+  }
   scheduleCodeSave();
 });
 
@@ -873,6 +888,40 @@ $('#codeDownload').addEventListener('click', () => {
   a.download = f.name.split('/').pop();
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+});
+
+/* ---- HTML / SVG 预览（sandbox iframe） ---- */
+function canPreview(f) { return !!f && /\.(html?|svg)$/i.test(f.name); }
+
+function renderPreview() {
+  const frame = $('#codeFrame');
+  if (frame.hidden) return;
+  const cv = current();
+  const f = cv && cv.files && cv.files[state.fileIdx];
+  if (!f) return;
+  frame.srcdoc = /\.svg$/i.test(f.name)
+    ? '<!doctype html><html><body style="margin:0;display:grid;place-items:center;min-height:100vh">' + f.content + '</body></html>'
+    : f.content;
+}
+
+function closePreview() {
+  $('#codeFrame').hidden = true;
+  $('#codeArea').hidden = false;
+  $('#codePreview').classList.remove('on');
+}
+
+$('#codePreview').addEventListener('click', () => {
+  const cv = current();
+  const f = cv && cv.files && cv.files[state.fileIdx];
+  if (!f) return;
+  if (!canPreview(f)) { alert('只有 .html / .svg 能预览'); return; }
+  const frame = $('#codeFrame');
+  const open = frame.hidden;
+  frame.hidden = !open;
+  $('#codeArea').hidden = open;
+  $('#codePreview').classList.toggle('on', open);
+  if (open) renderPreview();
+  else closePreview();
 });
 
 $('#codeClose').addEventListener('click', closeCodePane);
