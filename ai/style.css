@@ -142,6 +142,8 @@ button{cursor:pointer;background:none;border:0}
 .cap.on{border-color:var(--accent);color:#cfe1ff;background:rgba(110,168,254,.12)}
 .cap.on .ci{opacity:1;filter:none}
 .cap.on::after{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:1px}
+.cap .x{margin-left:2px;font-size:12px;opacity:.55}
+.cap:hover .x{opacity:.9}
 
 .composer-wrap{padding:8px 20px 14px;background:linear-gradient(to top,var(--bg) 60%,transparent)}
 .attach{width:min(780px,100%);margin:0 auto 6px;display:flex;gap:8px;flex-wrap:wrap}

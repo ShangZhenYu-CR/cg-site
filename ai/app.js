@@ -1113,20 +1113,38 @@ $('#effRange').addEventListener('input', (e) => {
   renderEffort();
 });
 
-/* ---- 能力开关（输入框上方） ---- */
+/* ---- 能力开关：默认不显示，开了才浮在输入框上方 ---- */
 const DEFAULT_PH = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
+const CAP_DEFS = [
+  { k: 'image', icon: '🖼️', label: '生成图片' },
+  { k: 'code', icon: '🧑‍💻', label: '编程模式' },
+  { k: 'search', icon: '🌐', label: '联网搜索' },
+  { k: 'raw', icon: '📷', label: '原图' },
+];
+
+function capOn(k) {
+  if (k === 'image') return state.imageMode;
+  if (k === 'code') return state.codeMode;
+  if (k === 'search') return state.search;
+  if (k === 'raw') return state.rawUpload;
+  return false;
+}
 
 function renderCaps() {
-  document.querySelectorAll('.cap').forEach(b => {
-    const k = b.dataset.cap;
-    const on = k === 'image' ? state.imageMode
-      : k === 'code' ? state.codeMode
-      : k === 'raw' ? state.rawUpload
-      : state.search;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', String(on));
-  });
-  $('#plusBtn').classList.toggle('on', state.imageMode || state.search || state.codeMode || state.rawUpload);
+  const box = $('#caps');
+  const active = CAP_DEFS.filter(c => capOn(c.k));
+  box.textContent = '';
+  box.hidden = active.length === 0;
+
+  for (const c of active) {
+    const b = el('button', 'cap on');
+    b.type = 'button';
+    b.title = '点击关闭「' + c.label + '」';
+    b.innerHTML = '<span class="ci">' + c.icon + '</span>' + c.label + '<span class="x">×</span>';
+    b.addEventListener('click', () => setCap(c.k, false));
+    box.append(b);
+  }
+  $('#plusBtn').classList.toggle('on', active.length > 0);
 }
 
 function setCap(kind, on) {
@@ -1145,22 +1163,12 @@ function setCap(kind, on) {
   renderCaps();
 }
 
-document.querySelectorAll('.cap').forEach(b => {
-  b.addEventListener('click', () => {
-    const k = b.dataset.cap;
-    const cur = k === 'image' ? state.imageMode
-      : k === 'code' ? state.codeMode
-      : k === 'raw' ? state.rawUpload
-      : state.search;
-    setCap(k, !cur);
-    input.focus();
-  });
-});
-
 document.querySelectorAll('#plusPop .opt').forEach(o => {
   o.addEventListener('click', () => {
+    const mode = o.dataset.mode;
     closePops();
-    if (o.dataset.mode === 'upload') $('#fileInput').click();
+    if (mode === 'upload') { $('#fileInput').click(); return; }
+    setCap(mode, !capOn(mode));
   });
 });
 
