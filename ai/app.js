@@ -691,34 +691,65 @@ function renderAttach() {
 
 const MAX_IMAGE_MB = 20;
 
-/** 上传前压缩：长边最多 1600px，较大文件统一重编码，目标几百 KB */
+/** 上传前压缩：长边 1600px；压完还大就再来一轮 1280px / q0.8 */
 async function shrinkImage(file) {
   try {
     if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return file;
-    const bmp = await createImageBitmap(file);
-    const maxEdge = 1600;
-    const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
-    const needResize = scale < 1;
-    const needReencode = file.size > 800 * 1024;
-    if (!needResize && !needReencode) return file;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bmp.width * scale));
-    canvas.height = Math.max(1, Math.round(bmp.height * scale));
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const encode = async (maxEdge, quality, keepPngOk) => {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bmp.width * scale));
+      canvas.height = Math.max(1, Math.round(bmp.height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
 
-    // PNG 且有透明通道时保留缩放后的 PNG，其余走 JPEG
-    const keepPng = /png/i.test(file.type) && file.size < 2 * 1024 * 1024;
-    const type = keepPng ? 'image/png' : 'image/jpeg';
-    const blob = await new Promise(r => canvas.toBlob(r, type, 0.88));
-    if (!blob || blob.size >= file.size) return file;
+      const keepPng = keepPngOk && /png/i.test(file.type) && file.size < 2 * 1024 * 1024;
+      const type = keepPng ? 'image/png' : 'image/jpeg';
+      const blob = await new Promise(r => canvas.toBlob(r, type, quality));
+      if (!blob) return null;
+      const ext = keepPng ? '.png' : '.jpg';
+      return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + ext, { type });
+    };
 
-    const ext = keepPng ? '.png' : '.jpg';
-    return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + ext, { type });
+    const need = file.size > 800 * 1024 || true; // 总是走一次，顺带统一长边
+    if (!need) return file;
+
+    let out = await encode(1600, 0.88, true);
+    if (!out || out.size >= file.size) out = file;
+
+    // 还是太大就再压一轮（目标是几百 KB，隧道上行慢）
+    if (out.size > 900 * 1024) {
+      const second = await encode(1280, 0.8, false);
+      if (second && second.size < out.size) out = second;
+    }
+    return out;
   } catch {
     return file;
   }
+}
+
+/** 带进度的上传（fetch 拿不到上传进度，用 XHR） */
+function uploadWithProgress(dataUrl, mime, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', base() + '/upload');
+    xhr.setRequestHeader('content-type', 'application/json');
+    xhr.setRequestHeader('x-token', LS.token);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.min(1, e.loaded / e.total));
+    };
+    xhr.onload = () => {
+      let j = {};
+      try { j = JSON.parse(xhr.responseText); } catch {}
+      resolve({ status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300, j });
+    };
+    xhr.onerror = () => reject(new Error('网络错误'));
+    xhr.ontimeout = () => reject(new Error('超时'));
+    xhr.timeout = 120000;
+    xhr.send(JSON.stringify({ b64: dataUrl, mime }));
+  });
 }
 
 async function uploadFile(file) {
@@ -726,13 +757,15 @@ async function uploadFile(file) {
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
   const box = $('#attach');
-  const hint = el('div', 'up-hint', '上传中… ' + (file.name || ''));
+  const hint = el('div', 'up-hint', state.rawUpload ? '原图上传（较慢）…' : '压缩中…');
   box.append(hint);
 
   try {
-    // 「原图」开着就跳过压缩，保真优先（体积仍受 20MB 限制）
     const small = state.rawUpload ? file : await shrinkImage(file);
     if (small.size > MAX_IMAGE_MB * 1024 * 1024) { alert('压缩后仍超过 ' + MAX_IMAGE_MB + 'MB'); return; }
+
+    const kb = Math.max(1, Math.round(small.size / 1024));
+    hint.textContent = '上传中 0% · ' + kb + 'KB';
 
     const dataUrl = await new Promise((res, rej) => {
       const fr = new FileReader();
@@ -740,9 +773,11 @@ async function uploadFile(file) {
       fr.onerror = rej;
       fr.readAsDataURL(small);
     });
-    const r = await api('/upload', { method: 'POST', body: { b64: dataUrl, mime: small.type } });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { alert(errText(r.status, j)); return; }
+
+    const { status, ok, j } = await uploadWithProgress(dataUrl, small.type, (p) => {
+      hint.textContent = '上传中 ' + Math.round(p * 100) + '% · ' + kb + 'KB';
+    });
+    if (!ok) { alert(errText(status, j)); return; }
     state.attachments.push({ url: j.url, name: small.name });
   } catch (err) {
     alert('上传失败：' + ((err && err.message) || err));
