@@ -1365,10 +1365,16 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
 $('#composer').addEventListener('submit', (e) => {
   e.preventDefault();
   if (state.streaming) { state.controller && state.controller.abort(); return; }
+
   const text = input.value.trim();
-  if (!text && !state.attachments.length) return;
+  const hasAttach = state.attachments.length > 0;
+  if (!text && !hasAttach) return;
+
   input.value = '';
   input.style.height = 'auto';
+
+  // 挂着图就走看图对话：生图接口只接受文字提示，带图会被忽略
+  if (state.imageMode && hasAttach) setCap('image', false);
   if (state.imageMode) { setCap('image', false); sendImage(text); }
   else sendChat(text);
 });
