@@ -1,30 +1,39 @@
 /**
- * /ai/ 页面逻辑：会话列表 + 流式聊天 + 图片生成
+ * /ai/ 页面逻辑
  *
- * 后端契约（见 ../ai-worker/worker.js）：
- *   POST {backend}/chat   { pass, model, messages:[{role,text}] }  -> text/event-stream
- *        data: {"t":"增量"} … data: [DONE]
- *        data: {"e":"错误"}  / HTTP 401 = 口令不对
- *   POST {backend}/image  { pass, prompt, size }                  -> { images:[{b64,mime}|{url}] }
- *   GET  {backend}/health -> { ok:true, ... }
+ * 会话存在服务器（家主机），所有拿到口令的人看到同一份历史。
+ * 后端契约见 ../ai-proxy/server.mjs：
+ *   GET    /convs              → { conversations: [...] }
+ *   POST   /convs              → 新建，返回 { conversation }
+ *   PUT    /convs/:id          → { title, messages }
+ *   DELETE /convs/:id
+ *   POST   /chat               → text/event-stream，data: {"t":"…"} / [DONE]
+ *   POST   /image              → { images:[{url}] }
+ *   GET    /health?pass=…      → { ok, models, image }
+ * 鉴权：请求头 x-pass（或 ?pass=）
  */
 
 const DEFAULT_BACKEND = 'https://chat.coldrain-aichat.com/ai-api';
-const DEFAULT_MODELS = ['gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-5.6-luna', 'gpt-5.5'];
+const RECOMMENDED = ['gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna'];
+const DEFAULT_MODELS = RECOMMENDED.slice();
 
-/** 模型排序权重：版本号越大越靠前；pro/sol/terra 属同代加强款 */
-function modelScore(id) {
-  const m = /^gpt-(\d+(?:\.\d+)?)/.exec(id) || /^o(\d+)/.exec(id);
-  let v = m ? parseFloat(m[1]) : 0;
-  if (/pro/i.test(id)) v += 0.3;
-  if (/sol/i.test(id)) v += 0.2;
-  if (/terra/i.test(id)) v += 0.15;
-  if (/luna/i.test(id)) v += 0.1;
-  if (/mini|nano/i.test(id)) v -= 0.5;
-  return v;
+/* 思考强度：按模型家族限制上限 */
+const EFFORT_ORDER = ['minimal', 'low', 'medium', 'high', 'max'];
+const EFFORT_CAP = [
+  { test: /sol/i, max: 'medium' },
+  { test: /terra/i, max: 'high' },
+  { test: /luna/i, max: 'max' },
+];
+const EFFORT_LABEL = { minimal: '极低', low: '低', medium: '中', high: '高', max: '最高' };
+
+function effortsFor(model) {
+  const cap = EFFORT_CAP.find(c => c.test.test(model || ''));
+  const max = cap ? cap.max : 'high';
+  const end = EFFORT_ORDER.indexOf(max);
+  return EFFORT_ORDER.slice(1, end + 1); // 不含 minimal
 }
 
-/* ---------------- 存储 ---------------- */
+/* ---------------- 存储（只存偏好，会话在服务端） ---------------- */
 const LS = {
   get pass() { return localStorage.getItem('ai.pass') || ''; },
   set pass(v) { v ? localStorage.setItem('ai.pass', v) : localStorage.removeItem('ai.pass'); },
@@ -35,68 +44,15 @@ const LS = {
     return raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : DEFAULT_MODELS.slice();
   },
   set models(v) { v && v.length ? localStorage.setItem('ai.models', v.join(',')) : localStorage.removeItem('ai.models'); },
-  get model() { return localStorage.getItem('ai.model') || this.models[0]; },
+  get model() { return localStorage.getItem('ai.model') || RECOMMENDED[0]; },
   set model(v) { localStorage.setItem('ai.model', v); },
+  get effort() { return localStorage.getItem('ai.effort') || 'medium'; },
+  set effort(v) { localStorage.setItem('ai.effort', v); },
 };
-
-const DB_NAME = 'ai-chat';
-const STORE = 'convs';
-let dbPromise = null;
-
-function db() {
-  if (!dbPromise) {
-    dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const d = req.result;
-        if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id' });
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-  return dbPromise;
-}
-
-async function dbAll() {
-  try {
-    const d = await db();
-    return await new Promise((resolve, reject) => {
-      const tx = d.transaction(STORE, 'readonly');
-      const req = tx.objectStore(STORE).getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
-    });
-  } catch { return []; }
-}
-
-async function dbPut(conv) {
-  try {
-    const d = await db();
-    await new Promise((resolve, reject) => {
-      const tx = d.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(conv);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch { /* 隐私模式等，忽略 */ }
-}
-
-async function dbDel(id) {
-  try {
-    const d = await db();
-    await new Promise((resolve, reject) => {
-      const tx = d.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).delete(id);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch { /* ignore */ }
-}
 
 /* ---------------- 状态 ---------------- */
 const state = {
-  convs: [],       // [{id,title,ts,messages:[{role,text,images?,err?}]}]
+  convs: [],
   currentId: null,
   streaming: false,
   imageMode: false,
@@ -120,10 +76,9 @@ const sendBtn = $('#sendBtn');
 const hint = $('#hint');
 
 /* ---------------- Markdown ---------------- */
-const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function inline(s) {
-  // s 已转义
   s = s.replace(/`([^`\n]+)`/g, (m, c) => '<code class="inline">' + c + '</code>');
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
@@ -133,7 +88,6 @@ function inline(s) {
   return s;
 }
 
-/** 极简 Markdown：代码块、标题、列表、引用、分割线、段落 */
 function md(src) {
   const lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
   const out = [];
@@ -149,7 +103,6 @@ function md(src) {
   while (i < lines.length) {
     const line = lines[i];
 
-    // 代码块
     const fence = /^```(\w*)\s*$/.exec(line);
     if (fence) {
       flush();
@@ -157,7 +110,7 @@ function md(src) {
       const buf = [];
       i++;
       while (i < lines.length && !/^```\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
-      i++; // 跳过结束围栏
+      i++;
       out.push(
         '<div class="code-wrap"><span class="lang">' + esc(lang) + '</span>' +
         '<pre><code>' + esc(buf.join('\n')) + '</code></pre></div>'
@@ -182,7 +135,6 @@ function md(src) {
       continue;
     }
 
-    // 列表（- / * / 数字）
     if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
       flush();
       const ordered = /^\s*\d+\./.test(line);
@@ -190,7 +142,6 @@ function md(src) {
       while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
         items.push(lines[i].replace(/^\s*([-*]|\d+\.)\s+/, ''));
         i++;
-        // 列表项的续行（缩进）
         while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
           items[items.length - 1] += '\n' + lines[i].trim();
           i++;
@@ -208,43 +159,93 @@ function md(src) {
   return out.join('');
 }
 
-/* ---------------- 渲染 ---------------- */
+/* ---------------- 网络 ---------------- */
+function backendBase() {
+  return (LS.backend || DEFAULT_BACKEND).replace(/\/+$/, '');
+}
+
+function fileUrl(u) {
+  if (!u) return '';
+  return /^https?:\/\//.test(u) ? u : backendBase() + u;
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(backendBase() + path, {
+    method: opts.method || 'GET',
+    headers: { 'content-type': 'application/json', 'x-pass': LS.pass },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    signal: opts.signal,
+  });
+  return res;
+}
+
+function errText(status, data) {
+  if (status === 401) return '口令不对，或者已经换了';
+  if (status === 429) return '太快了，歇一会儿再发';
+  if (data && (data.error || data.e)) return String(data.error || data.e);
+  return '请求失败（HTTP ' + status + '）';
+}
+
+/* ---------------- 会话 ---------------- */
 function current() {
   return state.convs.find(c => c.id === state.currentId) || null;
 }
 
-function makeConv() {
-  const now = Date.now();
-  return { id: 'c' + now.toString(36) + Math.random().toString(36).slice(2, 6), title: '新对话', ts: now, messages: [] };
+async function loadConvs() {
+  const res = await api('/convs');
+  if (!res.ok) {
+    if (res.status === 401) askPass();
+    return;
+  }
+  const data = await res.json();
+  state.convs = (data.conversations || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }
 
-function touch(conv) {
-  conv.ts = Date.now();
-  dbPut(conv);
+async function createConv() {
+  const res = await api('/convs', { method: 'POST', body: { title: '新对话' } });
+  if (!res.ok) { if (res.status === 401) askPass(); return null; }
+  const { conversation } = await res.json();
+  state.convs.unshift(conversation);
+  state.currentId = conversation.id;
+  return conversation;
 }
 
+async function saveConv(conv) {
+  conv.updatedAt = Date.now();
+  try {
+    await api('/convs/' + encodeURIComponent(conv.id), {
+      method: 'PUT',
+      body: { title: conv.title, messages: conv.messages },
+    });
+  } catch { /* 网络抖动，下次再存 */ }
+}
+
+async function deleteConv(id) {
+  try { await api('/convs/' + encodeURIComponent(id), { method: 'DELETE' }); } catch {}
+}
+
+/* ---------------- 渲染 ---------------- */
 function renderConvList() {
   convList.textContent = '';
-  const list = state.convs.slice().sort((a, b) => b.ts - a.ts);
+  const list = state.convs.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   for (const c of list) {
     const row = el('button', 'conv' + (c.id === state.currentId ? ' active' : ''));
     row.type = 'button';
-    const t = el('span', 't', c.title || '新对话');
+    row.append(el('span', 't', c.title || '新对话'));
     const x = el('span', 'x', '×');
-    x.title = '删除';
-    x.addEventListener('click', (e) => {
+    x.title = '删除（所有人都看不到了）';
+    x.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('删除这个对话？')) return;
+      if (!confirm('删除这个对话？所有人都会看不到它。')) return;
+      await deleteConv(c.id);
       state.convs = state.convs.filter(v => v.id !== c.id);
-      dbDel(c.id);
       if (state.currentId === c.id) {
         state.currentId = state.convs[0] ? state.convs[0].id : null;
-        renderAll();
-      } else {
-        renderConvList();
+        if (!state.currentId) await createConv();
       }
+      renderAll();
     });
-    row.append(t, x);
+    row.append(x);
     row.addEventListener('click', () => {
       if (state.streaming) return;
       state.currentId = c.id;
@@ -269,23 +270,23 @@ function bubbleFor(msg) {
     content.innerHTML = md(msg.text);
   }
 
-  if (msg.images && msg.images.length) {
-    for (const src of msg.images) {
-      const img = el('img');
-      img.src = src;
-      img.alt = '生成的图片';
-      img.loading = 'lazy';
-      content.append(img);
-      const dl = el('a', 'tools');
-      dl.href = src;
-      dl.download = 'ai-' + Date.now() + '.png';
-      dl.textContent = '下载 PNG';
-      dl.style.cssText = 'font-size:12px;color:var(--faint);text-decoration:none;display:inline-block;margin:6px 0 10px';
-      content.append(dl);
-    }
+  for (const src of (msg.images || [])) {
+    const img = el('img');
+    img.src = fileUrl(src);
+    img.alt = '生成的图片';
+    img.loading = 'lazy';
+    content.append(img);
+
+    const dl = el('a', 'dl');
+    dl.href = fileUrl(src);
+    dl.download = 'ai-' + (msg.ts || Date.now()) + '.png';
+    dl.textContent = '下载 PNG';
+    dl.target = '_blank';
+    content.append(dl);
   }
 
   if (msg.role === 'assistant' && !msg.err) {
+    if (msg.meta) body.append(el('div', 'meta', msg.meta));
     const tools = el('div', 'tools');
     const cp = el('button', 'copy', '复制');
     cp.type = 'button';
@@ -306,7 +307,6 @@ function renderThread() {
   const msgs = conv ? conv.messages : [];
   empty.style.display = msgs.length ? 'none' : 'block';
   for (const m of msgs) thread.append(bubbleFor(m));
-  if (state.streaming) scrollToBottom();
 }
 
 function renderAll() {
@@ -315,59 +315,64 @@ function renderAll() {
 }
 
 function scrollToBottom(force) {
-  const near = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 160;
+  const near = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 180;
   if (force || near) scroll.scrollTop = scroll.scrollHeight;
 }
 
 function renderModels() {
   const sel = $('#model');
   const models = LS.models;
-  const cur = LS.model;
   sel.textContent = '';
-  for (const m of models) {
-    const o = el('option', null, m);
-    o.value = m;
+
+  const rec = RECOMMENDED.filter(m => models.includes(m));
+  if (rec.length) {
+    const g = el('optgroup');
+    g.label = '推荐';
+    for (const m of rec) { const o = el('option', null, m); o.value = m; g.append(o); }
+    sel.append(g);
+  }
+  const rest = models.filter(m => !rec.includes(m));
+  if (rest.length) {
+    const g = el('optgroup');
+    g.label = '全部模型';
+    for (const m of rest) { const o = el('option', null, m); o.value = m; g.append(o); }
+    sel.append(g);
+  }
+  if (!models.includes(LS.model) && models.length) LS.model = rec[0] || models[0];
+  sel.value = LS.model;
+  renderEffort();
+}
+
+function renderEffort() {
+  const sel = $('#effort');
+  const list = effortsFor($('#model').value || LS.model);
+  const cur = LS.effort;
+  sel.textContent = '';
+  for (const e of list) {
+    const o = el('option', null, EFFORT_LABEL[e] || e);
+    o.value = e;
     sel.append(o);
   }
-  if (!models.includes(cur) && models.length) LS.model = models[0];
-  sel.value = LS.model;
-}
-
-/* ---------------- 网络 ---------------- */
-function backendBase() {
-  return (LS.backend || DEFAULT_BACKEND).replace(/\/+$/, '');
-}
-
-async function api(path, body, signal) {
-  const res = await fetch(backendBase() + path, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  });
-  return res;
-}
-
-function errText(status, data) {
-  if (status === 401) return '口令不对，或者已经换了';
-  if (status === 429) return '太快了，歇一会儿再发';
-  if (data && (data.error || data.e)) return String(data.error || data.e);
-  return '请求失败（HTTP ' + status + '）';
+  sel.value = list.includes(cur) ? cur : (list.includes('medium') ? 'medium' : list[list.length - 1]);
+  LS.effort = sel.value;
 }
 
 /* ---------------- 聊天 ---------------- */
 async function sendChat(text) {
-  const conv = current() || (() => { const c = makeConv(); state.convs.push(c); state.currentId = c.id; return c; })();
-  if (!conv.messages.length) {
-    conv.title = text.slice(0, 24) || '新对话';
-    renderConvList();
-  }
+  const conv = current() || await createConv();
+  if (!conv) return;
 
-  conv.messages.push({ role: 'user', text });
-  const reply = { role: 'assistant', text: '', streaming: true };
+  if (!conv.messages.length) conv.title = text.slice(0, 24) || '新对话';
+
+  conv.messages.push({ role: 'user', text, ts: Date.now() });
+  const reply = { role: 'assistant', text: '', streaming: true, ts: Date.now() };
   conv.messages.push(reply);
   renderThread();
   scrollToBottom(true);
+
+  const model = $('#model').value || LS.model;
+  const effort = $('#effort').value || LS.effort;
+  reply.meta = model + ' · ' + (EFFORT_LABEL[effort] || effort);
 
   const node = thread.lastElementChild;
   const content = node && node.querySelector('.content');
@@ -388,10 +393,15 @@ async function sendChat(text) {
 
   try {
     const res = await api('/chat', {
-      pass: LS.pass,
-      model: $('#model').value || LS.model,
-      messages: conv.messages.filter(m => !m.err && !m.streaming).map(m => ({ role: m.role, text: m.text })),
-    }, state.controller.signal);
+      method: 'POST',
+      signal: state.controller.signal,
+      body: {
+        pass: LS.pass,
+        model,
+        effort,
+        messages: conv.messages.filter(m => !m.err && !m.streaming).map(m => ({ role: m.role, text: m.text })),
+      },
+    });
 
     if (!res.ok) {
       let data = null;
@@ -432,37 +442,36 @@ async function sendChat(text) {
     }
     reply.text = acc;
     delete reply.streaming;
-    touch(conv);
+    await saveConv(conv);
   } catch (e) {
     delete reply.streaming;
     if (e && e.name === 'AbortError') {
       reply.text = acc || '（已停止）';
-      touch(conv);
+      await saveConv(conv);
     } else {
       reply.err = true;
       reply.text = (e && e.message) || '出错了';
-      touch(conv);
+      await saveConv(conv);
       if (e && e.status === 401) askPass();
     }
-    renderThread();
   } finally {
     state.streaming = false;
     state.controller = null;
     setSendState();
-    renderThread();
+    renderAll();
+    scrollToBottom(true);
   }
 }
 
 /* ---------------- 图片 ---------------- */
 async function sendImage(prompt) {
-  const conv = current() || (() => { const c = makeConv(); state.convs.push(c); state.currentId = c.id; return c; })();
-  if (!conv.messages.length) {
-    conv.title = prompt.slice(0, 24) || '生成图片';
-    renderConvList();
-  }
+  const conv = current() || await createConv();
+  if (!conv) return;
 
-  conv.messages.push({ role: 'user', text: prompt });
-  const reply = { role: 'assistant', text: '正在生成…' };
+  if (!conv.messages.length) conv.title = prompt.slice(0, 24) || '生成图片';
+
+  conv.messages.push({ role: 'user', text: prompt, ts: Date.now() });
+  const reply = { role: 'assistant', text: '正在生成…', ts: Date.now() };
   conv.messages.push(reply);
   renderThread();
   scrollToBottom(true);
@@ -471,14 +480,15 @@ async function sendImage(prompt) {
   setSendState();
 
   try {
-    const res = await api('/image', { pass: LS.pass, prompt });
+    const res = await api('/image', { method: 'POST', body: { pass: LS.pass, prompt } });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(errText(res.status, data)), { status: res.status });
 
-    const imgs = (data.images || []).map(it => it.b64 ? 'data:' + (it.mime || 'image/png') + ';base64,' + it.b64 : it.url).filter(Boolean);
+    const imgs = (data.images || []).map(it => it.url || (it.b64 ? 'data:image/png;base64,' + it.b64 : '')).filter(Boolean);
     if (!imgs.length) throw new Error('后端没给图片');
     reply.text = '';
     reply.images = imgs;
+    reply.meta = 'gpt-image-2.6-sunburst';
     delete reply.err;
   } catch (e) {
     reply.err = true;
@@ -487,8 +497,9 @@ async function sendImage(prompt) {
   } finally {
     state.streaming = false;
     setSendState();
-    touch(conv);
-    renderThread();
+    await saveConv(conv);
+    renderAll();
+    scrollToBottom(true);
   }
 }
 
@@ -532,7 +543,7 @@ $('#passForm').addEventListener('submit', (e) => {
   LS.pass = v;
   $('#dlgPass').close();
   renderWho();
-  verify();
+  bootData();
 });
 
 $('#btnPass').addEventListener('click', askPass);
@@ -541,12 +552,6 @@ $('#btnCfg').addEventListener('click', () => {
   $('#cfgBackend').value = LS.backend;
   $('#cfgModels').value = LS.models.join(',');
   $('#dlgCfg').showModal();
-});
-
-$('#dlgCfg').addEventListener('close', () => {
-  // method=dialog：只有点保存才应用
-  const submitter = $('#dlgCfg').returnValue;
-  if (submitter !== 'ok') return;
 });
 
 $('#cfgOk').addEventListener('click', () => {
@@ -559,11 +564,7 @@ $('#cfgOk').addEventListener('click', () => {
 async function verify() {
   const who = $('#whoAmI');
   const base = backendBase();
-  if (!base) {
-    who.textContent = '后端未配置';
-    who.style.color = 'var(--danger)';
-    return;
-  }
+  if (!base) { who.textContent = '后端未配置'; who.style.color = 'var(--danger)'; return; }
   who.textContent = '连接中…';
   who.style.color = 'var(--faint)';
   try {
@@ -572,21 +573,15 @@ async function verify() {
     if (res.ok && data.ok) {
       const ids = Array.isArray(data.models) ? data.models : [];
       const chatty = ids
-        // 聊天模型：排掉图片/语音/向量/审核这类，以及纯别名
         .filter(id => !/image|dall-e|tts|whisper|embed|moderation|audio|realtime|transcribe|sora|codex-mini|omni-/i.test(id))
         .filter(id => !/^(chat-latest|chatgpt-image-latest)$/i.test(id))
-        // 去掉带日期快照的重复项（gpt-5.2-2025-12-11 这种）
         .filter(id => !/-\d{4}-\d{2}-\d{2}$/.test(id))
         .sort((a, b) => modelScore(b) - modelScore(a) || a.localeCompare(b));
       if (chatty.length) {
         LS.models = chatty;
         renderModels();
-        const cur = LS.model;
-        // 记住的选择还在就用它，否则用最新的
-        $('#model').value = chatty.includes(cur) ? cur : chatty[0];
-        LS.model = $('#model').value;
       }
-      who.textContent = '口令已验证 · ' + (chatty.length || ids.length) + ' 个模型';
+      who.textContent = '已连接 · ' + (chatty.length || ids.length) + ' 个模型';
       who.style.color = 'var(--dim)';
     } else if (res.status === 401) {
       who.textContent = '口令不对';
@@ -603,6 +598,17 @@ async function verify() {
 
 function renderWho() {
   $('#whoAmI').textContent = LS.pass ? '已保存口令' : '未验证口令';
+}
+
+function modelScore(id) {
+  const m = /^gpt-(\d+(?:\.\d+)?)/.exec(id) || /^o(\d+)/.exec(id);
+  let v = m ? parseFloat(m[1]) : 0;
+  if (/pro/i.test(id)) v += 0.3;
+  if (/sol/i.test(id)) v += 0.2;
+  if (/terra/i.test(id)) v += 0.15;
+  if (/luna/i.test(id)) v += 0.1;
+  if (/mini|nano/i.test(id)) v -= 0.5;
+  return v;
 }
 
 $('#composer').addEventListener('submit', (e) => {
@@ -632,23 +638,26 @@ $('#imgToggle').addEventListener('click', () => {
   $('#imgToggle').classList.toggle('on', state.imageMode);
   input.placeholder = state.imageMode ? '描述你想生成的画面…' : '发消息…（Enter 发送，Shift+Enter 换行）';
   hint.textContent = state.imageMode
-    ? '图片模式：发的这句话会被当成画面描述，生成一张图。'
-    : '内容由 AI 生成，注意甄别。对话只存在你自己的浏览器里。';
+    ? '图片模式：这句话会被当成画面描述。'
+    : '内容由 AI 生成，注意甄别。对话保存在服务器上，拿到口令的人都能看到。';
   input.focus();
 });
 
-$('#model').addEventListener('change', (e) => { LS.model = e.target.value; });
+$('#model').addEventListener('change', (e) => {
+  LS.model = e.target.value;
+  renderEffort();
+  input.focus();
+});
+
+$('#effort').addEventListener('change', (e) => { LS.effort = e.target.value; });
 
 $('#gear').addEventListener('click', () => $('#btnCfg').click());
 
 $('#menuBtn').addEventListener('click', () => document.body.classList.toggle('nav'));
 
-$('#newChat').addEventListener('click', () => {
+$('#newChat').addEventListener('click', async () => {
   if (state.streaming) return;
-  const c = makeConv();
-  state.convs.push(c);
-  state.currentId = c.id;
-  dbPut(c);
+  await createConv();
   renderAll();
   closeNav();
   input.focus();
@@ -663,23 +672,39 @@ empty.addEventListener('click', (e) => {
   if (!state.imageMode) input.focus();
 });
 
-/* ---------------- 启动 ---------------- */
-async function boot() {
-  const stored = await dbAll();
-  state.convs = stored.sort((a, b) => b.ts - a.ts);
-  if (!state.convs.length) {
-    const c = makeConv();
-    state.convs.push(c);
-    dbPut(c);
+/* ---------------- 启动 + 同步 ---------------- */
+async function bootData() {
+  await loadConvs();
+  if (!state.convs.length) await createConv();
+  if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
+    state.currentId = state.convs[0] ? state.convs[0].id : null;
   }
-  state.currentId = state.convs[0].id;
-  renderModels();
   renderAll();
+  scrollToBottom(true);
+}
+
+let lastPoll = 0;
+async function poll() {
+  if (state.streaming || document.hidden) return;
+  const before = JSON.stringify(state.convs.map(c => [c.id, c.updatedAt, c.title]));
+  await loadConvs();
+  const after = JSON.stringify(state.convs.map(c => [c.id, c.updatedAt, c.title]));
+  if (before !== after) {
+    if (!state.currentId && state.convs[0]) state.currentId = state.convs[0].id;
+    renderAll();
+  }
+}
+
+async function boot() {
+  renderModels();
   renderWho();
   autosize();
-  if (LS.pass) verify();
-  else askPass();
+  if (!LS.pass) { askPass(); return; }
+  await bootData();
+  await verify();
   input.focus();
+  setInterval(poll, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 }
 
 boot();
