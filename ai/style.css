@@ -122,7 +122,8 @@ a { color: var(--accent); }
 }
 #side-bottom .row button:hover { border-color: var(--accent); color: var(--accent); }
 #whoBox { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
-#whoName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#whoName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+#whoName:hover { color: var(--accent); text-decoration: underline; }
 .badge {
   font-size: 10px;
   padding: 1px 6px;
@@ -161,6 +162,8 @@ a { color: var(--accent); }
 .user-row .u-btn:hover { border-color: var(--danger); }
 .user-row .u-btn.undo { color: var(--dim); }
 .user-row .u-btn.undo:hover { border-color: var(--accent); color: var(--accent); }
+.user-row .u-btn.edit { color: var(--dim); }
+.user-row .u-btn.edit:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ---------- 主区 ---------- */
 #main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
