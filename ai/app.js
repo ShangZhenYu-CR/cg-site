@@ -65,6 +65,8 @@ const state = {
   imageMode: false,
   search: false,
   attachments: [],
+  codeMode: false,
+  fileIdx: 0,
   open: {},          // projectId -> bool
   controller: null,
 };
@@ -222,6 +224,7 @@ async function loadConvs() {
   if (r.status === 401) { logout(); return; }
   if (!r.ok) return;
   state.convs = (await r.json()).conversations || [];
+  for (const cv of state.convs) if (!Array.isArray(cv.files)) cv.files = [];
   state.convs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }
 
@@ -238,7 +241,14 @@ async function createConv(opts = {}) {
 
 async function saveConv(conv, extra) {
   conv.updatedAt = Date.now();
-  const body = { title: conv.title, messages: conv.messages, projectId: conv.projectId || null, private: !!conv.private, ...(extra || {}) };
+  const body = {
+    title: conv.title,
+    messages: conv.messages,
+    projectId: conv.projectId || null,
+    private: !!conv.private,
+    files: conv.files || [],
+    ...(extra || {}),
+  };
   try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {}
 }
 
@@ -380,6 +390,14 @@ function bubble(m) {
 
   if (!isUser && !m.err) {
     if (m.meta) bd.append(el('div', 'meta', m.meta));
+    if (m.wrote && m.wrote.length) {
+      const chip = el('div', 'wrote-chip');
+      chip.innerHTML = '已写入 <b>' + m.wrote.length + '</b> 个文件：' + esc(m.wrote.join(', '));
+      chip.style.cursor = 'pointer';
+      chip.title = '打开代码面板';
+      chip.addEventListener('click', () => openCodePane());
+      bd.append(chip);
+    }
     const acts = el('div', 'acts');
     const cp = el('button', null, '复制');
     cp.addEventListener('click', async () => {
@@ -406,6 +424,7 @@ function renderThread() {
 function renderAll() {
   renderSide();
   renderThread();
+  renderCode();
 }
 
 /* ---------------- 上下文 ---------------- */
@@ -555,6 +574,8 @@ async function sendChat(text) {
       method: 'POST', signal: state.controller.signal,
       body: {
         model, effort, search: state.search, convId: cv.id, projectId: cv.projectId || null,
+        codeMode: state.codeMode,
+        fileNames: (cv.files || []).map(f => f.name),
         messages: sentMessages(cv).map(m => ({ role: m.role, text: m.text, images: m.images })),
       },
     });
@@ -594,6 +615,14 @@ async function sendChat(text) {
     }
     reply.text = acc;
     delete reply.streaming;
+
+    const parsed = extractFiles(reply.text || '');
+    if (parsed.files.length) {
+      applyFiles(cv, parsed.files);
+      reply.wrote = parsed.files.map(f => f.name);
+      reply.text = parsed.text;
+      if (!reply.text) reply.text = '';
+    }
   } catch (e) {
     delete reply.streaming;
     if (e && e.name === 'AbortError') reply.text = acc || '（已停止）';
@@ -686,7 +715,139 @@ input.addEventListener('paste', async (e) => {
   for (const f of files) await uploadFile(f);
 });
 
-/* ---------------- 交接 ---------------- */
+/* ---------------- 代码面板 ---------------- */
+const FILE_RE = /```file:([^\n`]+)\n([\s\S]*?)```/g;
+
+function extractFiles(text) {
+  const files = [];
+  FILE_RE.lastIndex = 0;
+  let m;
+  while ((m = FILE_RE.exec(text))) {
+    files.push({ name: m[1].trim(), content: m[2].replace(/\s+$/, '') + '\n' });
+  }
+  if (!files.length) return { files: [], text };
+  const cleaned = text.replace(FILE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+  return { files, text: cleaned };
+}
+
+function applyFiles(cv, incoming) {
+  cv.files = cv.files || [];
+  for (const f of incoming) {
+    const i = cv.files.findIndex(x => x.name === f.name);
+    if (i >= 0) cv.files[i] = { ...f, updatedAt: Date.now() };
+    else cv.files.push({ ...f, updatedAt: Date.now() });
+  }
+}
+
+function openCodePane() {
+  document.body.classList.add('coding');
+  $('#codepane').hidden = false;
+  renderCode();
+}
+
+function closeCodePane() {
+  document.body.classList.remove('coding');
+  $('#codepane').hidden = true;
+}
+
+function renderCode() {
+  const pane = $('#codepane');
+  if (pane.hidden) return;
+  const cv = current();
+  const files = (cv && cv.files) || [];
+  const tabs = $('#codeTabs');
+  tabs.textContent = '';
+
+  files.forEach((f, i) => {
+    const t = el('div', 'tab' + (i === state.fileIdx ? ' on' : ''));
+    t.append(el('span', null, f.name));
+    const x = el('i', null, '×');
+    x.title = '删除文件';
+    x.addEventListener('click', (e) => { e.stopPropagation(); deleteFile(i); });
+    t.append(x);
+    t.addEventListener('click', () => { state.fileIdx = i; renderCode(); });
+    tabs.append(t);
+  });
+
+  if (!files.length) {
+    $('#codeName').textContent = '还没有文件';
+    $('#codeStat').textContent = '';
+    $('#codeArea').value = '';
+    $('#codeArea').disabled = true;
+    return;
+  }
+
+  if (state.fileIdx >= files.length) state.fileIdx = files.length - 1;
+  const f = files[state.fileIdx];
+  $('#codeName').textContent = f.name;
+  $('#codeArea').disabled = false;
+  if (document.activeElement !== $('#codeArea') || $('#codeArea').dataset.for !== f.name) {
+    $('#codeArea').value = f.content || '';
+    $('#codeArea').dataset.for = f.name;
+  }
+  const lines = (f.content || '').split('\n').length;
+  $('#codeStat').textContent = lines + ' 行 · ' + (f.content || '').length + ' 字符';
+}
+
+let codeSaveTimer = null;
+function scheduleCodeSave() {
+  clearTimeout(codeSaveTimer);
+  codeSaveTimer = setTimeout(async () => {
+    const cv = current();
+    if (!cv) return;
+    await saveConv(cv);
+  }, 800);
+}
+
+$('#codeArea').addEventListener('input', () => {
+  const cv = current();
+  if (!cv || !cv.files || !cv.files[state.fileIdx]) return;
+  cv.files[state.fileIdx].content = $('#codeArea').value;
+  cv.files[state.fileIdx].updatedAt = Date.now();
+  const f = cv.files[state.fileIdx];
+  $('#codeStat').textContent = f.content.split('\n').length + ' 行 · ' + f.content.length + ' 字符';
+  scheduleCodeSave();
+});
+
+async function deleteFile(i) {
+  const cv = current();
+  if (!cv || !cv.files) return;
+  const name = cv.files[i].name;
+  if (!confirm('删除文件「' + name + '」？')) return;
+  cv.files.splice(i, 1);
+  if (state.fileIdx >= cv.files.length) state.fileIdx = Math.max(0, cv.files.length - 1);
+  await saveConv(cv);
+  renderCode();
+}
+
+$('#codeNew').addEventListener('click', async () => {
+  const cv = current();
+  if (!cv) return;
+  const name = prompt('新文件名（相对路径，如 src/main.py）', 'untitled.txt');
+  if (!name) return;
+  cv.files = cv.files || [];
+  if (cv.files.some(f => f.name === name)) { state.fileIdx = cv.files.findIndex(f => f.name === name); renderCode(); return; }
+  cv.files.push({ name: name.replace(/\\/g, '/').trim(), content: '', updatedAt: Date.now() });
+  state.fileIdx = cv.files.length - 1;
+  await saveConv(cv);
+  renderCode();
+});
+
+$('#codeDownload').addEventListener('click', () => {
+  const cv = current();
+  const f = cv && cv.files && cv.files[state.fileIdx];
+  if (!f) return;
+  const blob = new Blob([f.content || ''], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = f.name.split('/').pop();
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+});
+
+$('#codeClose').addEventListener('click', closeCodePane);
+
+
 $('#handoffBtn').addEventListener('click', async () => {
   const cv = current();
   if (!cv) return;
@@ -853,6 +1014,17 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
       input.placeholder = state.imageMode ? '描述你想生成的画面…' : '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
     } else if (mode === 'upload') {
       $('#fileInput').click();
+    } else if (mode === 'code') {
+      state.codeMode = !state.codeMode;
+      $('#codeState').textContent = state.codeMode ? '开' : '关';
+      $('#plusBtn').classList.toggle('on', state.codeMode || state.search || state.imageMode);
+      if (state.codeMode) {
+        openCodePane();
+        if (!input.value.trim()) input.placeholder = '描述你要写的功能，GPT 会把文件写进右侧面板…';
+      } else {
+        closeCodePane();
+        input.placeholder = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
+      }
     } else if (mode === 'search') {
       state.search = !state.search;
       $('#searchState').textContent = state.search ? '开' : '关';
