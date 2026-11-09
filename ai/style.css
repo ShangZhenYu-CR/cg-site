@@ -215,6 +215,9 @@ body.coding #main{margin-right:min(600px,46vw)}
   padding:12px 14px;font:13px/1.65 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:2;
   white-space:pre;overflow:auto;
 }
+#codeFrame{flex:1;width:100%;border:0;background:#fff}
+.code-actions button.on{background:rgba(110,168,254,.16);color:var(--accent)}
+
 .wrote-chip{
   display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:3px 10px;border-radius:999px;
   border:1px solid #2f3d55;background:#161d29;color:var(--dim);font-size:11px;
