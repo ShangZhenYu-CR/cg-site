@@ -1,21 +1,13 @@
 /**
  * /ai/ 页面逻辑
  *
- * 会话存在服务器（家主机），所有拿到口令的人看到同一份历史。
- * 后端契约见 ../ai-proxy/server.mjs：
- *   GET    /convs              → { conversations: [...] }
- *   POST   /convs              → 新建，返回 { conversation }
- *   PUT    /convs/:id          → { title, messages }
- *   DELETE /convs/:id
- *   POST   /chat               → text/event-stream，data: {"t":"…"} / [DONE]
- *   POST   /image              → { images:[{url}] }
- *   GET    /health?pass=…      → { ok, models, image }
- * 鉴权：请求头 x-pass（或 ?pass=）
+ * 登录：昵称 + 口令 → 服务端签发 token（localStorage 保存）
+ * 会话：存在服务器，进来的人共享同一份
+ * Astra：只有 astra / admin 角色能选
  */
 
 const DEFAULT_BACKEND = 'https://chat.coldrain-aichat.com/ai-api';
 
-/* 推荐模型集：照 ChatGPT 的排序（6.1 Sol → 6 Astra → 6.1 Terra → 6 Sol → 6 Luna → 5.6 三个） */
 const RECOMMENDED = [
   'gpt-6.1-sol',
   'gpt-6-astra',
@@ -28,7 +20,6 @@ const RECOMMENDED = [
 ];
 const DEFAULT_MODELS = RECOMMENDED.slice();
 
-/* 模型 id → 展示名 */
 function labelOf(id) {
   return String(id)
     .replace(/^gpt-/, 'GPT-')
@@ -41,27 +32,31 @@ function labelOf(id) {
     .replace(/-nano$/, ' Nano');
 }
 
-/* 推理强度：按模型家族限制上限 */
+/* 推理强度 */
 const EFFORT_ORDER = ['minimal', 'low', 'medium', 'high', 'max'];
 const EFFORT_CAP = [
   { test: /sol/i, max: 'medium' },
   { test: /terra/i, max: 'high' },
   { test: /luna/i, max: 'max' },
-  { test: /astra/i, max: 'max' },
+  { test: /astra/i, max: 'medium' },   // Astra：到 mid 为止
 ];
 const EFFORT_LABEL = { minimal: '极低', low: '低', medium: '中', high: '高', max: '最高' };
 
 function effortsFor(model) {
   const cap = EFFORT_CAP.find(c => c.test.test(model || ''));
-  const max = cap ? cap.max : 'high';
+  const max = cap ? cap.max : 'medium';
   const end = EFFORT_ORDER.indexOf(max);
-  return EFFORT_ORDER.slice(1, end + 1); // 不含 minimal
+  return EFFORT_ORDER.slice(1, end + 1);
 }
 
-/* ---------------- 存储（只存偏好，会话在服务端） ---------------- */
+/* ---------------- 本地偏好 ---------------- */
 const LS = {
-  get pass() { return localStorage.getItem('ai.pass') || ''; },
-  set pass(v) { v ? localStorage.setItem('ai.pass', v) : localStorage.removeItem('ai.pass'); },
+  get token() { return localStorage.getItem('ai.token') || ''; },
+  set token(v) { v ? localStorage.setItem('ai.token', v) : localStorage.removeItem('ai.token'); },
+  get name() { return localStorage.getItem('ai.name') || ''; },
+  set name(v) { v ? localStorage.setItem('ai.name', v) : localStorage.removeItem('ai.name'); },
+  get role() { return localStorage.getItem('ai.role') || ''; },
+  set role(v) { v ? localStorage.setItem('ai.role', v) : localStorage.removeItem('ai.role'); },
   get backend() { return localStorage.getItem('ai.backend') || DEFAULT_BACKEND; },
   set backend(v) { v ? localStorage.setItem('ai.backend', v) : localStorage.removeItem('ai.backend'); },
   get models() {
@@ -74,6 +69,9 @@ const LS = {
   get effort() { return localStorage.getItem('ai.effort') || 'medium'; },
   set effort(v) { localStorage.setItem('ai.effort', v); },
 };
+
+const ROLE_RANK = { user: 1, astra: 2, admin: 3 };
+const canAstra = () => (ROLE_RANK[LS.role] || 0) >= 2;
 
 /* ---------------- 状态 ---------------- */
 const state = {
@@ -195,20 +193,90 @@ function fileUrl(u) {
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch(backendBase() + path, {
+  return fetch(backendBase() + path, {
     method: opts.method || 'GET',
-    headers: { 'content-type': 'application/json', 'x-pass': LS.pass },
+    headers: { 'content-type': 'application/json', 'x-token': LS.token },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal,
   });
-  return res;
 }
 
 function errText(status, data) {
-  if (status === 401) return '口令不对，或者已经换了';
+  if (status === 401) return '登录过期了，重新进一下';
+  if (status === 403) return (data && data.error) || '没有权限';
   if (status === 429) return '太快了，歇一会儿再发';
   if (data && (data.error || data.e)) return String(data.error || data.e);
   return '请求失败（HTTP ' + status + '）';
+}
+
+/* ---------------- 登录 ---------------- */
+function showLogin(msg) {
+  const dlg = $('#dlgLogin');
+  $('#loginErr').textContent = msg || '';
+  $('#loginName').value = LS.name || '';
+  $('#loginPass').value = '';
+  if (!dlg.open) dlg.showModal();
+  setTimeout(() => ($('#loginName').value ? $('#loginPass') : $('#loginName')).focus(), 40);
+}
+
+$('#loginForm').addEventListener('submit', async (e) => {
+  const btn = e.submitter;
+  if (!btn || btn.value !== 'ok') return;
+  e.preventDefault();
+  const name = $('#loginName').value.trim();
+  const pass = $('#loginPass').value;
+  if (!name) { $('#loginErr').textContent = '昵称不能空'; return; }
+  if (!pass) { $('#loginErr').textContent = '口令不能空'; return; }
+
+  $('#loginOk').disabled = true;
+  try {
+    const res = await fetch(backendBase() + '/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name, pass }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { $('#loginErr').textContent = errText(res.status, data); return; }
+
+    LS.token = data.token;
+    LS.name = data.name;
+    LS.role = data.role;
+    $('#dlgLogin').close();
+    renderIdentity();
+    renderModels();
+    await bootData();
+    await verify();
+    input.focus();
+  } catch (err) {
+    $('#loginErr').textContent = '连不上后端';
+  } finally {
+    $('#loginOk').disabled = false;
+  }
+});
+
+function logout() {
+  LS.token = '';
+  LS.role = '';
+  state.convs = [];
+  state.currentId = null;
+  thread.textContent = '';
+  convList.textContent = '';
+  $('#empty').style.display = 'block';
+  renderIdentity();
+  showLogin('');
+}
+
+$('#btnLogout').addEventListener('click', () => {
+  if (confirm('退出登录？')) logout();
+});
+
+function renderIdentity() {
+  $('#whoName').textContent = LS.name || '未登录';
+  const b = $('#whoRole');
+  const txt = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
+  b.textContent = txt;
+  b.hidden = !txt;
+  $('#btnUsers').hidden = LS.role !== 'admin';
 }
 
 /* ---------------- 会话 ---------------- */
@@ -218,17 +286,17 @@ function current() {
 
 async function loadConvs() {
   const res = await api('/convs');
-  if (!res.ok) {
-    if (res.status === 401) askPass();
-    return;
-  }
+  if (res.status === 401) { logout(); return false; }
+  if (!res.ok) return false;
   const data = await res.json();
   state.convs = (data.conversations || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return true;
 }
 
 async function createConv() {
   const res = await api('/convs', { method: 'POST', body: { title: '新对话' } });
-  if (!res.ok) { if (res.status === 401) askPass(); return null; }
+  if (res.status === 401) { logout(); return null; }
+  if (!res.ok) return null;
   const { conversation } = await res.json();
   state.convs.unshift(conversation);
   state.currentId = conversation.id;
@@ -242,7 +310,7 @@ async function saveConv(conv) {
       method: 'PUT',
       body: { title: conv.title, messages: conv.messages },
     });
-  } catch { /* 网络抖动，下次再存 */ }
+  } catch { /* 下次再存 */ }
 }
 
 async function deleteConv(id) {
@@ -282,18 +350,18 @@ function renderConvList() {
 }
 
 function bubbleFor(msg) {
-  const wrap = el('div', 'msg ' + (msg.role === 'user' ? 'user' : 'assistant'));
-  wrap.append(el('div', 'who', msg.role === 'user' ? '我' : 'AI'));
+  const isUser = msg.role === 'user';
+  const wrap = el('div', 'msg ' + (isUser ? 'user' : 'assistant'));
+  const who = el('div', 'who', isUser ? (msg.who || LS.name || '我') : 'AI');
+  if (isUser) who.title = msg.who || LS.name || '';
+  wrap.append(who);
 
   const body = el('div', 'body');
   const content = el('div', 'content');
   body.append(content);
 
-  if (msg.err) {
-    content.append(el('div', 'err', msg.text || '出错了'));
-  } else {
-    content.innerHTML = md(msg.text);
-  }
+  if (msg.err) content.append(el('div', 'err', msg.text || '出错了'));
+  else content.innerHTML = md(msg.text);
 
   for (const src of (msg.images || [])) {
     const img = el('img');
@@ -310,7 +378,7 @@ function bubbleFor(msg) {
     content.append(dl);
   }
 
-  if (msg.role === 'assistant' && !msg.err) {
+  if (!isUser && !msg.err) {
     if (msg.meta) body.append(el('div', 'meta', msg.meta));
     const tools = el('div', 'tools');
     const cp = el('button', 'copy', '复制');
@@ -344,31 +412,38 @@ function scrollToBottom(force) {
   if (force || near) scroll.scrollTop = scroll.scrollHeight;
 }
 
+function visibleModels() {
+  const all = LS.models;
+  return canAstra() ? all : all.filter(m => !/astra/i.test(m));
+}
+
 function renderModels() {
   const sel = $('#model');
-  const models = LS.models;
+  const models = visibleModels();
   sel.textContent = '';
 
   const rec = RECOMMENDED.filter(m => models.includes(m));
+  const rest = models.filter(m => !rec.includes(m));
+
   if (rec.length) {
     const g = el('optgroup');
     g.label = '推荐模型集';
     for (const m of rec) { const o = el('option', null, labelOf(m)); o.value = m; g.append(o); }
     sel.append(g);
   }
-  const rest = models.filter(m => !rec.includes(m));
   if (rest.length) {
     const g = el('optgroup');
     g.label = '全部模型';
     for (const m of rest) { const o = el('option', null, labelOf(m)); o.value = m; g.append(o); }
     sel.append(g);
   }
+
   if (!models.includes(LS.model) && models.length) LS.model = rec[0] || models[0];
   sel.value = LS.model;
   renderEffort();
 }
 
-/* 推理强度：chip + 滑块（档位数量随模型上限变化） */
+/* 推理强度：chip + 滑块 */
 function renderEffort() {
   const list = effortsFor($('#model').value || LS.model);
   const range = $('#effortRange');
@@ -380,7 +455,7 @@ function renderEffort() {
   range.step = '1';
 
   let idx = list.indexOf(LS.effort);
-  if (idx < 0) idx = Math.min(list.length - 1, list.indexOf('medium') >= 0 ? list.indexOf('medium') : 0);
+  if (idx < 0) idx = Math.max(0, list.indexOf('medium'));
   LS.effort = list[idx];
   range.value = String(idx);
 
@@ -388,14 +463,16 @@ function renderEffort() {
   list.forEach((e, i) => {
     const b = el('button', 'tick' + (i === idx ? ' on' : ''), EFFORT_LABEL[e] || e);
     b.type = 'button';
-    b.addEventListener('click', () => { setEffort(i); });
+    b.addEventListener('click', () => setEffort(i));
     ticks.append(b);
   });
 
   $('#effortLabel').textContent = EFFORT_LABEL[LS.effort] || LS.effort;
-  note.textContent = list.length >= 4
-    ? '这个模型支持到「' + (EFFORT_LABEL[list[list.length - 1]] || '') + '」，档位越高越慢、越贵。'
-    : '这个模型最多到「' + (EFFORT_LABEL[list[list.length - 1]] || '') + '」。';
+
+  const top = list[list.length - 1];
+  let extra = '';
+  if (/astra/i.test($('#model').value || '') && !canAstra()) extra = '（需要高级口令）';
+  note.textContent = '最高到「' + (EFFORT_LABEL[top] || top) + '」。档位越高越慢。' + extra;
 }
 
 function setEffort(i) {
@@ -414,7 +491,7 @@ async function sendChat(text) {
 
   if (!conv.messages.length) conv.title = text.slice(0, 24) || '新对话';
 
-  conv.messages.push({ role: 'user', text, ts: Date.now() });
+  conv.messages.push({ role: 'user', text, who: LS.name, ts: Date.now() });
   const reply = { role: 'assistant', text: '', streaming: true, ts: Date.now() };
   conv.messages.push(reply);
   renderThread();
@@ -422,7 +499,7 @@ async function sendChat(text) {
 
   const model = $('#model').value || LS.model;
   const effort = LS.effort;
-  reply.meta = model + ' · ' + (EFFORT_LABEL[effort] || effort);
+  reply.meta = labelOf(model) + ' · ' + (EFFORT_LABEL[effort] || effort);
 
   const node = thread.lastElementChild;
   const content = node && node.querySelector('.content');
@@ -446,7 +523,6 @@ async function sendChat(text) {
       method: 'POST',
       signal: state.controller.signal,
       body: {
-        pass: LS.pass,
         model,
         effort,
         messages: conv.messages.filter(m => !m.err && !m.streaming).map(m => ({ role: m.role, text: m.text })),
@@ -502,7 +578,7 @@ async function sendChat(text) {
       reply.err = true;
       reply.text = (e && e.message) || '出错了';
       await saveConv(conv);
-      if (e && e.status === 401) askPass();
+      if (e && e.status === 401) logout();
     }
   } finally {
     state.streaming = false;
@@ -520,7 +596,7 @@ async function sendImage(prompt) {
 
   if (!conv.messages.length) conv.title = prompt.slice(0, 24) || '生成图片';
 
-  conv.messages.push({ role: 'user', text: prompt, ts: Date.now() });
+  conv.messages.push({ role: 'user', text: prompt, who: LS.name, ts: Date.now() });
   const reply = { role: 'assistant', text: '正在生成…', ts: Date.now() };
   conv.messages.push(reply);
   renderThread();
@@ -530,7 +606,7 @@ async function sendImage(prompt) {
   setSendState();
 
   try {
-    const res = await api('/image', { method: 'POST', body: { pass: LS.pass, prompt } });
+    const res = await api('/image', { method: 'POST', body: { prompt } });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(errText(res.status, data)), { status: res.status });
 
@@ -543,7 +619,7 @@ async function sendImage(prompt) {
   } catch (e) {
     reply.err = true;
     reply.text = (e && e.message) || '生成失败';
-    if (e && e.status === 401) askPass();
+    if (e && e.status === 401) logout();
   } finally {
     state.streaming = false;
     setSendState();
@@ -552,6 +628,56 @@ async function sendImage(prompt) {
     scrollToBottom(true);
   }
 }
+
+/* ---------------- 成员（admin） ---------------- */
+async function openUsers() {
+  const dlg = $('#dlgUsers');
+  const box = $('#userList');
+  box.textContent = '加载中…';
+  dlg.showModal();
+
+  const res = await api('/users');
+  if (!res.ok) { box.textContent = '看不到（权限或网络）'; return; }
+  const { users } = await res.json();
+  box.textContent = '';
+
+  if (!users.length) { box.textContent = '还没有人进来过'; return; }
+
+  for (const u of users) {
+    const row = el('div', 'user-row' + (u.blocked ? ' blocked' : ''));
+
+    const main = el('div', 'u-main');
+    main.append(el('div', 'u-name', u.name));
+    const meta = el('div', 'u-meta');
+    const role = { astra: 'Astra', admin: '管理员' }[u.role] || '普通';
+    const last = u.lastSeen ? new Date(u.lastSeen).toLocaleString('zh-CN', { hour12: false }) : '—';
+    meta.textContent = role + ' · 进过 ' + (u.logins || 0) + ' 次 · 最后 ' + last;
+    main.append(meta);
+    if (u.blocked) main.append(el('div', 'u-flag', '已拉黑'));
+
+    const btn = el('button', 'u-btn' + (u.blocked ? ' undo' : ''), u.blocked ? '解封' : '拉黑');
+    btn.addEventListener('click', async () => {
+      const blocked = !u.blocked;
+      if (blocked && !confirm('拉黑「' + u.name + '」？他之后进不来。')) return;
+      const r = await api('/users/block', { method: 'POST', body: { name: u.name, blocked } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(errText(r.status, j)); return; }
+      u.blocked = blocked;
+      row.classList.toggle('blocked', blocked);
+      btn.textContent = blocked ? '解封' : '拉黑';
+      btn.classList.toggle('undo', blocked);
+      const flag = main.querySelector('.u-flag');
+      if (blocked && !flag) main.append(el('div', 'u-flag', '已拉黑'));
+      if (!blocked && flag) flag.remove();
+    });
+
+    row.append(main, btn);
+    box.append(row);
+  }
+}
+
+$('#btnUsers').addEventListener('click', openUsers);
+$('#usersClose').addEventListener('click', () => $('#dlgUsers').close());
 
 /* ---------------- 交互 ---------------- */
 function setSendState() {
@@ -576,28 +702,6 @@ function autosize() {
 
 function closeNav() { document.body.classList.remove('nav'); }
 
-function askPass() {
-  const dlg = $('#dlgPass');
-  $('#passErr').textContent = '';
-  $('#passInput').value = LS.pass;
-  if (!dlg.open) dlg.showModal();
-  setTimeout(() => $('#passInput').focus(), 30);
-}
-
-$('#passForm').addEventListener('submit', (e) => {
-  const btn = e.submitter;
-  if (!btn || btn.value !== 'ok') return;
-  e.preventDefault();
-  const v = $('#passInput').value.trim();
-  if (!v) { $('#passErr').textContent = '口令不能为空'; return; }
-  LS.pass = v;
-  $('#dlgPass').close();
-  renderWho();
-  bootData();
-});
-
-$('#btnPass').addEventListener('click', askPass);
-
 $('#btnCfg').addEventListener('click', () => {
   $('#cfgBackend').value = LS.backend;
   $('#cfgModels').value = LS.models.join(',');
@@ -612,13 +716,14 @@ $('#cfgOk').addEventListener('click', () => {
 });
 
 async function verify() {
-  const who = $('#whoAmI');
-  const base = backendBase();
-  if (!base) { who.textContent = '后端未配置'; who.style.color = 'var(--danger)'; return; }
+  const who = $('#connState');
+  if (!LS.token) return;
   who.textContent = '连接中…';
   who.style.color = 'var(--faint)';
   try {
-    const res = await fetch(base + '/health?pass=' + encodeURIComponent(LS.pass));
+    const res = await fetch(backendBase() + '/health?pass=' + encodeURIComponent(''), {
+      headers: { 'x-token': LS.token },
+    });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
       const ids = Array.isArray(data.models) ? data.models : [];
@@ -627,15 +732,11 @@ async function verify() {
         .filter(id => !/^(chat-latest|chatgpt-image-latest)$/i.test(id))
         .filter(id => !/-\d{4}-\d{2}-\d{2}$/.test(id))
         .sort((a, b) => modelScore(b) - modelScore(a) || a.localeCompare(b));
-      if (chatty.length) {
-        LS.models = chatty;
-        renderModels();
-      }
-      who.textContent = '已连接 · ' + (chatty.length || ids.length) + ' 个模型';
-      who.style.color = 'var(--dim)';
+      if (chatty.length) { LS.models = chatty; renderModels(); }
+      who.textContent = '在线 · ' + chatty.length + ' 个模型';
+      who.style.color = 'var(--ok, #7fbf8a)';
     } else if (res.status === 401) {
-      who.textContent = '口令不对';
-      who.style.color = 'var(--danger)';
+      logout();
     } else {
       who.textContent = '后端异常';
       who.style.color = 'var(--danger)';
@@ -646,10 +747,6 @@ async function verify() {
   }
 }
 
-function renderWho() {
-  $('#whoAmI').textContent = LS.pass ? '已保存口令' : '未验证口令';
-}
-
 function modelScore(id) {
   const m = /^gpt-(\d+(?:\.\d+)?)/.exec(id) || /^o(\d+)/.exec(id);
   let v = m ? parseFloat(m[1]) : 0;
@@ -657,16 +754,14 @@ function modelScore(id) {
   if (/sol/i.test(id)) v += 0.2;
   if (/terra/i.test(id)) v += 0.15;
   if (/luna/i.test(id)) v += 0.1;
+  if (/astra/i.test(id)) v += 0.25;
   if (/mini|nano/i.test(id)) v -= 0.5;
   return v;
 }
 
 $('#composer').addEventListener('submit', (e) => {
   e.preventDefault();
-  if (state.streaming) {
-    state.controller && state.controller.abort();
-    return;
-  }
+  if (state.streaming) { state.controller && state.controller.abort(); return; }
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
@@ -689,7 +784,7 @@ $('#imgToggle').addEventListener('click', () => {
   input.placeholder = state.imageMode ? '描述你想生成的画面…' : '发消息…（Enter 发送，Shift+Enter 换行）';
   hint.textContent = state.imageMode
     ? '图片模式：这句话会被当成画面描述。'
-    : '内容由 AI 生成，注意甄别。对话保存在服务器上，拿到口令的人都能看到。';
+    : '内容由 AI 生成，注意甄别。对话存在服务器上，进来的人都能看到。';
   input.focus();
 });
 
@@ -724,8 +819,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-$('#gear').addEventListener('click', () => $('#btnCfg').click());
-
 $('#menuBtn').addEventListener('click', () => document.body.classList.toggle('nav'));
 
 $('#newChat').addEventListener('click', async () => {
@@ -747,7 +840,8 @@ empty.addEventListener('click', (e) => {
 
 /* ---------------- 启动 + 同步 ---------------- */
 async function bootData() {
-  await loadConvs();
+  const ok = await loadConvs();
+  if (!ok) return;
   if (!state.convs.length) await createConv();
   if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
     state.currentId = state.convs[0] ? state.convs[0].id : null;
@@ -756,11 +850,11 @@ async function bootData() {
   scrollToBottom(true);
 }
 
-let lastPoll = 0;
 async function poll() {
-  if (state.streaming || document.hidden) return;
+  if (state.streaming || document.hidden || !LS.token) return;
   const before = JSON.stringify(state.convs.map(c => [c.id, c.updatedAt, c.title]));
-  await loadConvs();
+  const ok = await loadConvs();
+  if (!ok) return;
   const after = JSON.stringify(state.convs.map(c => [c.id, c.updatedAt, c.title]));
   if (before !== after) {
     if (!state.currentId && state.convs[0]) state.currentId = state.convs[0].id;
@@ -769,10 +863,26 @@ async function poll() {
 }
 
 async function boot() {
+  renderIdentity();
   renderModels();
-  renderWho();
   autosize();
-  if (!LS.pass) { askPass(); return; }
+
+  if (!LS.token) { showLogin(''); return; }
+
+  // 校验令牌
+  const me = await api('/me').catch(() => null);
+  if (!me || !me.ok) {
+    if (me && me.status === 403) { LS.token = ''; showLogin('你被拉黑了'); return; }
+    LS.token = '';
+    showLogin('');
+    return;
+  }
+  const who = await me.json();
+  LS.name = who.name;
+  LS.role = who.role;
+  renderIdentity();
+  renderModels();
+
   await bootData();
   await verify();
   input.focus();
