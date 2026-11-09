@@ -64,6 +64,7 @@ const state = {
   streaming: false,
   imageMode: false,
   search: false,
+  rawUpload: false,
   attachments: [],
   codeMode: false,
   fileIdx: 0,
@@ -722,7 +723,8 @@ async function uploadFile(file) {
   if (!file || !/^image\//.test(file.type)) { alert('只支持图片'); return; }
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
-  const small = await shrinkImage(file);
+  // 「原图」开着就跳过压缩，保真优先（体积仍受 20MB 限制）
+  const small = state.rawUpload ? file : await shrinkImage(file);
   if (small.size > MAX_IMAGE_MB * 1024 * 1024) { alert('压缩后仍超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
   const dataUrl = await new Promise((res, rej) => {
@@ -899,9 +901,37 @@ function renderPreview() {
   const cv = current();
   const f = cv && cv.files && cv.files[state.fileIdx];
   if (!f) return;
-  frame.srcdoc = /\.svg$/i.test(f.name)
-    ? '<!doctype html><html><body style="margin:0;display:grid;place-items:center;min-height:100vh">' + f.content + '</body></html>'
-    : f.content;
+
+  if (/\.svg$/i.test(f.name)) {
+    frame.srcdoc = '<!doctype html><html><body style="margin:0;display:grid;place-items:center;min-height:100vh">' + f.content + '</body></html>';
+    return;
+  }
+  frame.srcdoc = inlineAssets(f.content, (cv && cv.files) || []);
+}
+
+/** 把 <link href="x.css"> / <script src="x.js"> 换成同会话里的文件内容 */
+function inlineAssets(html, files) {
+  const byName = new Map(files.map(x => [x.name, x.content || '']));
+  const find = (ref) => {
+    const clean = String(ref).split('?')[0].split('#')[0].replace(/^\.\//, '').replace(/^\//, '');
+    if (byName.has(clean)) return byName.get(clean);
+    const base = clean.split('/').pop();
+    for (const [n, c] of byName) if (n === base || n.endsWith('/' + base)) return c;
+    return null;
+  };
+
+  let out = html;
+  out = out.replace(/<link\b[^>]*href=["']([^"']+)["'][^>]*>/gi, (m, href) => {
+    if (/^(https?:)?\/\//i.test(href) || /^data:/i.test(href)) return m;
+    const css = find(href);
+    return css != null ? '<style>\n' + css + '\n</style>' : m;
+  });
+  out = out.replace(/<script\b([^>]*?)\bsrc=["']([^"']+)["']([^>]*)><\/script>/gi, (m, a, src, b) => {
+    if (/^(https?:)?\/\//i.test(src) || /^data:/i.test(src)) return m;
+    const js = find(src);
+    return js != null ? '<script' + a + b + '>\n' + js + '\n</script>' : m;
+  });
+  return out;
 }
 
 function closePreview() {
@@ -1089,11 +1119,14 @@ const DEFAULT_PH = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴
 function renderCaps() {
   document.querySelectorAll('.cap').forEach(b => {
     const k = b.dataset.cap;
-    const on = k === 'image' ? state.imageMode : k === 'code' ? state.codeMode : state.search;
+    const on = k === 'image' ? state.imageMode
+      : k === 'code' ? state.codeMode
+      : k === 'raw' ? state.rawUpload
+      : state.search;
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', String(on));
   });
-  $('#plusBtn').classList.toggle('on', state.imageMode || state.search || state.codeMode);
+  $('#plusBtn').classList.toggle('on', state.imageMode || state.search || state.codeMode || state.rawUpload);
 }
 
 function setCap(kind, on) {
@@ -1102,6 +1135,8 @@ function setCap(kind, on) {
     input.placeholder = on ? '描述你想生成的画面…' : DEFAULT_PH;
   } else if (kind === 'search') {
     state.search = on;
+  } else if (kind === 'raw') {
+    state.rawUpload = on;
   } else if (kind === 'code') {
     state.codeMode = on;
     if (on) { openCodePane(); if (!input.value.trim()) input.placeholder = '描述你要写的功能，GPT 会把文件写进右侧面板…'; }
@@ -1113,7 +1148,10 @@ function setCap(kind, on) {
 document.querySelectorAll('.cap').forEach(b => {
   b.addEventListener('click', () => {
     const k = b.dataset.cap;
-    const cur = k === 'image' ? state.imageMode : k === 'code' ? state.codeMode : state.search;
+    const cur = k === 'image' ? state.imageMode
+      : k === 'code' ? state.codeMode
+      : k === 'raw' ? state.rawUpload
+      : state.search;
     setCap(k, !cur);
     input.focus();
   });
