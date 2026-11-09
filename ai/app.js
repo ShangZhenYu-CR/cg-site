@@ -816,35 +816,6 @@ async function sendChat(text) {
   }
 }
 
-async function sendImage(prompt) {
-  const cv = current() || await createConv();
-  if (!cv) return;
-  if (!cv.messages.length) cv.title = prompt.slice(0, 24);
-  cv.messages.push({ role: 'user', text: prompt, who: LS.name, ts: Date.now() });
-  const reply = { role: 'assistant', text: '正在生成…', ts: Date.now() };
-  cv.messages.push(reply);
-  renderThread();
-  scrollBottom(true);
-  setBusy(true);
-
-  try {
-    const res = await api('/image', { method: 'POST', body: { prompt } });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(errText(res.status, data)), { status: res.status });
-    const imgs = (data.images || []).map(x => x.url).filter(Boolean);
-    if (!imgs.length) throw new Error('后端没给图片');
-    reply.text = ''; reply.images = imgs; reply.meta = 'gpt-image-2.6-sunburst'; delete reply.err;
-  } catch (e) {
-    reply.err = true; reply.text = (e && e.message) || '生成失败';
-    if (e && e.status === 401) logout();
-  } finally {
-    setBusy(false);
-    await saveConv(cv);
-    renderAll();
-    scrollBottom(true);
-  }
-}
-
 function scrollBottom(force) {
   const near = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight < 200;
   if (force || near) scrollBox.scrollTop = scrollBox.scrollHeight;
@@ -1091,40 +1062,6 @@ document.addEventListener('paste', (e) => {
 });
 
 /* ---------------- 代码面板 ---------------- */
-const EXT_BY_LANG = {
-  python: 'py', py: 'py', javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts',
-  html: 'html', css: 'css', json: 'json', bash: 'sh', sh: 'sh', shell: 'sh',
-  powershell: 'ps1', ps1: 'ps1', mel: 'mel', maya: 'mel', csharp: 'cs', cs: 'cs',
-  cpp: 'cpp', 'c++': 'cpp', c: 'c', markdown: 'md', md: 'md', sql: 'sql',
-  yaml: 'yml', yml: 'yml', xml: 'xml', text: 'txt',
-};
-
-/** 回复里的长代码块自动收进面板；短片段留在对话里 */
-function harvestCode(text) {
-  const re = /```([\w+#.-]*)[ \t]*\n([\s\S]*?)```/g;
-  const blocks = [];
-  let m;
-  while ((m = re.exec(text))) {
-    blocks.push({ lang: (m[1] || '').toLowerCase(), code: m[2], raw: m[0], at: m.index });
-  }
-  const big = blocks.filter(b => b.code.split('\n').length >= 15 || b.code.length >= 800);
-  if (!big.length) return null;
-
-  const files = [];
-  let out = text;
-  big.forEach((b, i) => {
-    const before = text.slice(Math.max(0, b.at - 160), b.at);
-    const named = /([\w./-]+\.(?:py|js|ts|html?|css|json|sh|ps1|mel|ma|cs|cpp|c|md|ya?ml|sql))/i.exec(before);
-    const ext = EXT_BY_LANG[b.lang] || 'txt';
-    const name = named ? named[1].split('/').pop() : 'snippet-' + (i + 1) + '.' + ext;
-    files.push({ name, content: b.code.replace(/\s+$/, '') + '\n' });
-    out = out.replace(b.raw, '');
-  });
-
-  out = out.replace(/\n{3,}/g, '\n\n').trim();
-  return { files, text: out };
-}
-
 const FILE_RE = /```file:([^\n`]+)\n([\s\S]*?)```/g;
 
 function extractFiles(text) {
@@ -1693,6 +1630,19 @@ $('#drawSave').addEventListener('click', () => {
   $('#dlgDraw').hidden = true;
 });
 
+/**
+ * 决定这条消息走哪条路（纯函数，便于测试）
+ * 规则：动图模式 > 关键词动图 > 画图模式 > 普通聊天
+ * 返回 { route: 'gif' | 'draw' | 'chat', ref }
+ */
+function decideRoute({ text, hasAttach, attachUrl, gifMode, imageMode }) {
+  const ref = hasAttach ? attachUrl : null;
+  const gifByWord = /(gif|动图|动画|动起来|会动的图)/i.test(text || '');
+  if (gifMode || gifByWord) return { route: 'gif', ref };
+  if (imageMode) return { route: 'draw', ref };
+  return { route: 'chat', ref: null };
+}
+
 $('#composer').addEventListener('submit', (e) => {
   e.preventDefault();
   if (state.streaming) { state.controller && state.controller.abort(); return; }
@@ -1701,25 +1651,28 @@ $('#composer').addEventListener('submit', (e) => {
   const hasAttach = state.attachments.length > 0;
   if (!text && !hasAttach) return;
 
+  const decision = decideRoute({
+    text,
+    hasAttach,
+    attachUrl: hasAttach ? state.attachments[0].url : null,
+    gifMode: state.gifMode,
+    imageMode: state.imageMode,
+  });
+
   input.value = '';
   input.style.height = 'auto';
 
-  const wantsGif = state.gifMode || /(gif|动图|动画|动起来|会动的图)/i.test(text);
-  if (wantsGif) {
-    const ref = hasAttach ? state.attachments[0].url : null;
-    if (hasAttach) { state.attachments = []; renderAttach(); }
+  if (decision.ref) { state.attachments = []; renderAttach(); }
+
+  if (decision.route === 'gif') {
     const d = LS.draw;
-    sendGif(text || '把这张图做成动图', ref, d.frames, d.dur);
+    sendGif(text || '把这张图做成动图', decision.ref, d.frames, d.dur);
     return;
   }
-
-  if (state.imageMode) {
-    const ref = hasAttach ? state.attachments[0].url : null;
-    if (hasAttach) { state.attachments = []; renderAttach(); }
-    sendDraw(text, ref);
+  if (decision.route === 'draw') {
+    sendDraw(text, decision.ref);
     return;
   }
-
   sendChat(text);
 });
 
