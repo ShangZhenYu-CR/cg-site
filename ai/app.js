@@ -88,6 +88,8 @@ const state = {
   controller: null,
 };
 
+let applyingSettings = false;
+
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, txt) => {
   const n = document.createElement(tag);
@@ -263,7 +265,15 @@ async function loadConvs() {
 const current = () => state.convs.find(c => c.id === state.currentId) || null;
 
 async function createConv(opts = {}) {
-  const r = await api('/convs', { method: 'POST', body: { title: '新对话', projectId: opts.projectId || null, private: !!opts.private } });
+  const r = await api('/convs', {
+    method: 'POST',
+    body: {
+      title: '新对话',
+      projectId: opts.projectId || null,
+      private: !!opts.private,
+      settings: { model: LS.model, effort: LS.effort, codeMode: !!state.codeMode, search: !!state.search, raw: !!state.rawUpload },
+    },
+  });
   if (!r.ok) return null;
   const { conversation } = await r.json();
   state.convs.unshift(conversation);
@@ -279,9 +289,46 @@ async function saveConv(conv, extra) {
     projectId: conv.projectId || null,
     private: !!conv.private,
     files: conv.files || [],
+    settings: conv.settings || {},
     ...(extra || {}),
   };
   try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {}
+}
+
+/* ---- 会话自带的界面状态（共享） ---- */
+let settingsTimer = null;
+
+function persistSettings() {
+  const cv = current();
+  if (!cv) return;
+  cv.settings = {
+    model: LS.model,
+    effort: LS.effort,
+    codeMode: !!state.codeMode,
+    search: !!state.search,
+    raw: !!state.rawUpload,
+  };
+  clearTimeout(settingsTimer);
+  settingsTimer = setTimeout(() => saveConv(cv), 600);
+}
+
+function applyConvSettings(cv) {
+  const s = cv && cv.settings;
+  if (!s) return;
+  applyingSettings = true;
+  try {
+    if (s.model && visibleModels().includes(s.model)) LS.model = s.model;
+    if (s.effort) LS.effort = s.effort;
+
+    setCap('code', !!s.codeMode);
+    setCap('search', !!s.search);
+    setCap('raw', !!s.raw);
+
+    renderModels();
+    renderEffort();
+  } finally {
+    applyingSettings = false;
+  }
 }
 
 /* ---------------- 侧栏 ---------------- */
@@ -301,6 +348,7 @@ function convRow(cv) {
   row.addEventListener('click', () => {
     if (state.streaming) return;
     state.currentId = cv.id;
+    applyConvSettings(cv);
     renderAll();
     closeNav();
   });
@@ -519,7 +567,7 @@ function renderModels() {
     if (title) box.append(el('h4', null, title));
     for (const id of arr) {
       const b = el('button', 'opt' + (id === LS.model ? ' on' : ''), labelOf(id));
-      b.addEventListener('click', () => { LS.model = id; renderModels(); renderEffort(); updateCtx(); });
+      b.addEventListener('click', () => { LS.model = id; renderModels(); renderEffort(); updateCtx(); persistSettings(); });
       box.append(b);
     }
   };
@@ -546,7 +594,7 @@ function renderEffort() {
   list.forEach((e, i) => {
     const s = el('span', i === idx ? 'on' : '', EFFORT_LABEL[e]);
     s.style.cursor = 'pointer';
-    s.addEventListener('click', () => { LS.effort = e; renderEffort(); });
+    s.addEventListener('click', () => { LS.effort = e; renderEffort(); persistSettings(); });
     ticks.append(s);
   });
 
@@ -1463,6 +1511,7 @@ $('#effRange').addEventListener('input', (e) => {
   const l = effortsFor(LS.model);
   LS.effort = l[Number(e.target.value)] || l[0];
   renderEffort();
+  persistSettings();
 });
 
 /* ---- 能力开关：默认不显示，开了才浮在输入框上方 ---- */
@@ -1513,6 +1562,7 @@ function setCap(kind, on) {
     else { closeCodePane(); input.placeholder = DEFAULT_PH; }
   }
   renderCaps();
+  if (!applyingSettings) persistSettings();
 }
 
 document.querySelectorAll('#plusPop .opt').forEach(o => {
@@ -1718,6 +1768,7 @@ async function bootData() {
   if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
     state.currentId = state.convs[0] ? state.convs[0].id : null;
   }
+  applyConvSettings(current());
   renderAll();
   scrollBottom(true);
   await verify();
