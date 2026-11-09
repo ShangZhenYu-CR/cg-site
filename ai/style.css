@@ -157,10 +157,22 @@ button{cursor:pointer;background:none;border:0}
 
 .composer-wrap{padding:8px 20px 14px;background:linear-gradient(to top,var(--bg) 60%,transparent)}
 .attach{width:min(780px,100%);margin:0 auto 6px;display:flex;gap:8px;flex-wrap:wrap}
-.attach .chip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;padding:4px 6px;background:var(--panel)}
-.attach .chip img{width:42px;height:42px;object-fit:cover;border-radius:6px;display:block}
-.attach .chip button{color:var(--faint);font-size:12px;padding:0 3px}
-.attach .chip button:hover{color:var(--danger)}
+.attach .chip{
+  position:relative;display:block;border:1px solid var(--line);border-radius:12px;
+  padding:0;background:var(--panel);overflow:hidden;line-height:0;
+}
+.attach .chip img{
+  display:block;width:auto;height:auto;max-width:340px;max-height:260px;
+  min-width:120px;object-fit:contain;
+}
+.attach .chip button{
+  position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;
+  background:rgba(10,12,16,.72);color:#fff;border:1px solid rgba(255,255,255,.28);
+  font-size:13px;line-height:1;display:grid;place-items:center;padding:0;
+  opacity:.85;transition:.12s;
+}
+.attach .chip button:hover{background:var(--danger);color:#1a0d0d;opacity:1}
+@media (max-width:820px){ .attach .chip img{max-width:min(74vw,340px)} }
 .up-hint{
   display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--faint);
   border:1px dashed var(--line);border-radius:10px;padding:8px 12px;background:var(--panel);
