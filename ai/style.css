@@ -124,13 +124,15 @@ a { color: var(--accent); }
 }
 #menuBtn { display: none; }
 #topbar .spacer { flex: 1; }
-#model {
+#model, #effort {
   padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel-2);
   max-width: 220px;
 }
+#effort { max-width: 96px; }
+#model optgroup, #effort optgroup { background: var(--panel); color: var(--faint); }
 #gear {
   padding: 6px 10px;
   border-radius: 8px;
@@ -238,6 +240,20 @@ code.inline {
   font: 13px ui-monospace, Consolas, monospace;
 }
 .msg .body img { max-width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+.msg .body .dl {
+  display: inline-block;
+  margin: 6px 0 10px;
+  font-size: 12px;
+  color: var(--faint);
+  text-decoration: none;
+}
+.msg .body .dl:hover { color: var(--accent); }
+.msg .body .meta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--faint);
+  letter-spacing: .02em;
+}
 
 .msg .tools { display: flex; gap: 6px; margin-top: 4px; opacity: 0; transition: opacity .12s; }
 .msg:hover .tools { opacity: 1; }
