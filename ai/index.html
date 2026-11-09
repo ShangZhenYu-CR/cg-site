@@ -19,11 +19,15 @@
     </div>
     <nav id="convList" aria-label="历史对话"></nav>
     <div id="side-bottom">
-      <div class="row">
-        <button id="btnPass">修改口令</button>
-        <button id="btnCfg">接口设置</button>
+      <div id="whoBox">
+        <span id="whoName">未登录</span>
+        <span id="whoRole" class="badge" hidden></span>
       </div>
-      <div id="whoAmI" class="row" style="color:var(--faint);font-size:12px">未验证口令</div>
+      <div class="row">
+        <button id="btnUsers" hidden>成员</button>
+        <button id="btnCfg">设置</button>
+        <button id="btnLogout">退出</button>
+      </div>
     </div>
   </aside>
 
@@ -44,7 +48,7 @@
         </div>
       </div>
       <div class="spacer"></div>
-      <button id="gear" title="设置">⚙</button>
+      <span id="connState" class="conn"></span>
     </header>
 
     <div id="scroll">
@@ -67,25 +71,39 @@
         <textarea id="input" rows="1" placeholder="发消息…（Enter 发送，Shift+Enter 换行）" autocomplete="off"></textarea>
         <button type="submit" id="sendBtn" title="发送">↑</button>
       </form>
-      <div id="hint">内容由 AI 生成，注意甄别。对话只存在你自己的浏览器里。</div>
+      <div id="hint">内容由 AI 生成，注意甄别。对话存在服务器上，进来的人都能看到。</div>
     </div>
   </main>
 </div>
 
-<!-- 口令 -->
-<dialog id="dlgPass">
-  <form method="dialog" class="dlg" id="passForm">
-    <h2>输入访问口令</h2>
-    <p>这个页面只对拿到口令的人开放。口令只保存在本机浏览器。</p>
-    <label>口令
-      <input type="password" id="passInput" autocomplete="current-password" placeholder="和站长要">
+<!-- 登录 -->
+<dialog id="dlgLogin">
+  <form method="dialog" class="dlg" id="loginForm">
+    <h2>进聊天室</h2>
+    <p>填个昵称，口令问站长。昵称会显示在你发的每条消息上。</p>
+    <label>昵称
+      <input type="text" id="loginName" maxlength="24" autocomplete="nickname" placeholder="比如：老王">
     </label>
-    <div class="msg-err" id="passErr"></div>
+    <label>口令
+      <input type="password" id="loginPass" autocomplete="current-password" placeholder="问站长要">
+    </label>
+    <div class="msg-err" id="loginErr"></div>
     <div class="actions">
-      <button value="cancel" type="submit">取消</button>
-      <button value="ok" type="submit" class="primary" id="passOk">进入</button>
+      <button value="ok" type="submit" class="primary" id="loginOk">进去</button>
     </div>
   </form>
+</dialog>
+
+<!-- 成员（仅 admin） -->
+<dialog id="dlgUsers">
+  <div class="dlg">
+    <h2>进来过的人</h2>
+    <p>认不出的直接拉黑，之后用同样昵称进不来。</p>
+    <div id="userList" class="user-list"></div>
+    <div class="actions">
+      <button id="usersClose">关闭</button>
+    </div>
+  </div>
 </dialog>
 
 <!-- 设置 -->
@@ -94,10 +112,10 @@
     <h2>接口设置</h2>
     <p>一般不用改。只有后端换了地址才需要动这里。</p>
     <label>后端地址
-      <input type="url" id="cfgBackend" placeholder="https://ai.example.workers.dev">
+      <input type="url" id="cfgBackend" placeholder="https://chat.example.com/ai-api">
     </label>
     <label>模型
-      <input type="text" id="cfgModels" placeholder="用英文逗号分隔，例如 gpt-5,gpt-4o">
+      <input type="text" id="cfgModels" placeholder="用英文逗号分隔">
     </label>
     <div class="actions">
       <button value="cancel" type="submit">取消</button>
