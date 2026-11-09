@@ -924,7 +924,7 @@ $('#codePreview').addEventListener('click', () => {
   else closePreview();
 });
 
-$('#codeClose').addEventListener('click', closeCodePane);
+$('#codeClose').addEventListener('click', () => setCap('code', false));
 
 
 $('#handoffBtn').addEventListener('click', async () => {
