@@ -597,7 +597,7 @@ async function sendChat(text) {
     const res = await api('/chat', {
       method: 'POST', signal: state.controller.signal,
       body: {
-        model, effort, search: state.search, convId: cv.id, projectId: cv.projectId || null,
+        model, effort, search: state.search, imageTool: true, convId: cv.id, projectId: cv.projectId || null,
         codeMode: state.codeMode,
         fileNames: (cv.files || []).map(f => f.name),
         messages: sentMessages(cv).map(m => ({
@@ -636,6 +636,10 @@ async function sendChat(text) {
             let ev; try { ev = JSON.parse(payload); } catch { continue; }
             if (ev.e) throw new Error(ev.e);
             if (ev.u) cv.usage = ev.u;
+            if (ev.img) {
+              reply.images = [...(reply.images || []), ev.img];
+              if (!reply.meta) reply.meta = '图片';
+            }
             if (ev.t) { acc += ev.t; schedule(); }
           }
         }
@@ -1306,7 +1310,6 @@ $('#effRange').addEventListener('input', (e) => {
 /* ---- 能力开关：默认不显示，开了才浮在输入框上方 ---- */
 const DEFAULT_PH = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
 const CAP_DEFS = [
-  { k: 'image', icon: '🖼️', label: '生成图片' },
   { k: 'code', icon: '🧑‍💻', label: '编程模式' },
   { k: 'search', icon: '🌐', label: '联网搜索' },
   { k: 'raw', icon: '📷', label: '原图' },
