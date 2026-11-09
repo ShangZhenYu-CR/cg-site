@@ -338,7 +338,7 @@ function applyConvSettings(cv) {
   if (!s) return;
   applyingSettings = true;
   try {
-    if (s.model && visibleModels().includes(s.model)) LS.model = s.model;
+    if (s.model) LS.model = s.model;   // 会话记录的就是它当时用的模型，直接恢复
     if (s.effort) LS.effort = s.effort;
 
     // 五个开关全部按会话重置，缺省即为关闭（否则会带到别的对话上）
