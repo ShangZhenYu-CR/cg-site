@@ -689,7 +689,7 @@ function renderAttach() {
   });
 }
 
-const MAX_IMAGE_MB = 20;
+const MAX_IMAGE_MB = 50;
 
 /** 上传前压缩：按体积分级降分辨率，目标 ≤400KB（跨境链路下行很慢） */
 async function shrinkImage(file) {
@@ -713,12 +713,12 @@ async function shrinkImage(file) {
       return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + ext, { type });
     };
 
-    let out = await encode(1600, 0.88, true);
+    let out = await encode(2048, 0.9, true);
     if (!out || out.size >= file.size) out = file;
 
     const tiers = [
-      [1280, 0.8, 400 * 1024],
-      [1024, 0.72, 250 * 1024],
+      [1600, 0.85, 1.2 * 1024 * 1024],
+      [1280, 0.8, 800 * 1024],
     ];
     for (const [edge, q, ceiling] of tiers) {
       if (out.size <= ceiling) break;
