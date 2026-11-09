@@ -289,7 +289,7 @@ async function createConv(opts = {}) {
       title: '新对话',
       projectId: opts.projectId || null,
       private: !!opts.private,
-      settings: { model: LS.model, effort: LS.effort, codeMode: !!state.codeMode, search: !!state.search, raw: !!state.rawUpload },
+      settings: { model: LS.model, effort: LS.effort, codeMode: !!state.codeMode, search: !!state.search, raw: !!state.rawUpload, imageMode: !!state.imageMode, gifMode: !!state.gifMode },
     },
   });
   if (!r.ok) return null;
@@ -326,6 +326,8 @@ function persistSettings() {
     codeMode: !!state.codeMode,
     search: !!state.search,
     raw: !!state.rawUpload,
+    imageMode: !!state.imageMode,
+    gifMode: !!state.gifMode,
   };
   clearTimeout(settingsTimer);
   settingsTimer = setTimeout(() => saveConv(cv), 600);
@@ -339,9 +341,12 @@ function applyConvSettings(cv) {
     if (s.model && visibleModels().includes(s.model)) LS.model = s.model;
     if (s.effort) LS.effort = s.effort;
 
+    // 五个开关全部按会话重置，缺省即为关闭（否则会带到别的对话上）
     setCap('code', !!s.codeMode);
     setCap('search', !!s.search);
     setCap('raw', !!s.raw);
+    setCap('image', !!s.imageMode);
+    setCap('gif', !!s.gifMode);
 
     renderModels();
     renderEffort();
