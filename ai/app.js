@@ -1581,14 +1581,40 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
   });
 });
 
-/* 画图参数面板：鼠标移到「画图」标签上展开 */
+/* 画图参数面板：并排按钮，选中高亮 */
+const DRAW_GROUPS = [
+  { key: 'size', label: '尺寸', opts: [['1024x1024', '1024²'], ['1536x1024', '1536×1024'], ['1024x1536', '1024×1536'], ['auto', 'auto']] },
+  { key: 'quality', label: '质量', opts: [['auto', 'auto'], ['low', '低'], ['medium', '中'], ['high', '高']] },
+  { key: 'bg', label: '背景', opts: [['', 'auto'], ['opaque', '不透明'], ['transparent', '透明']] },
+  { key: 'n', label: '张数', opts: [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']] },
+  { key: 'format', label: '格式', opts: [['png', 'png'], ['webp', 'webp'], ['jpeg', 'jpeg'], ['gif', 'GIF']] },
+];
+
 function renderDrawPanel() {
   const d = LS.draw;
-  $('#barSize').value = d.size;
-  $('#barQuality').value = d.quality;
-  $('#barBg').value = d.bg || '';
-  $('#barN').value = String(d.n || 1);
-  $('#barFormat').value = d.format || 'png';
+  const body = $('#drawPopBody');
+  if (!body) return;
+  body.textContent = '';
+
+  for (const g of DRAW_GROUPS) {
+    const row = el('div', 'seg-row');
+    row.append(el('span', 'seg-label', g.label));
+    const seg = el('div', 'seg');
+    for (const [val, text] of g.opts) {
+      const cur = String(d[g.key] == null ? '' : d[g.key]) === val;
+      const b = el('button', 'seg-btn' + (cur ? ' on' : ''), text);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        const nd = LS.draw;
+        nd[g.key] = g.key === 'n' ? Number(val) : val;
+        LS.draw = nd;
+        renderDrawPanel();
+      });
+      seg.append(b);
+    }
+    row.append(seg);
+    body.append(row);
+  }
 }
 
 let drawPopTimer = null;
@@ -1611,19 +1637,6 @@ function hideDrawPanelSoon() {
   clearTimeout(drawPopTimer);
   drawPopTimer = setTimeout(() => { $('#drawPop').hidden = true; }, 220);
 }
-
-const BAR_MAP = { barSize: 'size', barQuality: 'quality', barBg: 'bg', barN: 'n', barFormat: 'format' };
-Object.keys(BAR_MAP).forEach((id) => {
-  const elx = $('#' + id);
-  if (!elx) return;
-  elx.addEventListener('change', (e) => {
-    const key = BAR_MAP[id];
-    const d = LS.draw;
-    d[key] = key === 'n' ? Number(e.target.value) : e.target.value;
-    LS.draw = d;
-    input.focus();
-  });
-});
 
 $('#barMore').addEventListener('click', () => {
   $('#drawPop').hidden = true;

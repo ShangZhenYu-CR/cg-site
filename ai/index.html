@@ -74,47 +74,9 @@
 
       <div class="caps" id="caps" hidden></div>
       <div class="pop draw-pop" id="drawPop" hidden>
-        <label class="draw-row">尺寸
-          <select id="barSize">
-            <option value="1024x1024">1024 × 1024</option>
-            <option value="1536x1024">1536 × 1024</option>
-            <option value="1024x1536">1024 × 1536</option>
-            <option value="auto">auto</option>
-          </select>
-        </label>
-        <label class="draw-row">质量
-          <select id="barQuality">
-            <option value="auto">auto</option>
-            <option value="low">低</option>
-            <option value="medium">中</option>
-            <option value="high">高</option>
-          </select>
-        </label>
-        <label class="draw-row">背景
-          <select id="barBg">
-            <option value="">auto</option>
-            <option value="opaque">不透明</option>
-            <option value="transparent">透明</option>
-          </select>
-        </label>
-        <label class="draw-row">张数
-          <select id="barN">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-          </select>
-        </label>
-        <label class="draw-row">格式
-          <select id="barFormat">
-            <option value="png">png</option>
-            <option value="gif">gif（动图）</option>
-            <option value="webp">webp</option>
-            <option value="jpeg">jpeg</option>
-          </select>
-        </label>
+        <div id="drawPopBody"></div>
         <button type="button" class="draw-more" id="barMore">更多参数（模型 / 审核 / GIF）…</button>
-      </div>
+      </div> </div>
       <form class="composer" id="composer">
         <div class="plus-wrap">
           <button type="button" class="icon" id="plusBtn" title="更多">＋</button>

@@ -325,3 +325,11 @@ body:not(.noside) #sideToggle{display:none}
 .draw-row select:focus{border-color:#35507a}
 .draw-more{width:100%;margin-top:2px;font-size:11px;color:var(--faint);border:1px dashed var(--line);border-radius:8px;padding:6px}
 .draw-more:hover{color:var(--accent);border-color:var(--accent)}
+
+/* 分段按钮 */
+.seg-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.seg-label{flex:0 0 28px;font-size:11px;color:var(--faint)}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg-btn{padding:3px 8px;border-radius:8px;border:1px solid var(--line);background:#10141b;color:var(--dim);font-size:11px;line-height:1.5}
+.seg-btn:hover{border-color:#3a4a66;color:var(--text)}
+.seg-btn.on{background:rgba(110,168,254,.16);border-color:var(--accent);color:#cfe1ff}
