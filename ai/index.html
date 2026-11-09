@@ -66,6 +66,7 @@
           <div class="pop plus-pop" id="plusPop" hidden>
             <button type="button" class="opt" data-mode="image">🖼️　生成图片</button>
             <button type="button" class="opt" data-mode="upload">📎　上传图片</button>
+            <button type="button" class="opt" data-mode="code">🧑‍💻　编程模式<span class="lock" id="codeState">关</span></button>
             <button type="button" class="opt" data-mode="search">🌐　联网搜索<span class="lock" id="searchState">关</span></button>
           </div>
         </div>
@@ -90,6 +91,20 @@
     </div>
   </main>
 </div>
+
+<!-- 代码面板 -->
+<aside id="codepane" hidden>
+  <div class="code-head">
+    <div class="tabs" id="codeTabs"></div>
+    <div class="code-actions">
+      <button id="codeNew" title="新建文件">＋</button>
+      <button id="codeDownload" title="下载当前文件">⤓</button>
+      <button id="codeClose" title="关闭面板">×</button>
+    </div>
+  </div>
+  <div class="code-meta"><span id="codeName">—</span><span id="codeStat"></span></div>
+  <textarea id="codeArea" spellcheck="false" placeholder="这里会显示 GPT 写出的文件；也可以直接编辑。"></textarea>
+</aside>
 
 <input type="file" id="fileInput" accept="image/*" multiple hidden>
 
