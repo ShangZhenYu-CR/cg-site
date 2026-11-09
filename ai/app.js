@@ -511,9 +511,8 @@ function bubble(m) {
 }
 
 function renderThread() {
-  // 重建前记录滚动位置：轮询刷新不应该把视野拽回历史顶部
-  const prevTop = scrollBox.scrollTop;
-  const nearBottom = scrollBox.scrollHeight - prevTop - scrollBox.clientHeight < 120;
+  // 用「离底距离」而不是绝对位置：内容高度变化时也不会跳到历史
+  const prevDist = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight;
 
   thread.textContent = '';
   const cv = current();
@@ -523,8 +522,15 @@ function renderThread() {
   $('#titleBtn').textContent = cv ? cv.title : '新对话';
   updateCtx();
 
-  if (nearBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
-  else scrollBox.scrollTop = prevTop;
+  const restore = () => {
+    if (prevDist < 60) {
+      scrollBox.scrollTop = scrollBox.scrollHeight;
+    } else {
+      scrollBox.scrollTop = Math.max(0, scrollBox.scrollHeight - scrollBox.clientHeight - prevDist);
+    }
+  };
+  restore();
+  requestAnimationFrame(restore);
 }
 
 function renderAll() {
