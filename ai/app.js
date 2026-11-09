@@ -1083,33 +1083,46 @@ $('#effRange').addEventListener('input', (e) => {
   renderEffort();
 });
 
+/* ---- 能力开关（输入框上方） ---- */
+const DEFAULT_PH = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
+
+function renderCaps() {
+  document.querySelectorAll('.cap').forEach(b => {
+    const k = b.dataset.cap;
+    const on = k === 'image' ? state.imageMode : k === 'code' ? state.codeMode : state.search;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  $('#plusBtn').classList.toggle('on', state.imageMode || state.search || state.codeMode);
+}
+
+function setCap(kind, on) {
+  if (kind === 'image') {
+    state.imageMode = on;
+    input.placeholder = on ? '描述你想生成的画面…' : DEFAULT_PH;
+  } else if (kind === 'search') {
+    state.search = on;
+  } else if (kind === 'code') {
+    state.codeMode = on;
+    if (on) { openCodePane(); if (!input.value.trim()) input.placeholder = '描述你要写的功能，GPT 会把文件写进右侧面板…'; }
+    else { closeCodePane(); input.placeholder = DEFAULT_PH; }
+  }
+  renderCaps();
+}
+
+document.querySelectorAll('.cap').forEach(b => {
+  b.addEventListener('click', () => {
+    const k = b.dataset.cap;
+    const cur = k === 'image' ? state.imageMode : k === 'code' ? state.codeMode : state.search;
+    setCap(k, !cur);
+    input.focus();
+  });
+});
+
 document.querySelectorAll('#plusPop .opt').forEach(o => {
   o.addEventListener('click', () => {
-    const mode = o.dataset.mode;
     closePops();
-    if (mode === 'image') {
-      state.imageMode = !state.imageMode;
-      $('#plusBtn').classList.toggle('on', state.imageMode);
-      input.placeholder = state.imageMode ? '描述你想生成的画面…' : '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
-    } else if (mode === 'upload') {
-      $('#fileInput').click();
-    } else if (mode === 'code') {
-      state.codeMode = !state.codeMode;
-      $('#codeState').textContent = state.codeMode ? '开' : '关';
-      $('#plusBtn').classList.toggle('on', state.codeMode || state.search || state.imageMode);
-      if (state.codeMode) {
-        openCodePane();
-        if (!input.value.trim()) input.placeholder = '描述你要写的功能，GPT 会把文件写进右侧面板…';
-      } else {
-        closeCodePane();
-        input.placeholder = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
-      }
-    } else if (mode === 'search') {
-      state.search = !state.search;
-      $('#searchState').textContent = state.search ? '开' : '关';
-      $('#plusBtn').classList.toggle('on', state.search || state.imageMode);
-      alert(state.search ? '已开启联网搜索：下一条消息会带 web_search' : '已关闭联网搜索');
-    }
+    if (o.dataset.mode === 'upload') $('#fileInput').click();
   });
 });
 
@@ -1120,7 +1133,7 @@ $('#composer').addEventListener('submit', (e) => {
   if (!text && !state.attachments.length) return;
   input.value = '';
   input.style.height = 'auto';
-  if (state.imageMode) { state.imageMode = false; $('#plusBtn').classList.remove('on'); sendImage(text); }
+  if (state.imageMode) { setCap('image', false); sendImage(text); }
   else sendChat(text);
 });
 
@@ -1208,6 +1221,7 @@ async function verify() {
 async function boot() {
   renderIdentity();
   renderModels();
+  renderCaps();
   if (!LS.token) { showLogin(''); return; }
   const me = await api('/me').catch(() => null);
   if (!me || !me.ok) { LS.token = ''; showLogin(''); return; }
