@@ -248,9 +248,10 @@ body.coding #main{margin-right:min(600px,46vw)}
 }
 .wrote-chip b{color:var(--accent);font-weight:600}
 
-/* 侧栏收起 */
+/* 侧栏收起：只隐藏左列；主区必须跨回整行，否则会掉进 0px 的第一列 */
 body.noside #app{grid-template-columns:0 1fr}
 body.noside #side{display:none}
+body.noside #main{grid-column:1 / -1}
 .search-row{display:flex;gap:6px;align-items:center}
 .search-row .search{flex:1;min-width:0}
 .side-collapse{
