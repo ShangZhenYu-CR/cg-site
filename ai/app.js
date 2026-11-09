@@ -254,8 +254,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   }
 });
 
-function logout() {
-  LS.token = '';
+function logout() {  LS.token = '';
   LS.role = '';
   state.convs = [];
   state.currentId = null;
@@ -270,13 +269,37 @@ $('#btnLogout').addEventListener('click', () => {
   if (confirm('退出登录？')) logout();
 });
 
+$('#whoName').addEventListener('click', renameSelf);
+
 function renderIdentity() {
   $('#whoName').textContent = LS.name || '未登录';
+  $('#whoName').title = LS.token ? '点一下改昵称' : '';
   const b = $('#whoRole');
   const txt = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
   b.textContent = txt;
   b.hidden = !txt;
   $('#btnUsers').hidden = LS.role !== 'admin';
+}
+
+/* 自己改名 */
+async function renameSelf() {
+  if (!LS.token) return;
+  const cur = LS.name || '';
+  const v = prompt('改成什么昵称？（改完旧昵称就空出来了）', cur);
+  if (v == null) return;
+  const name = v.trim();
+  if (!name || name === cur) return;
+
+  const res = await api('/me/rename', { method: 'POST', body: { name } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(errText(res.status, data)); return; }
+
+  LS.token = data.token;
+  LS.name = data.name;
+  LS.role = data.role;
+  renderIdentity();
+  renderModels();
+  renderAll();
 }
 
 /* ---------------- 会话 ---------------- */
@@ -732,7 +755,21 @@ async function openUsers() {
       if (!blocked && flag) flag.remove();
     });
 
-    row.append(main, btn);
+    const rn = el('button', 'u-btn edit', '改名');
+    rn.addEventListener('click', async () => {
+      const v = prompt('把「' + u.name + '」改成？', u.name);
+      if (v == null) return;
+      const to = v.trim();
+      if (!to || to === u.name) return;
+      const r = await api('/users/rename', { method: 'POST', body: { from: u.name, to } });
+      const jj = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(errText(r.status, jj)); return; }
+      if (jj.token) { LS.token = jj.token; LS.name = jj.to; renderIdentity(); }
+      u.name = jj.to;
+      row.querySelector('.u-name').textContent = u.name;
+    });
+
+    row.append(main, rn, btn);
     box.append(row);
   }
 }
