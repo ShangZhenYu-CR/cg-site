@@ -32,7 +32,17 @@
     <header id="topbar">
       <button id="menuBtn" aria-label="菜单">☰</button>
       <select id="model" aria-label="模型"></select>
-      <select id="effort" aria-label="思考强度" title="思考强度"></select>
+      <div class="effort-wrap">
+        <button type="button" id="effortChip" class="effort-chip" aria-haspopup="dialog" aria-expanded="false" title="推理强度">
+          <span id="effortLabel">中</span><span class="car">⌄</span>
+        </button>
+        <div id="effortPop" class="effort-pop" role="dialog" aria-label="选择推理强度" hidden>
+          <div class="pop-title">推理强度</div>
+          <input type="range" id="effortRange" min="0" max="2" step="1" aria-label="推理强度">
+          <div class="pop-ticks" id="effortTicks"></div>
+          <div class="pop-note" id="effortNote"></div>
+        </div>
+      </div>
       <div class="spacer"></div>
       <button id="gear" title="设置">⚙</button>
     </header>
