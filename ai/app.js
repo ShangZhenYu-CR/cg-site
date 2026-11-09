@@ -557,6 +557,38 @@ function setBusy(b) {
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5 12 7-7 7 7"/></svg>';
 }
 
+/** GIF：官方 output_format=gif，帧数 2–16 */
+async function sendGif(prompt) {
+  const cv = current() || await createConv();
+  if (!cv) return;
+  if (!cv.messages.length) cv.title = prompt.slice(0, 24);
+  cv.messages.push({ role: 'user', text: prompt, who: LS.name, ts: Date.now() });
+  const reply = { role: 'assistant', text: '正在生成动图…', ts: Date.now() };
+  cv.messages.push(reply);
+  renderThread();
+  scrollBottom(true);
+  setBusy(true);
+
+  try {
+    const res = await api('/gif', { method: 'POST', body: { prompt, frames: 8 }, timeout: 300000 });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(errText(res.status, data)), { status: res.status });
+    if (!data.url) throw new Error('后端没返回 GIF');
+    reply.text = '';
+    reply.images = [data.url];
+    reply.meta = 'GIF · ' + (data.frames || 8) + ' 帧';
+    delete reply.err;
+  } catch (e) {
+    reply.err = true;
+    reply.text = (e && e.message) || '生成失败';
+  } finally {
+    setBusy(false);
+    await saveConv(cv);
+    renderAll();
+    scrollBottom(true);
+  }
+}
+
 async function sendChat(text) {
   const cv = current() || await createConv();
   if (!cv) return;
@@ -947,6 +979,40 @@ document.addEventListener('paste', (e) => {
 });
 
 /* ---------------- 代码面板 ---------------- */
+const EXT_BY_LANG = {
+  python: 'py', py: 'py', javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts',
+  html: 'html', css: 'css', json: 'json', bash: 'sh', sh: 'sh', shell: 'sh',
+  powershell: 'ps1', ps1: 'ps1', mel: 'mel', maya: 'mel', csharp: 'cs', cs: 'cs',
+  cpp: 'cpp', 'c++': 'cpp', c: 'c', markdown: 'md', md: 'md', sql: 'sql',
+  yaml: 'yml', yml: 'yml', xml: 'xml', text: 'txt',
+};
+
+/** 回复里的长代码块自动收进面板；短片段留在对话里 */
+function harvestCode(text) {
+  const re = /```([\w+#.-]*)[ \t]*\n([\s\S]*?)```/g;
+  const blocks = [];
+  let m;
+  while ((m = re.exec(text))) {
+    blocks.push({ lang: (m[1] || '').toLowerCase(), code: m[2], raw: m[0], at: m.index });
+  }
+  const big = blocks.filter(b => b.code.split('\n').length >= 15 || b.code.length >= 800);
+  if (!big.length) return null;
+
+  const files = [];
+  let out = text;
+  big.forEach((b, i) => {
+    const before = text.slice(Math.max(0, b.at - 160), b.at);
+    const named = /([\w./-]+\.(?:py|js|ts|html?|css|json|sh|ps1|mel|ma|cs|cpp|c|md|ya?ml|sql))/i.exec(before);
+    const ext = EXT_BY_LANG[b.lang] || 'txt';
+    const name = named ? named[1].split('/').pop() : 'snippet-' + (i + 1) + '.' + ext;
+    files.push({ name, content: b.code.replace(/\s+$/, '') + '\n' });
+    out = out.replace(b.raw, '');
+  });
+
+  out = out.replace(/\n{3,}/g, '\n\n').trim();
+  return { files, text: out };
+}
+
 const FILE_RE = /```file:([^\n`]+)\n([\s\S]*?)```/g;
 
 function extractFiles(text) {
@@ -1409,6 +1475,10 @@ $('#composer').addEventListener('submit', (e) => {
 
   // 挂着图就走看图对话：生图接口只接受文字提示，带图会被忽略
   if (state.imageMode && hasAttach) setCap('image', false);
+
+  const wantsGif = /(gif|动图|动画|动起来|会动的图)/i.test(text);
+  if (wantsGif && !hasAttach) { sendGif(text); return; }
+
   if (state.imageMode) { setCap('image', false); sendImage(text); }
   else sendChat(text);
 });
