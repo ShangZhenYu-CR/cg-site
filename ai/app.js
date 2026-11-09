@@ -59,6 +59,14 @@ const LS = {
   set convCache(list) {
     try { localStorage.setItem('ai.convs.cache', JSON.stringify(list)); } catch {}
   },
+  get draw() {
+    const def = {
+      model: 'gpt-image-2.6-sunburst', size: '1024x1024', quality: 'auto', bg: '',
+      format: 'png', compression: 100, n: 1, moderation: 'auto', frames: 8, dur: 150,
+    };
+    try { return Object.assign(def, JSON.parse(localStorage.getItem('ai.draw') || '{}')); } catch { return def; }
+  },
+  set draw(v) { try { localStorage.setItem('ai.draw', JSON.stringify(v)); } catch {} },
 };
 
 const RANK = { user: 1, astra: 2, admin: 3 };
@@ -558,11 +566,60 @@ function setBusy(b) {
 }
 
 /** GIF：官方 output_format=gif，帧数 2–16 */
-async function sendGif(prompt) {
+/** 画图 / 改图（带附件就是改图） */
+async function sendDraw(prompt, imageUrl) {
   const cv = current() || await createConv();
   if (!cv) return;
   if (!cv.messages.length) cv.title = prompt.slice(0, 24);
-  cv.messages.push({ role: 'user', text: prompt, who: LS.name, ts: Date.now() });
+  cv.messages.push({ role: 'user', text: prompt, who: LS.name, ts: Date.now(), images: imageUrl ? [imageUrl] : undefined });
+  const reply = { role: 'assistant', text: '正在画…', ts: Date.now() };
+  cv.messages.push(reply);
+  renderThread();
+  scrollBottom(true);
+  setBusy(true);
+
+  const d = LS.draw;
+  try {
+    const res = await api('/draw', {
+      method: 'POST',
+      timeout: 300000,
+      body: {
+        prompt,
+        image: imageUrl || undefined,
+        model: d.model || undefined,
+        size: d.size,
+        quality: d.quality,
+        background: d.bg || undefined,
+        moderation: d.moderation || undefined,
+        format: d.format || 'png',
+        compression: d.compression,
+        n: d.n || 1,
+      },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(errText(res.status, data)), { status: res.status });
+    const urls = data.urls || (data.url ? [data.url] : []);
+    if (!urls.length) throw new Error('后端没返回图片');
+    reply.text = '';
+    reply.images = urls;
+    reply.meta = (data.edited ? '改图' : '画图') + ' · ' + d.size + ' · ' + (d.quality || 'auto') + (urls.length > 1 ? ' · ' + urls.length + ' 张' : '');
+    delete reply.err;
+  } catch (e) {
+    reply.err = true;
+    reply.text = (e && e.message) || '生成失败';
+  } finally {
+    setBusy(false);
+    await saveConv(cv);
+    renderAll();
+    scrollBottom(true);
+  }
+}
+
+async function sendGif(prompt, imageUrl, frames, dur) {
+  const cv = current() || await createConv();
+  if (!cv) return;
+  if (!cv.messages.length) cv.title = prompt.slice(0, 24);
+  cv.messages.push({ role: 'user', text: prompt, who: LS.name, ts: Date.now(), images: imageUrl ? [imageUrl] : undefined });
   const reply = { role: 'assistant', text: '正在生成动图…', ts: Date.now() };
   cv.messages.push(reply);
   renderThread();
@@ -570,13 +627,17 @@ async function sendGif(prompt) {
   setBusy(true);
 
   try {
-    const res = await api('/gif', { method: 'POST', body: { prompt, frames: 8 }, timeout: 300000 });
+    const res = await api('/gif', {
+      method: 'POST',
+      timeout: 300000,
+      body: { prompt, frames: frames || 8, duration: dur || 150, image: imageUrl || undefined },
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(errText(res.status, data)), { status: res.status });
     if (!data.url) throw new Error('后端没返回 GIF');
     reply.text = '';
     reply.images = [data.url];
-    reply.meta = 'GIF · ' + (data.frames || 8) + ' 帧';
+    reply.meta = 'GIF · ' + (data.frames || 8) + ' 帧' + (data.fromImage ? ' · 基于你的图' : '');
     delete reply.err;
   } catch (e) {
     reply.err = true;
@@ -1407,6 +1468,7 @@ $('#effRange').addEventListener('input', (e) => {
 /* ---- 能力开关：默认不显示，开了才浮在输入框上方 ---- */
 const DEFAULT_PH = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
 const CAP_DEFS = [
+  { k: 'image', icon: '🖼️', label: '画图' },
   { k: 'code', icon: '🧑‍💻', label: '编程模式' },
   { k: 'search', icon: '🌐', label: '联网搜索' },
   { k: 'raw', icon: '📷', label: '原图' },
@@ -1458,8 +1520,46 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
     const mode = o.dataset.mode;
     closePops();
     if (mode === 'upload') { $('#fileInput').click(); return; }
+    if (mode === 'drawcfg') { openDrawDialog(); return; }
     setCap(mode, !capOn(mode));
   });
+});
+
+/* 画图设置 */
+function openDrawDialog() {
+  const d = LS.draw;
+  $('#drawModel').value = d.model;
+  $('#drawSize').value = d.size;
+  $('#drawQuality').value = d.quality;
+  $('#drawBg').value = d.bg || '';
+  $('#drawModeration').value = d.moderation || 'auto';
+  $('#drawFormat').value = d.format || 'png';
+  $('#drawN').value = String(d.n || 1);
+  $('#drawCompression').value = String(d.compression != null ? d.compression : 100);
+  const f = $('#gifFrames');
+  if (!f.options.length) {
+    for (let i = 2; i <= 16; i++) { const o = el('option', null, String(i)); o.value = String(i); f.append(o); }
+  }
+  f.value = String(d.frames);
+  $('#gifDur').value = String(d.dur);
+  $('#dlgDraw').hidden = false;
+}
+
+$('#drawCancel').addEventListener('click', () => { $('#dlgDraw').hidden = true; });
+$('#drawSave').addEventListener('click', () => {
+  LS.draw = {
+    model: $('#drawModel').value,
+    size: $('#drawSize').value,
+    quality: $('#drawQuality').value,
+    bg: $('#drawBg').value,
+    moderation: $('#drawModeration').value,
+    format: $('#drawFormat').value,
+    n: Number($('#drawN').value) || 1,
+    compression: Number($('#drawCompression').value),
+    frames: Number($('#gifFrames').value) || 8,
+    dur: Number($('#gifDur').value) || 150,
+  };
+  $('#dlgDraw').hidden = true;
 });
 
 $('#composer').addEventListener('submit', (e) => {
@@ -1477,10 +1577,23 @@ $('#composer').addEventListener('submit', (e) => {
   if (state.imageMode && hasAttach) setCap('image', false);
 
   const wantsGif = /(gif|动图|动画|动起来|会动的图)/i.test(text);
-  if (wantsGif && !hasAttach) { sendGif(text); return; }
+  if (wantsGif) {
+    const ref = hasAttach ? state.attachments[0].url : null;
+    if (hasAttach) { state.attachments = []; renderAttach(); }
+    const d = LS.draw;
+    sendGif(text || '把这张图做成动图', ref, d.frames, d.dur);
+    return;
+  }
 
-  if (state.imageMode) { setCap('image', false); sendImage(text); }
-  else sendChat(text);
+  if (state.imageMode) {
+    const ref = hasAttach ? state.attachments[0].url : null;
+    if (hasAttach) { state.attachments = []; renderAttach(); }
+    setCap('image', false);
+    sendDraw(text, ref);
+    return;
+  }
+
+  sendChat(text);
 });
 
 input.addEventListener('keydown', (e) => {

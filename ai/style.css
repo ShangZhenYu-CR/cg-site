@@ -305,3 +305,6 @@ body:not(.noside) #sideToggle{display:none}
   #codepane{width:100vw}
   body.coding #main{margin-right:0}
 }
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:520px){ .two{grid-template-columns:1fr} }
