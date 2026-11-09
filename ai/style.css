@@ -316,3 +316,12 @@ body:not(.noside) #sideToggle{display:none}
 .drawbar select:focus{border-color:#35507a}
 .bar-more{margin-left:auto;font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
 .bar-more:hover{color:var(--accent);border-color:var(--accent)}
+
+/* 画图悬停参数面板 */
+.draw-pop{position:fixed;z-index:70;width:250px;padding:10px;display:grid;gap:8px}
+.draw-pop[hidden]{display:none}
+.draw-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dim)}
+.draw-row select{background:#10141b;border:1px solid var(--line);border-radius:8px;padding:3px 6px;font-size:12px;color:var(--text);outline:0;max-width:130px}
+.draw-row select:focus{border-color:#35507a}
+.draw-more{width:100%;margin-top:2px;font-size:11px;color:var(--faint);border:1px dashed var(--line);border-radius:8px;padding:6px}
+.draw-more:hover{color:var(--accent);border-color:var(--accent)}

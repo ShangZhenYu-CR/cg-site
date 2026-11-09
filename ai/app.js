@@ -1540,9 +1540,13 @@ function renderCaps() {
   for (const c of active) {
     const b = el('button', 'cap on');
     b.type = 'button';
-    b.title = '点击关闭「' + c.label + '」';
+    b.title = c.k === 'image' ? '鼠标移上来调参数，点击关闭' : '点击关闭「' + c.label + '」';
     b.innerHTML = '<span class="ci">' + c.icon + '</span>' + c.label + '<span class="x">×</span>';
     b.addEventListener('click', () => setCap(c.k, false));
+    if (c.k === 'image') {
+      b.addEventListener('mouseenter', () => showDrawPanel(b));
+      b.addEventListener('mouseleave', hideDrawPanelSoon);
+    }
     box.append(b);
   }
   $('#plusBtn').classList.toggle('on', active.length > 0);
@@ -1551,9 +1555,7 @@ function renderCaps() {
 function setCap(kind, on) {
   if (kind === 'image') {
     state.imageMode = on;
-    input.placeholder = on ? '描述你想生成的画面…（参数在下方选）' : DEFAULT_PH;
-    const bar = $('#drawBar');
-    if (bar) { bar.hidden = !on; if (on) renderDrawBar(); }
+    input.placeholder = on ? '描述你想生成的画面…（鼠标移到「画图」标签上可调参数）' : DEFAULT_PH;
   } else if (kind === 'search') {
     state.search = on;
   } else if (kind === 'raw') {
@@ -1577,14 +1579,35 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
   });
 });
 
-/* 画图参数条：直接在这里选，不用开弹窗 */
-function renderDrawBar() {
+/* 画图参数面板：鼠标移到「画图」标签上展开 */
+function renderDrawPanel() {
   const d = LS.draw;
   $('#barSize').value = d.size;
   $('#barQuality').value = d.quality;
   $('#barBg').value = d.bg || '';
   $('#barN').value = String(d.n || 1);
   $('#barFormat').value = d.format || 'png';
+}
+
+let drawPopTimer = null;
+
+function showDrawPanel(anchor) {
+  clearTimeout(drawPopTimer);
+  const p = $('#drawPop');
+  renderDrawPanel();
+  p.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  const w = p.offsetWidth || 250;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+  let top = r.bottom + 8;
+  if (top + p.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - p.offsetHeight - 8);
+  p.style.left = left + 'px';
+  p.style.top = top + 'px';
+}
+
+function hideDrawPanelSoon() {
+  clearTimeout(drawPopTimer);
+  drawPopTimer = setTimeout(() => { $('#drawPop').hidden = true; }, 220);
 }
 
 const BAR_MAP = { barSize: 'size', barQuality: 'quality', barBg: 'bg', barN: 'n', barFormat: 'format' };
@@ -1600,7 +1623,17 @@ Object.keys(BAR_MAP).forEach((id) => {
   });
 });
 
-$('#barMore').addEventListener('click', openDrawDialog);
+$('#barMore').addEventListener('click', () => {
+  $('#drawPop').hidden = true;
+  openDrawDialog();
+});
+
+/* 鼠标进面板时不要收起来 */
+(function () {
+  const pop = $('#drawPop');
+  pop.addEventListener('mouseenter', () => clearTimeout(drawPopTimer));
+  pop.addEventListener('mouseleave', hideDrawPanelSoon);
+})();
 
 /* 画图设置 */
 function openDrawDialog() {
@@ -1637,7 +1670,6 @@ $('#drawSave').addEventListener('click', () => {
     dur: Number($('#gifDur').value) || 150,
   };
   $('#dlgDraw').hidden = true;
-  renderDrawBar();
 });
 
 $('#composer').addEventListener('submit', (e) => {
