@@ -318,13 +318,65 @@ async function deleteConv(id) {
 }
 
 /* ---------------- 渲染 ---------------- */
+function startRename(conv, titleNode) {
+  if (titleNode.dataset.editing) return;
+  titleNode.dataset.editing = '1';
+
+  const inp = el('input', 't-input');
+  inp.value = conv.title || '';
+  inp.maxLength = 120;
+  inp.setAttribute('aria-label', '重命名对话');
+  titleNode.replaceWith(inp);
+  inp.focus();
+  inp.select();
+
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    const v = inp.value.trim();
+    delete titleNode.dataset.editing;
+    inp.replaceWith(titleNode);
+    if (save && v && v !== conv.title) {
+      conv.title = v.slice(0, 120);
+      titleNode.textContent = conv.title;
+      await saveConv(conv);
+    }
+  };
+
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('click', (e) => e.stopPropagation());
+  inp.addEventListener('blur', () => finish(true));
+}
+
 function renderConvList() {
   convList.textContent = '';
   const list = state.convs.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   for (const c of list) {
-    const row = el('button', 'conv' + (c.id === state.currentId ? ' active' : ''));
-    row.type = 'button';
-    row.append(el('span', 't', c.title || '新对话'));
+    const row = el('div', 'conv' + (c.id === state.currentId ? ' active' : ''));
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+
+    const t = el('span', 't', c.title || '新对话');
+    t.title = '双击改标题';
+    row.append(t);
+
+    t.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      startRename(c, t);
+    });
+
+    const edit = el('span', 'x edit', '✎');
+    edit.title = '重命名';
+    edit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startRename(c, t);
+    });
+
     const x = el('span', 'x', '×');
     x.title = '删除（所有人都看不到了）';
     x.addEventListener('click', async (e) => {
@@ -338,12 +390,19 @@ function renderConvList() {
       }
       renderAll();
     });
-    row.append(x);
+
+    row.append(edit, x);
     row.addEventListener('click', () => {
       if (state.streaming) return;
       state.currentId = c.id;
       renderAll();
       closeNav();
+    });
+    row.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        row.click();
+      }
     });
     convList.append(row);
   }
