@@ -51,6 +51,8 @@ const LS = {
   set model(v) { localStorage.setItem('ai.model', v); },
   get effort() { return localStorage.getItem('ai.effort') || 'medium'; },
   set effort(v) { localStorage.setItem('ai.effort', v); },
+  get side() { return localStorage.getItem('ai.side') !== '0'; },
+  set side(v) { localStorage.setItem('ai.side', v ? '1' : '0'); },
 };
 
 const RANK = { user: 1, astra: 2, admin: 3 };
@@ -1235,6 +1237,20 @@ $('#q').addEventListener('input', renderSide);
 $('#burger').addEventListener('click', () => document.body.classList.toggle('nav'));
 function closeNav() { document.body.classList.remove('nav'); }
 
+/* 侧栏收起 / 展开（桌面端，状态记在本机） */
+function applySide() {
+  const open = LS.side;
+  document.body.classList.toggle('noside', !open);
+  const b = $('#sideToggle');
+  b.textContent = open ? '«' : '»';
+  b.title = open ? '收起侧栏' : '展开侧栏';
+}
+
+$('#sideToggle').addEventListener('click', () => {
+  LS.side = !LS.side;
+  applySide();
+});
+
 /* ---------------- 启动 ---------------- */
 async function bootData() {
   await Promise.all([loadProjects(), loadConvs()]);
@@ -1268,6 +1284,7 @@ async function boot() {
   renderIdentity();
   renderModels();
   renderCaps();
+  applySide();
   if (!LS.token) { showLogin(''); return; }
   const me = await api('/me').catch(() => null);
   if (!me || !me.ok) { LS.token = ''; showLogin(''); return; }
