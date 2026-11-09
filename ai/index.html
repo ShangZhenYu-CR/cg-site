@@ -48,6 +48,7 @@
         </div>
       </div>
       <div class="spacer"></div>
+      <button type="button" id="btnHandoff" class="ghost" title="把上文压成一份交接文档，之后只带这份文档继续">交接</button>
       <span id="connState" class="conn"></span>
     </header>
 
@@ -71,6 +72,7 @@
         <textarea id="input" rows="1" placeholder="发消息…（Enter 发送，Shift+Enter 换行）" autocomplete="off"></textarea>
         <button type="submit" id="sendBtn" title="发送">↑</button>
       </form>
+      <div id="ctxBar" class="ctx"></div>
       <div id="hint">内容由 AI 生成，注意甄别。对话存在服务器上，进来的人都能看到。</div>
     </div>
   </main>
