@@ -108,6 +108,46 @@ a { color: var(--accent); }
   font-size: 13px;
 }
 #side-bottom .row button:hover { border-color: var(--accent); color: var(--accent); }
+#whoBox { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+#whoName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  line-height: 1.5;
+}
+.conn { font-size: 12px; color: var(--faint); }
+
+/* 成员列表 */
+.user-list { display: grid; gap: 8px; max-height: 52vh; overflow-y: auto; }
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.user-row.blocked { opacity: .55; }
+.user-row .u-main { flex: 1; min-width: 0; }
+.user-row .u-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-row .u-meta { font-size: 11px; color: var(--faint); margin-top: 2px; }
+.user-row .u-flag { font-size: 11px; color: var(--danger); margin-top: 2px; }
+.user-row .u-btn {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--danger);
+  font-size: 12px;
+}
+.user-row .u-btn:hover { border-color: var(--danger); }
+.user-row .u-btn.undo { color: var(--dim); }
+.user-row .u-btn.undo:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ---------- 主区 ---------- */
 #main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
