@@ -253,8 +253,20 @@ async function loadConvs() {
   if (!r.ok) return false;
   const data = await r.json().catch(() => null);
   if (!data) return false;
+  const before = state.convs.slice();
   state.convs = (data.conversations || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   for (const cv of state.convs) if (!Array.isArray(cv.files)) cv.files = [];
+
+  // 本地有更新但还没写完的会话，别被服务端旧数据盖掉（否则刚发的消息会“消失”）
+  const localNewer = new Map();
+  for (const c of before) if ((c.updatedAt || 0) > 0) localNewer.set(c.id, c);
+  state.convs = state.convs.map((s) => {
+    const l = localNewer.get(s.id);
+    if (l && (l.updatedAt || 0) > (s.updatedAt || 0) + 800 && Array.isArray(l.messages) && l.messages.length) {
+      return { ...s, messages: l.messages, files: l.files || s.files, settings: l.settings || s.settings, updatedAt: l.updatedAt };
+    }
+    return s;
+  });
   // 只缓存列表元信息，避免塞满 localStorage
   LS.convCache = state.convs.map(c => ({
     id: c.id, title: c.title, updatedAt: c.updatedAt,
@@ -283,6 +295,7 @@ async function createConv(opts = {}) {
 }
 
 async function saveConv(conv, extra) {
+  state.saving = true;
   conv.updatedAt = Date.now();
   const body = {
     title: conv.title,
@@ -293,7 +306,7 @@ async function saveConv(conv, extra) {
     settings: conv.settings || {},
     ...(extra || {}),
   };
-  try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {}
+  try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {} finally { state.saving = false; }
 }
 
 /* ---- 会话自带的界面状态（共享） ---- */
@@ -493,6 +506,10 @@ function bubble(m) {
 }
 
 function renderThread() {
+  // 重建前记录滚动位置：轮询刷新不应该把视野拽回历史顶部
+  const prevTop = scrollBox.scrollTop;
+  const nearBottom = scrollBox.scrollHeight - prevTop - scrollBox.clientHeight < 120;
+
   thread.textContent = '';
   const cv = current();
   const msgs = cv ? cv.messages : [];
@@ -500,6 +517,9 @@ function renderThread() {
   for (const m of msgs) thread.append(bubble(m));
   $('#titleBtn').textContent = cv ? cv.title : '新对话';
   updateCtx();
+
+  if (nearBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
+  else scrollBox.scrollTop = prevTop;
 }
 
 function renderAll() {
@@ -660,8 +680,8 @@ async function sendDraw(prompt, imageUrl) {
     reply.err = true;
     reply.text = (e && e.message) || '生成失败';
   } finally {
-    setBusy(false);
     await saveConv(cv);
+    setBusy(false);
     renderAll();
     scrollBottom(true);
   }
@@ -695,8 +715,8 @@ async function sendGif(prompt, imageUrl, frames, dur) {
     reply.err = true;
     reply.text = (e && e.message) || '生成失败';
   } finally {
-    setBusy(false);
     await saveConv(cv);
+    setBusy(false);
     renderAll();
     scrollBottom(true);
   }
@@ -809,9 +829,9 @@ async function sendChat(text) {
     if (e && e.name === 'AbortError') reply.text = acc || '（已停止）';
     else { reply.err = true; reply.text = (e && e.message) || '出错了'; if (e && e.status === 401) logout(); }
   } finally {
-    setBusy(false);
     state.controller = null;
     await saveConv(cv);
+    setBusy(false);
     renderAll();
     scrollBottom(true);
   }
@@ -1838,7 +1858,7 @@ async function boot() {
   await bootData();
   input.focus();
   setInterval(async () => {
-    if (state.streaming || document.hidden || !LS.token) return;
+    if (state.streaming || state.saving || document.hidden || !LS.token) return;
     const before = state.convs.map(c => c.id + c.updatedAt).join('|');
     await loadConvs();
     const after = state.convs.map(c => c.id + c.updatedAt).join('|');
