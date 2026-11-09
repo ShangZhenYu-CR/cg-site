@@ -432,6 +432,12 @@ function renderConvList() {
 }
 
 function bubbleFor(msg) {
+  if (msg.role === 'divider') {
+    const d = el('div', 'msg divider');
+    d.append(el('span', null, msg.text || '以上内容不再发送给模型'));
+    return d;
+  }
+
   const isUser = msg.role === 'user';
   const wrap = el('div', 'msg ' + (isUser ? 'user' : 'assistant'));
   const who = el('div', 'who', isUser ? (msg.who || LS.name || '我') : 'AI');
@@ -440,6 +446,7 @@ function bubbleFor(msg) {
 
   const body = el('div', 'body');
   const content = el('div', 'content');
+  if (!isUser && msg.kind === 'handoff') content.append(el('div', 'handoff-tag', '交接文档'));
   body.append(content);
 
   if (msg.err) content.append(el('div', 'err', msg.text || '出错了'));
@@ -482,6 +489,89 @@ function renderThread() {
   const msgs = conv ? conv.messages : [];
   empty.style.display = msgs.length ? 'none' : 'block';
   for (const m of msgs) thread.append(bubbleFor(m));
+  updateCtxBar();
+}
+
+/* ---------------- 上下文统计 / 归档 ---------------- */
+function estimateTokens(text) {
+  const s = String(text || '');
+  let cjk = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if ((c >= 0x3400 && c <= 0x9fff) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0x3040 && c <= 0x30ff) || (c >= 0xac00 && c <= 0xd7af)) cjk++;
+  }
+  return Math.ceil(cjk + (s.length - cjk) / 4);
+}
+
+/** 真正会发给模型的消息：从切割点往后，去掉报错/占位/分界线 */
+function sentMessages(conv) {
+  if (!conv) return [];
+  const cut = Number(conv.cutIndex) || 0;
+  return (conv.messages || [])
+    .slice(cut)
+    .filter(m => !m.err && !m.streaming && m.role !== 'divider');
+}
+
+function budgetLabel(model) {
+  return /luna/i.test(model || '') ? '不限' : '400,000';
+}
+
+function updateCtxBar() {
+  const bar = $('#ctxBar');
+  if (!bar) return;
+  const conv = current();
+  if (!conv) { bar.textContent = ''; return; }
+
+  const msgs = sentMessages(conv);
+  const tokens = msgs.reduce((n, m) => n + estimateTokens(m.text) + 8, 0);
+  const cut = Number(conv.cutIndex) || 0;
+  const model = $('#model').value || LS.model;
+
+  const bits = [];
+  bits.push('上下文 <b>' + tokens.toLocaleString() + '</b> / ' + budgetLabel(model) + ' token');
+  bits.push('发送 ' + msgs.length + ' 条');
+  if (cut > 0) bits.push('已归档 ' + cut + ' 条不发送');
+  if (conv.usage) {
+    bits.push('上轮实际 ' + (conv.usage.i || 0).toLocaleString() + ' 入 / ' + (conv.usage.o || 0).toLocaleString() + ' 出');
+  }
+  bar.innerHTML = bits.join(' · ');
+}
+
+async function doHandoff() {
+  const conv = current();
+  if (!conv) return;
+  const msgs = sentMessages(conv);
+  if (msgs.length < 2) { alert('对话还太短，不用交接。'); return; }
+  if (!confirm('把当前这段对话压成一份交接文档？\n\n之后只发送「交接文档 + 新消息」；上面的原文仍保留在页面里，但不再发给模型。')) return;
+
+  const btn = $('#btnHandoff');
+  btn.disabled = true;
+  btn.textContent = '生成中…';
+  try {
+    const model = $('#model').value || LS.model;
+    const res = await api('/summarize', { method: 'POST', body: { model, messages: msgs } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(errText(res.status, data));
+    if (!data.text) throw new Error('没拿到文档内容');
+
+    const divider = {
+      role: 'divider',
+      text: '以上 ' + msgs.length + ' 条已归档为交接文档，之后不再发送给模型',
+      ts: Date.now(),
+    };
+    const doc = { role: 'assistant', kind: 'handoff', text: data.text, ts: Date.now() };
+    conv.messages.push(divider, doc);
+    conv.cutIndex = conv.messages.indexOf(doc);
+    delete conv.usage;
+    await saveConv(conv);
+    renderAll();
+    scrollToBottom(true);
+  } catch (e) {
+    alert('生成失败：' + ((e && e.message) || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '交接';
+  }
 }
 
 function renderAll() {
@@ -609,7 +699,7 @@ async function sendChat(text) {
       body: {
         model,
         effort,
-        messages: conv.messages.filter(m => !m.err && !m.streaming).map(m => ({ role: m.role, text: m.text })),
+        messages: sentMessages(conv).map(m => ({ role: m.role, text: m.text })),
       },
     });
 
@@ -643,6 +733,10 @@ async function sendChat(text) {
             try {
               const ev = JSON.parse(payload);
               if (ev.e) throw new Error(ev.e);
+              if (ev.u) {
+                conv.usage = ev.u;
+                reply.usage = ev.u;
+              }
               if (ev.t) { acc += ev.t; schedule(); }
             } catch (e) { if (e && e.message && e.message !== 'Unexpected end of JSON input') throw e; }
           }
@@ -889,8 +983,11 @@ $('#imgToggle').addEventListener('click', () => {
 $('#model').addEventListener('change', (e) => {
   LS.model = e.target.value;
   renderEffort();
+  updateCtxBar();
   input.focus();
 });
+
+$('#btnHandoff').addEventListener('click', doHandoff);
 
 $('#effortChip').addEventListener('click', (e) => {
   e.stopPropagation();
