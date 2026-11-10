@@ -964,6 +964,7 @@ async function sendChat(text, opts = {}) {
 
     // 结束后一次性渲染 Markdown（流式期间只有纯文本）
     if (reply.images && reply.images.length > 1) reply.meta = '画图 · ' + reply.images.length + ' 张';
+    if (gifAsk && reply.images && reply.images.length) reply.meta = 'GIF · ' + (LS.draw.frames || 8) + ' 帧';
     if (host) host.innerHTML = md(reply.text || '');
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
 
