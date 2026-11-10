@@ -335,3 +335,15 @@ body:not(.noside) #sideToggle{display:none}
 .seg-btn.on{background:rgba(110,168,254,.16);border-color:var(--accent);color:#cfe1ff}
 
 #thread{overflow-anchor:none}
+
+/* 图片卡片 + 放大预览 */
+.imgbox{position:relative;display:inline-block;max-width:100%;line-height:0}
+.imgbox img{cursor:zoom-in;border-radius:10px;max-width:100%}
+.imgacts{position:absolute;top:8px;right:8px;display:flex;gap:6px;opacity:0;transition:.12s}
+.imgbox:hover .imgacts{opacity:1}
+.imgacts button{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.3);background:rgba(10,12,16,.75);color:#fff}
+.imgacts button:hover{background:var(--accent);color:#0b0f16;border-color:var(--accent)}
+.lightbox{position:fixed;inset:0;z-index:120;background:rgba(6,8,12,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px}
+.lightbox[hidden]{display:none}
+.lightbox img{max-width:94vw;max-height:80vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6);background:#0b0e14}
+.lb-actions{display:flex;gap:10px}

@@ -486,11 +486,40 @@ function bubble(m) {
   bd.append(content);
 
   for (const u of (m.images || [])) {
+    const box = el('div', 'imgbox');
     const img = el('img');
     img.src = fileUrl(u);
     img.alt = '图片';
     img.loading = 'lazy';
-    bd.append(img);
+    img.title = '点击放大';
+    img.addEventListener('click', () => openLightbox(u));
+
+    const acts = el('div', 'imgacts');
+    const dl = el('button', null, '下载');
+    dl.type = 'button';
+    dl.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      dl.textContent = '…';
+      try { await downloadImage(u); dl.textContent = '已下载'; }
+      catch { dl.textContent = '失败'; flashHint('下载失败，可右键另存'); }
+      setTimeout(() => { dl.textContent = '下载'; }, 1500);
+    });
+
+    const cpImg = el('button', null, '复制');
+    cpImg.type = 'button';
+    cpImg.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        const msg = await copyImage(u);
+        cpImg.textContent = '已复制';
+        if (msg) flashHint(msg);
+      } catch { cpImg.textContent = '失败'; flashHint('复制失败，可右键另存'); }
+      setTimeout(() => { cpImg.textContent = '复制'; }, 1500);
+    });
+
+    acts.append(dl, cpImg);
+    box.append(img, acts);
+    bd.append(box);
   }
 
   if (!isUser && !m.err) {
@@ -515,6 +544,81 @@ function bubble(m) {
   wrap.append(bd);
   return wrap;
 }
+
+/* ---------------- 图片：下载 / 复制 / 放大 ---------------- */
+function fileNameFrom(u, mime) {
+  const p = (String(u).split('?')[0].split('/').pop() || 'image');
+  const hasExt = /\.[a-z0-9]{2,5}$/i.test(p);
+  const ext = (mime && mime.split('/')[1]) || (hasExt ? p.split('.').pop() : 'png');
+  const base = hasExt ? p.replace(/\.[a-z0-9]+$/i, '') : p;
+  return base + '.' + (ext === 'jpeg' ? 'jpg' : ext);
+}
+
+async function fetchImageBlob(u) {
+  const r = await fetch(fileUrl(u));
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return await r.blob();
+}
+
+async function downloadImage(u) {
+  const blob = await fetchImageBlob(u);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileNameFrom(u, blob.type);
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/** 复制图片到剪贴板；动图浏览器不接受，退回复制链接 */
+async function copyImage(u) {
+  const blob = await fetchImageBlob(u);
+  if (blob.type === 'image/gif') {
+    await navigator.clipboard.writeText(new URL(fileUrl(u), location.href).href);
+    return '动图无法进剪贴板，已复制图片链接';
+  }
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type || 'image/png']: blob })]);
+    return '';
+  } catch {
+    await navigator.clipboard.writeText(new URL(fileUrl(u), location.href).href);
+    return '此浏览器不支持复制图片，已复制链接';
+  }
+}
+
+let lightboxUrl = '';
+function openLightbox(u) {
+  lightboxUrl = u;
+  const elImg = $('#lightboxImg');
+  elImg.src = fileUrl(u);
+  $('#lightbox').hidden = false;
+}
+function closeLightbox() {
+  lightboxUrl = '';
+  $('#lightbox').hidden = true;
+  $('#lightboxImg').src = '';
+}
+
+$('#lbClose').addEventListener('click', closeLightbox);
+$('#lightbox').addEventListener('click', (e) => { if (e.target === $('#lightbox')) closeLightbox(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#lightbox').hidden) closeLightbox(); });
+$('#lbDownload').addEventListener('click', async () => {
+  if (!lightboxUrl) return;
+  const b = $('#lbDownload');
+  b.textContent = '…';
+  try { await downloadImage(lightboxUrl); b.textContent = '已下载'; }
+  catch { b.textContent = '失败'; }
+  setTimeout(() => { b.textContent = '下载'; }, 1500);
+});
+$('#lbCopy').addEventListener('click', async () => {
+  if (!lightboxUrl) return;
+  const b = $('#lbCopy');
+  try { const msg = await copyImage(lightboxUrl); b.textContent = '已复制'; if (msg) flashHint(msg); }
+  catch { b.textContent = '失败'; }
+  setTimeout(() => { b.textContent = '复制'; }, 1500);
+});
 
 function renderThread() {
   // 用「离底距离」而不是绝对位置：内容高度变化时也不会跳到历史
