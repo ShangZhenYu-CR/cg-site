@@ -834,6 +834,11 @@ async function sendChat(text, opts = {}) {
     }
   }
 
+  // 嘴上说「这张图」但没挂图时提醒，避免模型凭空画
+  if (drawMode && !imgs.length && !refImages.length && /(这张|这个角色|参考|上图|刚才那张|原图)/.test(text)) {
+    flashHint('没检测到图片：先粘贴或上传一张，再发这句');
+  }
+
   if (!cv.messages.length) cv.title = (text || '图片').slice(0, 24);
   cv.messages.push({ role: 'user', text, who: LS.name, images: imgs.length ? imgs : undefined, ts: Date.now() });
 
