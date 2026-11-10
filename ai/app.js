@@ -808,6 +808,12 @@ function flashHint(msg) {
 
 /** GIF：官方 output_format=gif，帧数 2–16 */
 /** 画图 / 改图（带附件就是改图） */
+/** 一键把某张静态图变成动图（走对话模型 + GIF 工具） */
+function turnImageToGif(u) {
+  if (state.streaming) { flashHint('上一轮还没结束，稍等下'); return; }
+  sendChat('把这张图做成动图：主体保持原样，动作自然，首尾能衔接循环播放', { draw: true, gif: true, refImage: u });
+}
+
 async function sendChat(text, opts = {}) {
   const cv = current() || await createConv();
   if (!cv) return;
