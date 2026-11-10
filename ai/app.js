@@ -495,6 +495,17 @@ function bubble(m) {
     img.addEventListener('click', () => openLightbox(u));
 
     const acts = el('div', 'imgacts');
+    // 静态图 → 一键让模型做成动图
+    if (!/\.gif(\?|$)/i.test(u)) {
+      const toGif = el('button', null, '转GIF');
+      toGif.type = 'button';
+      toGif.title = '让 AI 把这张图做成动图';
+      toGif.addEventListener('click', (e) => {
+        e.stopPropagation();
+        turnImageToGif(u);
+      });
+      acts.append(toGif);
+    }
     const dl = el('button', null, '下载');
     dl.type = 'button';
     dl.addEventListener('click', async (e) => {
@@ -887,13 +898,18 @@ async function sendGif(prompt, imageUrl, frames, dur) {
   }
 }
 
+/** 一键把某张静态图变成动图（走对话模型 + GIF 工具） */
+function turnImageToGif(u) {
+  if (state.streaming) { flashHint('上一轮还没结束，稍等下'); return; }
+  sendChat('把这张图做成动图：主体保持原样，动作自然，首尾能衔接循环播放', { draw: true, gif: true, refImage: u });
+}
+
 async function sendChat(text, opts = {}) {
   const cv = current() || await createConv();
   if (!cv) return;
 
-  const imgs = state.attachments.map(a => a.url);
-  state.attachments = [];
-  renderAttach();
+  const imgs = opts.refImage ? [opts.refImage] : state.attachments.map(a => a.url);
+  if (!opts.refImage) { state.attachments = []; renderAttach(); }
 
   // 画图模式且没有附件：走对话模型 + 图像工具，这样能看到上文
   const drawMode = !!opts.draw || !!state.imageMode;
