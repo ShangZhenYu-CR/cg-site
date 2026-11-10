@@ -83,6 +83,7 @@ const state = {
   convs: [],
   currentId: null,
   streaming: false,
+  waitingUpload: false,
   imageMode: false,
   gifMode: false,
   search: false,
@@ -1173,7 +1174,15 @@ async function uploadViaOss(file, onProgress) {
   }
 }
 
+const pendingUploads = new Set();
+
 async function uploadFile(file) {
+  const task = doUploadFile(file);
+  pendingUploads.add(task);
+  try { return await task; } finally { pendingUploads.delete(task); }
+}
+
+async function doUploadFile(file) {
   if (!file || !/^image\//.test(file.type)) { alert('只支持图片'); return; }
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
@@ -1841,13 +1850,22 @@ function decideRoute({ text, hasAttach, attachUrl, gifMode, imageMode }) {
   return { route: 'chat', ref: null };
 }
 
-$('#composer').addEventListener('submit', (e) => {
+$('#composer').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (state.streaming) {
     if (state.controller) { state.controller.abort(); return; }
     // 出图/动图没有可中断的流，直接提示，别把输入吞掉
     flashHint('正在生成，稍等下再发；想取消等它结束');
     return;
+  }
+
+  // 还有图片在上传：等它们完成，再连图一起发（别发出去才发现图没了）
+  if (pendingUploads.size > 0) {
+    if (state.waitingUpload) return;
+    state.waitingUpload = true;
+    flashHint('图片上传中，等它完成再一起发送…');
+    try { await Promise.allSettled([...pendingUploads]); } finally { state.waitingUpload = false; }
+    if (!state.attachments.length) flashHint('图片没上传成功，已按纯文字发送');
   }
 
   const text = input.value.trim();
