@@ -867,13 +867,25 @@ async function sendGif(prompt, imageUrl, frames, dur) {
   }
 }
 
-async function sendChat(text) {
+async function sendChat(text, opts = {}) {
   const cv = current() || await createConv();
   if (!cv) return;
 
   const imgs = state.attachments.map(a => a.url);
   state.attachments = [];
   renderAttach();
+
+  // 画图模式且没有附件：走对话模型 + 图像工具，这样能看到上文
+  const drawMode = !!opts.draw || (state.imageMode && !imgs.length);
+
+  // 上文里最近的一张图，作为参考图（保持角色/风格一致）
+  let refImages = [];
+  if (drawMode) {
+    for (let i = cv.messages.length - 1; i >= 0; i--) {
+      const m = cv.messages[i];
+      if (m.images && m.images.length) { refImages = [m.images[m.images.length - 1]]; break; }
+    }
+  }
 
   if (!cv.messages.length) cv.title = (text || '图片').slice(0, 24);
   cv.messages.push({ role: 'user', text, who: LS.name, images: imgs.length ? imgs : undefined, ts: Date.now() });
@@ -886,8 +898,10 @@ async function sendChat(text) {
   const model = LS.model;
   const effort = LS.effort;
   // 图像生成模型不接受 reasoning 参数，所以只在明确要图时才挂工具
-  const wantsImage = /(画一|画个|画只|画张|画幅|生成.{0,6}图|来张图|出图|绘图|插画|海报|头像|表情包|配图|draw|image|picture|illustration)/i.test(text);
-  reply.meta = labelOf(model) + ' · ' + (wantsImage ? '图像' : (EFFORT_LABEL[effort] || effort));
+  const wantsImage = drawMode || /(画一|画个|画只|画张|画幅|生成.{0,6}图|来张图|出图|绘图|插画|海报|头像|表情包|配图|draw|image|picture|illustration)/i.test(text);
+  reply.meta = drawMode
+    ? '画图 · 带上下文'
+    : labelOf(model) + ' · ' + (wantsImage ? '图像' : (EFFORT_LABEL[effort] || effort));
 
   const node = thread.lastElementChild;
   const body = node && node.querySelector('.bd');
@@ -914,7 +928,19 @@ async function sendChat(text) {
       method: 'POST', signal: state.controller.signal,
       body: {
         model, search: state.search, convId: cv.id, projectId: cv.projectId || null,
-        ...(wantsImage ? { imageTool: true } : { effort }),
+        ...(drawMode
+          ? {
+              imageTool: true,
+              imageMode: true,
+              refImages: refImages.length ? refImages : undefined,
+              imageOpts: {
+                size: LS.draw.size && LS.draw.size !== 'auto' ? LS.draw.size : undefined,
+                quality: LS.draw.quality && LS.draw.quality !== 'auto' ? LS.draw.quality : undefined,
+                background: LS.draw.bg || undefined,
+                output_format: (LS.draw.format && LS.draw.format !== 'gif') ? LS.draw.format : undefined,
+              },
+            }
+          : wantsImage ? { imageTool: true } : { effort }),
         codeMode: state.codeMode,
         fileNames: (cv.files || []).map(f => f.name),
         messages: sentMessages(cv).map(m => ({
@@ -1877,7 +1903,9 @@ $('#composer').addEventListener('submit', (e) => {
     return;
   }
   if (decision.route === 'draw') {
-    sendDraw(text, decision.ref);
+    // 带图 → 改图；不带图 → 对话模型 + 图像工具（能联系上文）
+    if (decision.ref) sendDraw(text, decision.ref);
+    else sendChat(text || '画一张图', { draw: true });
     return;
   }
   sendChat(text);
