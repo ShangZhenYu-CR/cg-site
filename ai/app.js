@@ -3,6 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
+const APP_BUILD = '2026-11-10 18:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -854,7 +855,7 @@ async function sendChat(text, opts = {}) {
   // 图像生成模型不接受 reasoning 参数，所以只在明确要图时才挂工具
   const wantsImage = drawMode || /(画一|画个|画只|画张|画幅|生成.{0,6}图|来张图|出图|绘图|插画|海报|头像|表情包|配图|draw|image|picture|illustration)/i.test(text);
   reply.meta = drawMode
-    ? '画图 · 带上下文'
+    ? ('画图 · ' + (imgs.length ? '带参考图' : (refImages.length ? '参考上文图' : '无参考图')))
     : labelOf(model) + ' · ' + (wantsImage ? '图像' : (EFFORT_LABEL[effort] || effort));
 
   const node = thread.lastElementChild;
@@ -1509,7 +1510,11 @@ $('#codeCopy').addEventListener('click', async () => {
 });
 
 /* 功能简介 */
-$('#btnAbout').addEventListener('click', () => { $('#dlgAbout').hidden = false; });
+$('#btnAbout').addEventListener('click', () => {
+  const b = $('#aboutBuild');
+  if (b) b.textContent = '当前版本：' + APP_BUILD;
+  $('#dlgAbout').hidden = false;
+});
 $('#aboutClose').addEventListener('click', () => { $('#dlgAbout').hidden = true; });
 
 
