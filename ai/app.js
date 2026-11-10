@@ -550,8 +550,10 @@ function fileNameFrom(u, mime) {
   const p = (String(u).split('?')[0].split('/').pop() || 'image');
   const hasExt = /\.[a-z0-9]{2,5}$/i.test(p);
   const ext = (mime && mime.split('/')[1]) || (hasExt ? p.split('.').pop() : 'png');
-  const base = hasExt ? p.replace(/\.[a-z0-9]+$/i, '') : p;
-  return base + '.' + (ext === 'jpeg' ? 'jpg' : ext);
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+  return 'ai-' + stamp + '.' + (ext === 'jpeg' ? 'jpg' : ext);
 }
 
 async function fetchImageBlob(u) {
