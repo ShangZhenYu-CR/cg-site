@@ -524,6 +524,12 @@ function bubble(m) {
 
   if (!isUser && !m.err) {
     if (m.meta) bd.append(el('div', 'meta', m.meta));
+    if (m.imgPrompt) {
+      const det = el('details', 'imgprompt');
+      det.append(el('summary', null, '模型写的提示词'));
+      det.append(el('div', 'ip-text', m.imgPrompt));
+      bd.append(det);
+    }
     if (m.wrote && m.wrote.length) {
       const chip = el('div', 'wrote-chip');
       chip.innerHTML = '已写入 <b>' + m.wrote.length + '</b> 个文件：' + esc(m.wrote.join(', '));
@@ -876,7 +882,8 @@ async function sendChat(text, opts = {}) {
   renderAttach();
 
   // 画图模式且没有附件：走对话模型 + 图像工具，这样能看到上文
-  const drawMode = !!opts.draw || (state.imageMode && !imgs.length);
+  const drawMode = !!opts.draw || !!state.imageMode;
+  const gifAsk = !!opts.gif;
 
   // 上文里最近的一张图，作为参考图（保持角色/风格一致）
   let refImages = [];
@@ -933,12 +940,15 @@ async function sendChat(text, opts = {}) {
               imageTool: true,
               imageMode: true,
               refImages: refImages.length ? refImages : undefined,
-              imageOpts: {
-                size: LS.draw.size && LS.draw.size !== 'auto' ? LS.draw.size : undefined,
-                quality: LS.draw.quality && LS.draw.quality !== 'auto' ? LS.draw.quality : undefined,
-                background: LS.draw.bg || undefined,
-                output_format: (LS.draw.format && LS.draw.format !== 'gif') ? LS.draw.format : undefined,
-              },
+              imageOpts: gifAsk
+                ? { model: 'gpt-image-2.6-sunburst', size: '768x768', output_format: 'gif', frame_count: LS.draw.frames || 8, frame_duration_ms: LS.draw.dur || 150 }
+                : {
+                    model: LS.draw.model || undefined,
+                    size: LS.draw.size && LS.draw.size !== 'auto' ? LS.draw.size : undefined,
+                    quality: LS.draw.quality && LS.draw.quality !== 'auto' ? LS.draw.quality : undefined,
+                    background: LS.draw.bg || undefined,
+                    output_format: (LS.draw.format && LS.draw.format !== 'gif') ? LS.draw.format : undefined,
+                  },
             }
           : wantsImage ? { imageTool: true } : { effort }),
         codeMode: state.codeMode,
@@ -981,6 +991,7 @@ async function sendChat(text, opts = {}) {
             if (ev.u) cv.usage = ev.u;
             if (ev.img) {
               reply.images = [...(reply.images || []), ev.img];
+              if (ev.imgPrompt) reply.imgPrompt = ev.imgPrompt;
               if (!reply.meta) reply.meta = '图片';
             }
             if (ev.t) { acc += ev.t; schedule(); }
@@ -991,6 +1002,25 @@ async function sendChat(text, opts = {}) {
     }
     reply.text = acc;
     delete reply.streaming;
+
+    // 兜底：模型没出图时，直接打画图接口（避免这一轮白跑）
+    if ((drawMode || gifAsk) && !(reply.images || []).length) {
+      try {
+        if (gifAsk) {
+          const r = await api('/gif', { method: 'POST', timeout: 300000, body: { prompt: text, frames: LS.draw.frames || 8, duration: LS.draw.dur || 150, image: imgs[0] } });
+          const d = await r.json().catch(() => ({}));
+          if (d.url) { reply.images = [d.url]; reply.meta = 'GIF · 回退生成'; }
+        } else {
+          const r2 = await api('/draw', {
+            method: 'POST', timeout: 300000,
+            body: { prompt: text, image: imgs[0], size: LS.draw.size, quality: LS.draw.quality, format: LS.draw.format === 'gif' ? 'png' : LS.draw.format, n: LS.draw.n, compression: LS.draw.compression },
+          });
+          const d2 = await r2.json().catch(() => ({}));
+          const u = (d2.urls || [])[0];
+          if (u) { reply.images = [u]; reply.meta = '画图 · 回退生成'; }
+        }
+      } catch { /* 兜底也失败就保留文字 */ }
+    }
 
     // 结束后一次性渲染 Markdown（流式期间只有纯文本）
     if (host) host.innerHTML = md(reply.text || '');
@@ -1898,14 +1928,12 @@ $('#composer').addEventListener('submit', (e) => {
   setTimeout(repin, 80);
 
   if (decision.route === 'gif') {
-    const d = LS.draw;
-    sendGif(text || '把这张图做成动图', decision.ref, d.frames, d.dur);
+    sendChat(text || '把这张图做成动图', { draw: true, gif: true });
     return;
   }
   if (decision.route === 'draw') {
-    // 带图 → 改图；不带图 → 对话模型 + 图像工具（能联系上文）
-    if (decision.ref) sendDraw(text, decision.ref);
-    else sendChat(text || '画一张图', { draw: true });
+    // 统一走对话模型 + 图像工具：能联系上文，也会自己写提示词
+    sendChat(text || '画一张图', { draw: true });
     return;
   }
   sendChat(text);
