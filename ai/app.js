@@ -823,7 +823,8 @@ async function sendChat(text, opts = {}) {
   if (!cv) return;
 
   const imgs = opts.refImage ? [opts.refImage] : state.attachments.map(a => a.url);
-  if (!opts.refImage) { state.attachments = []; renderAttach(); }
+  state.attachments = [];
+  renderAttach();
 
   // 画图模式且没有附件：走对话模型 + 图像工具，这样能看到上文
   const drawMode = !!opts.draw || !!state.imageMode;
@@ -1906,19 +1907,17 @@ $('#composer').addEventListener('submit', async (e) => {
   input.value = '';
   input.style.height = 'auto';
 
-  if (decision.ref) { state.attachments = []; renderAttach(); }
-
   const repin = () => { if (wasBottom) scrollBox.scrollTop = scrollBox.scrollHeight; };
   requestAnimationFrame(repin);
   setTimeout(repin, 80);
 
   if (decision.route === 'gif') {
-    sendChat(text || '把这张图做成动图', { draw: true, gif: true });
+    sendChat(text || '把这张图做成动图', { draw: true, gif: true, refImage: decision.ref || undefined });
     return;
   }
   if (decision.route === 'draw') {
     // 统一走对话模型 + 图像工具：能联系上文，也会自己写提示词
-    sendChat(text || '画一张图', { draw: true });
+    sendChat(text || '画一张图', { draw: true, refImage: decision.ref || undefined });
     return;
   }
   sendChat(text);
