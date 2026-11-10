@@ -524,10 +524,13 @@ function bubble(m) {
 
   if (!isUser && !m.err) {
     if (m.meta) bd.append(el('div', 'meta', m.meta));
-    if (m.imgPrompt) {
+    const prompts = (m.imgPrompts && m.imgPrompts.length) ? m.imgPrompts : (m.imgPrompt ? [m.imgPrompt] : []);
+    if (prompts.length) {
       const det = el('details', 'imgprompt');
-      det.append(el('summary', null, '模型写的提示词'));
-      det.append(el('div', 'ip-text', m.imgPrompt));
+      det.append(el('summary', null, prompts.length > 1 ? ('模型写的 ' + prompts.length + ' 条提示词') : '模型写的提示词'));
+      prompts.forEach((p, i) => {
+        det.append(el('div', 'ip-text', (prompts.length > 1 ? ('第 ' + (i + 1) + ' 张：') : '') + p));
+      });
       bd.append(det);
     }
     if (m.wrote && m.wrote.length) {
@@ -551,6 +554,17 @@ function bubble(m) {
   return wrap;
 }
 
+
+/** 从用户话里猜要几张（1–4） */
+function countImages(text) {
+  const t = String(text || '');
+  const m = /(\d+)\s*张/.exec(t);
+  if (m) return Math.max(1, Math.min(4, Number(m[1])));
+  const cn = { 一: 1, 两: 2, 二: 2, 三: 3, 四: 4, 五: 4, 六: 4 };
+  const c = /([一两二三四五六])\s*张/.exec(t);
+  if (c) return cn[c[1]] || 1;
+  return 1;
+}
 /* ---------------- 图片：下载 / 复制 / 放大 ---------------- */
 function fileNameFrom(u, mime) {
   const p = (String(u).split('?')[0].split('/').pop() || 'image');
@@ -991,7 +1005,7 @@ async function sendChat(text, opts = {}) {
             if (ev.u) cv.usage = ev.u;
             if (ev.img) {
               reply.images = [...(reply.images || []), ev.img];
-              if (ev.imgPrompt) reply.imgPrompt = ev.imgPrompt;
+              if (ev.imgPrompt) reply.imgPrompts = [...(reply.imgPrompts || []), ev.imgPrompt];
               if (!reply.meta) reply.meta = '图片';
             }
             if (ev.t) { acc += ev.t; schedule(); }
@@ -1013,7 +1027,7 @@ async function sendChat(text, opts = {}) {
         } else {
           const r2 = await api('/draw', {
             method: 'POST', timeout: 300000,
-            body: { prompt: text, image: imgs[0], size: LS.draw.size, quality: LS.draw.quality, format: LS.draw.format === 'gif' ? 'png' : LS.draw.format, n: LS.draw.n, compression: LS.draw.compression },
+            body: { prompt: text, image: imgs[0], size: LS.draw.size, quality: LS.draw.quality, format: LS.draw.format === 'gif' ? 'png' : LS.draw.format, n: Math.max(countImages(text), LS.draw.n || 1), compression: LS.draw.compression },
           });
           const d2 = await r2.json().catch(() => ({}));
           const u = (d2.urls || [])[0];
@@ -1023,6 +1037,7 @@ async function sendChat(text, opts = {}) {
     }
 
     // 结束后一次性渲染 Markdown（流式期间只有纯文本）
+    if (reply.images && reply.images.length > 1) reply.meta = '画图 · ' + reply.images.length + ' 张';
     if (host) host.innerHTML = md(reply.text || '');
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
 
