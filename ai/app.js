@@ -89,6 +89,7 @@ const state = {
   search: false,
   rawUpload: false,
   attachments: [],
+  uploading: [],
   codeMode: false,
   fileIdx: 0,
   open: {},          // projectId -> bool
@@ -1034,6 +1035,14 @@ function renderAttach() {
     chip.append(img, x);
     box.append(chip);
   });
+
+  // 还在上传的图：显示占位（切换对话也不会看起来“消失”）
+  (state.uploading || []).forEach((u) => {
+    const chip = el('div', 'chip up');
+    chip.append(el('span', 'spin'));
+    chip.append(el('span', 'up-txt', u.label + (u.kb ? ' ' + u.pct + '% · ' + u.kb + 'KB' : '…')));
+    box.append(chip);
+  });
 }
 
 const MAX_IMAGE_MB = 50;
@@ -1186,25 +1195,26 @@ async function doUploadFile(file) {
   if (!file || !/^image\//.test(file.type)) { alert('只支持图片'); return; }
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
-  const box = $('#attach');
-  const hint = el('div', 'up-hint', state.rawUpload ? '原图上传（较慢）…' : '压缩中…');
-  box.append(hint);
+  // 上传中的占位放进 state，切换对话也不会「看起来消失」
+  const rec = { id: Math.random().toString(36).slice(2), label: state.rawUpload ? '原图上传' : '上传中', pct: 0, kb: 0 };
+  state.uploading.push(rec);
+  renderAttach();
 
   try {
     const small = state.rawUpload ? file : await shrinkImage(file);
     if (small.size > MAX_IMAGE_MB * 1024 * 1024) { alert('压缩后仍超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
-    const kb = Math.max(1, Math.round(small.size / 1024));
-    hint.textContent = '上传中 0% · ' + kb + 'KB';
-    const prog = (p) => { hint.textContent = '上传中 ' + Math.round(p * 100) + '% · ' + kb + 'KB'; };
+    rec.kb = Math.max(1, Math.round(small.size / 1024));
+    const prog = (p) => { rec.pct = Math.round(p * 100); renderAttach(); };
+    renderAttach();
 
-    // 1) 优先走 OSS 直传（绕开跨境隧道）
+    // 1) 优先走 OSS 直传
     const oss = await uploadViaOss(small, prog);
     if (oss.url) {
       state.attachments.push({ url: oss.url, name: small.name, oss: true });
       return;
     }
-    if (oss.error) hint.textContent = '直传失败，改走服务器…（' + oss.error + '）';
+    if (oss.error) { rec.label = '改走服务器'; renderAttach(); }
 
     // 2) 回退：经隧道分片上传
     const dataUrl = await new Promise((res, rej) => {
@@ -1220,11 +1230,10 @@ async function doUploadFile(file) {
   } catch (err) {
     alert('上传失败：' + ((err && err.message) || err));
   } finally {
-    hint.remove();
+    state.uploading = state.uploading.filter((x) => x !== rec);
     renderAttach();
   }
 }
-
 $('#fileInput').addEventListener('change', async (e) => {
   for (const f of e.target.files) await uploadFile(f);
   e.target.value = '';
