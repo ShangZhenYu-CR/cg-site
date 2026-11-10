@@ -555,7 +555,9 @@ function fileNameFrom(u, mime) {
 }
 
 async function fetchImageBlob(u) {
-  const r = await fetch(fileUrl(u));
+  // /oss/ 走同源代理，避免 OSS 跨域导致 fetch 失败（<img> 不受此限，下载/复制会）
+  const target = u.startsWith('/oss/') ? base() + '/oss/raw/' + u.slice('/oss/'.length) : fileUrl(u);
+  const r = await fetch(target, { credentials: 'omit' });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return await r.blob();
 }
