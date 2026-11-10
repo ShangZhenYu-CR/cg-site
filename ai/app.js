@@ -94,6 +94,7 @@ const state = {
   codeMode: false,
   fileIdx: 0,
   open: {},          // projectId -> bool
+  touched: false,    // 用户是否已经动过界面（初始化不再覆盖其选择）
   controller: null,
 };
 
@@ -1864,6 +1865,11 @@ function decideRoute({ text, hasAttach, attachUrl, gifMode, imageMode }) {
   return { route: 'chat', ref: null };
 }
 
+/* 任何真实交互都算「用户已动手」，初始化不再覆盖其选择 */
+['pointerdown', 'keydown'].forEach((evt) => {
+  document.addEventListener(evt, () => { state.touched = true; }, true);
+});
+
 $('#composer').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (state.streaming) {
@@ -2040,7 +2046,8 @@ async function bootData() {
   if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
     state.currentId = state.convs[0] ? state.convs[0].id : null;
   }
-  applyConvSettings(current());
+  // 用户已经动过手就别覆盖他的选择（异步加载可能比用户操作还慢）
+  if (!state.touched) applyConvSettings(current());
   renderAll();
   scrollBottom(true);
   await verify();
