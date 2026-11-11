@@ -1233,3 +1233,12 @@ body.in-project .top .title::after{content:'⌄';font-size:11px;color:var(--fain
 .mem-del{font-size:12px;color:var(--dim);padding:3px 8px;border-radius:6px}
 .mem-del:hover{background:var(--panel2);color:var(--danger)}
 
+
+/* 记住这句 浮标 */
+.mem-float{position:absolute;z-index:60;height:28px;padding:0 12px;border-radius:999px;background:var(--text);color:var(--bg);font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.mem-float:hover{opacity:.9}
+
+
+.mem-tier{flex:none;font-size:10px;padding:1px 6px;border-radius:999px;background:var(--panel2);color:var(--dim)}
+.mem-tier.deep{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+

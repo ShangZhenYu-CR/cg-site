@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:28';
+const APP_BUILD = '2026-11-11 21:35';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -179,25 +179,64 @@ function inline(s) {
 }
 
 /* ---------------- 长期记忆（前端收集） ---------------- */
-const MEM_RE = /\[\[memory:\s*([^\]]+?)\s*\]\]/gi;
+const MEM_RE = /\[\[memory(-deep)?:\s*([^\]]+?)\s*\]\]/gi;
+const FORGET_RE = /\[\[forget:\s*([^\]]+?)\s*\]\]/gi;
 
 /** 抽出并移除 [[memory: ...]] 标记，顺手提交给服务端 */
 function collectMemories(text) {
   const items = [];
-  const cleaned = String(text || '').replace(MEM_RE, (m, t) => {
-    const v = String(t || '').trim();
-    if (v) items.push(v);
-    return '';
-  }).replace(/\n{3,}/g, '\n\n').trim();
-  for (const one of items.slice(0, 3)) {
-    api('/memory', { method: 'POST', body: { text: one } }).catch(() => {});
+  const cleaned = String(text || '')
+    .replace(MEM_RE, (m, deep, t) => {
+      const v = String(t || '').trim();
+      if (v) items.push({ text: v, tier: deep ? 'deep' : 'hot' });
+      return '';
+    })
+    .replace(FORGET_RE, (m, kw) => {
+      const k = String(kw || '').trim();
+      if (k) api('/memory?text=' + encodeURIComponent(k), { method: 'DELETE' }).catch(() => {});
+      return '';
+    })
+    .replace(/\n{3,}/g, '\n\n').trim();
+  for (const one of items.slice(0, 4)) {
+    api('/memory', { method: 'POST', body: one }).catch(() => {});
   }
   return cleaned;
 }
 
 function stripMemoryMarkers(text) {
-  return String(text || '').replace(MEM_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+  return String(text || '').replace(MEM_RE, '').replace(FORGET_RE, '').replace(/\n{3,}/g, '\n\n').trim();
 }
+/* ---------------- 记住这句：选中文字即记 ---------------- */
+let memBtn = null;
+
+function hideMemBtn() {
+  if (memBtn) { memBtn.remove(); memBtn = null; }
+}
+
+document.addEventListener('mouseup', (e) => {
+  const sel = window.getSelection();
+  const text = sel ? String(sel).trim() : '';
+  if (!text || text.length < 4 || text.length > 300) { hideMemBtn(); return; }
+  const anchor = e.target && e.target.closest && e.target.closest('#thread .msg');
+  if (!anchor) { hideMemBtn(); return; }
+  const range = sel.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  hideMemBtn();
+  memBtn = el('button', 'mem-float', '记住这句');
+  memBtn.type = 'button';
+  memBtn.style.left = Math.min(window.innerWidth - 120, Math.max(8, rect.left + rect.width / 2 - 44)) + 'px';
+  memBtn.style.top = Math.max(8, rect.top - 38 + window.scrollY) + 'px';
+  memBtn.addEventListener('mousedown', (ev) => ev.preventDefault());
+  memBtn.addEventListener('click', async () => {
+    const clean = text.replace(/\s+/g, ' ').slice(0, 300);
+    const r = await api('/memory', { method: 'POST', body: { text: clean, tier: 'hot' } });
+    flashHint(r.ok ? '已记住（常用记忆）' : '记不住了');
+    hideMemBtn();
+  });
+  document.body.append(memBtn);
+});
+
+document.addEventListener('scroll', hideMemBtn, true);
 /* ---------------- 计算沙箱（Web Worker） ---------------- */
 let calcWorker = null;
 let calcSeq = 0;
@@ -1400,17 +1439,27 @@ function mountPane(key) {
       box.textContent = '';
       const items = j.items || [];
       if (!items.length) { box.append(el('div', 'set-hint', '还没有记忆。多聊几次它就会自己记住。')); return; }
-      items.forEach((it, idx) => {
+      items.forEach((it) => {
         const row = el('div', 'mem-row');
+        const tier = el('span', 'mem-tier' + (it.tier === 'deep' ? ' deep' : ''), it.tier === 'deep' ? '深' : '常');
+        row.append(tier);
         row.append(el('div', 'mem-text', it.text));
+        const move = el('button', 'mem-del', it.tier === 'deep' ? '转常用' : '转深库');
+        move.type = 'button';
+        move.addEventListener('click', async () => {
+          await api('/memory', { method: 'PATCH', body: { id: it.id, tier: it.tier === 'deep' ? 'hot' : 'deep' } });
+          flashHint('已切换');
+          $('#dlgSet').hidden = true;
+          openSettings('memory');
+        });
         const del = el('button', 'mem-del', '删除');
         del.type = 'button';
         del.addEventListener('click', async () => {
-          await api('/memory?idx=' + idx, { method: 'DELETE' });
+          await api('/memory?id=' + encodeURIComponent(it.id || ''), { method: 'DELETE' });
           row.remove();
           flashHint('已删除');
         });
-        row.append(del);
+        row.append(move, del);
         box.append(row);
       });
     })();
