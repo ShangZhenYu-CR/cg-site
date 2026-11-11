@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:09';
+const APP_BUILD = '2026-11-11 21:21';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -126,7 +126,7 @@ const state = {
   waitingUpload: false,
   imageMode: false,
   gifMode: false,
-  search: false,
+  search: true,   // 联网搜索默认开：模型按需调用，可在菜单里关
   rawUpload: false,
   fidelity: false,        // 保真优先：高频纹理图不二次压糊
   attachments: [],
@@ -717,9 +717,9 @@ function applyConvSettings(cv) {
     if (s.model) { modelPinned = true; LS.model = s.model; }   // 会话记录的就是它当时用的模型，直接恢复
     if (s.effort) LS.effort = s.effort;
 
-    // 五个开关全部按会话重置，缺省即为关闭（否则会带到别的对话上）
+    // 开关按会话重置；联网缺省为开（模型按需调用）
     setCap('code', !!s.codeMode);
-    setCap('search', !!s.search);
+    setCap('search', s.search === undefined ? true : !!s.search);
     setCap('raw', !!s.raw);
     setCap('image', !!s.imageMode);
     setCap('gif', !!s.gifMode);
