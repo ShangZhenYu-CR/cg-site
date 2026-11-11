@@ -98,7 +98,16 @@
       </div>
       <div class="proj-page" id="filesPage" hidden>
         <div class="pp-head"><h1>文件</h1></div>
+        <div class="pp-tabs" id="fpTabs">
+          <button type="button" class="pp-tab on" data-tab="all">全部</button>
+          <button type="button" class="pp-tab" data-tab="mine">我生成的</button>
+          <button type="button" class="pp-tab" data-tab="shared">分享给我的</button>
+        </div>
         <p class="pp-sub">编程模式产出的文件，点开跳到对应对话。</p>
+        <div class="make-new">
+          <div class="mn-label">做点新的</div>
+          <div class="mn-cards" id="mnCards"></div>
+        </div>
         <div class="pp-grid" id="fpGrid"></div>
       </div>
       <div class="empty" id="empty">
@@ -157,6 +166,7 @@
         </div>
         <textarea id="input" rows="1" placeholder="今天我能为您做些什么？"></textarea>
         <button type="button" class="cm-model" id="cmModel" title="切换模型 / 思考强度"></button>
+        <button type="button" class="icon cm-mic" id="micBtn" hidden title="语音输入（待接入）" aria-label="语音输入"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button type="submit" class="send" id="sendBtn" title="发送">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5 12 7-7 7 7"/></svg>
         </button>
@@ -230,6 +240,7 @@
 <div class="pop" id="menuPop" hidden>
   <button class="opt" id="renameBtn">重命名对话</button>
   <button class="opt" id="privateBtn">转为私人对话</button>
+  <button class="opt" id="shareBtn">分享链接</button>
   <button class="opt" id="moveProjectBtn">移到项目…</button>
   <button class="opt" id="pinBtn">置顶对话</button>
   <button class="opt" id="exportMdBtn">导出为 Markdown</button>

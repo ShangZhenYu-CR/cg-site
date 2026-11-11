@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:16';
+const APP_BUILD = '2026-11-11 20:29';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1626,6 +1626,9 @@ function renderThread() {
   requestAnimationFrame(restore);
 }
 
+/* 能力开关：语音还没接，先渲染但隐藏，接上后把 voice 改成 true 即可 */
+const FEATURES = { voice: false };
+if (FEATURES.voice) { const mb = $('#micBtn'); if (mb) mb.hidden = false; }
 function renderAll() {
   renderSide();
   const isProj = state.view === 'projects';
@@ -1729,7 +1732,7 @@ function updateComposerMeta() {
 /** 模型的一句话定位（对应 Claude 菜单里的第二行说明） */
 function modelMeta(id) {
   const m = String(id || '');
-  if (/astra/i.test(m)) return { badge: '高级', desc: '最强推理，适合复杂任务' };
+  if (/astra/i.test(m)) return { badge: canAstra() ? (LS.role === 'astra' ? 'Astra 专属' : (LS.role === 'admin' ? '管理员' : '成员')) : '受限', desc: '最强推理，适合复杂任务' };
   if (/sol/i.test(m)) return { badge: '', desc: '通用主力，均衡稳定' };
   if (/terra/i.test(m)) return { badge: '', desc: '更快更省，适合日常' };
   if (/luna/i.test(m)) return { badge: '', desc: '最快最省，适合简单任务' };
@@ -4006,12 +4009,100 @@ function showGalleryPage() {
   state.view = 'images';
   renderAll();
 }
+/* ---------------- 分享 ---------------- */
+$('#shareBtn').addEventListener('click', () => { closePops(); shareCurrent(); });
+$('#fpTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('.pp-tab');
+  if (!b) return;
+  fpTab = b.dataset.tab;
+  renderFilesPage();
+});
+async function shareCurrent() {
+  const cv = current();
+  if (!cv) return;
+  const r = await api('/share', { method: 'POST', body: { convId: cv.id } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { flashHint(j.error || '分享失败'); return; }
+  try { await navigator.clipboard.writeText(j.url); } catch {}
+  openListPanel('分享链接', '链接已复制，直接粘到飞书/微信里会自动显示对话标题', [
+    { label: j.url, sub: '点一下再复制一次', onClick: async () => { try { await navigator.clipboard.writeText(j.url); flashHint('已复制'); } catch {} } },
+    { label: '撤销分享', sub: '撤销后这个链接立刻失效', onClick: async () => {
+      const d = await api('/share/' + j.token, { method: 'DELETE' });
+      $('#dlgList').hidden = true;
+      flashHint(d.ok ? '已撤销分享' : '撤销失败');
+    } },
+  ]);
+}
+
+/** 文件页的三个 tab + 做点新的 */
+let fpTab = 'all';
+function renderFpTabs() {
+  const box = $('#fpTabs');
+  if (!box) return;
+  for (const b of box.querySelectorAll('.pp-tab')) b.classList.toggle('on', b.dataset.tab === fpTab);
+}
+
+function renderMakeNew() {
+  const box = $('#mnCards');
+  if (!box) return;
+  if (box.dataset.built) return;
+  box.dataset.built = '1';
+  const kinds = [
+    ['文档', '▤', '写一份结构清晰的文档，包含标题、要点和结论。'],
+    ['幻灯片', '▣', '帮我做一套幻灯片：先给每页标题和要点，再用 ```file:slides.html 输出一个可以翻页的 HTML 版本。'],
+    ['设计', '✧', '做一个页面设计稿：用 ```file:design.html 输出完整 HTML + CSS，风格参考 Claude 的暖色调。'],
+  ];
+  for (const [name, ico, promptText] of kinds) {
+    const b = el('button', 'mn-card mn-' + name);
+    b.type = 'button';
+    b.append(el('div', 'mn-ico', ico));
+    b.append(el('div', 'mn-name', name));
+    b.addEventListener('click', async () => {
+      state.view = 'chat';
+      const cv = await createConv();
+      if (!cv) return;
+      input.value = promptText;
+      input.focus();
+      renderAll();
+      flashHint('已新建对话，按 Enter 发送');
+    });
+    box.append(b);
+  }
+}
+
+async function renderSharedInto(grid) {
+  const r = await api('/shares');
+  const j = await r.json().catch(() => ({}));
+  const items = (j.sharedWithMe || []).concat(j.mine || []);
+  if (!items.length) {
+    const empty = el('div', 'pp-empty');
+    empty.append(el('div', 't', '还没有分享'));
+    empty.append(el('div', 'd', '在会话菜单里点「分享链接」，把链接发给别人即可。'));
+    grid.append(empty);
+    return;
+  }
+  for (const it of items) {
+    const card = el('button', 'pp-card');
+    card.type = 'button';
+    const n = el('div', 'n');
+    n.append(el('span', 'ftype', it.by === LS.name ? '我' : '他'));
+    n.append(el('span', null, it.title));
+    card.append(n);
+    card.append(el('div', 'm', it.by + ' · ' + when(it.at) + ' · ' + it.messages + ' 条'));
+    card.addEventListener('click', () => window.open(base() + '/s/' + it.token, '_blank'));
+    grid.append(card);
+  }
+}
 /** 文件页（Claude 的 Artifacts 页） */
 function renderFilesPage() {
   const grid = $('#fpGrid');
   if (!grid) return;
+  renderFpTabs();
+  renderMakeNew();
   grid.textContent = '';
-  const items = recentArtifacts(60);
+  if (fpTab === 'shared') { renderSharedInto(grid); return; }
+  let items = recentArtifacts(60);
+  if (fpTab === 'mine') items = items.filter((it) => it.author === LS.name);
   if (!items.length) {
     const empty = el('div', 'pp-empty');
     empty.append(el('div', 't', '还没有产物'));

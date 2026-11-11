@@ -1088,3 +1088,19 @@ body.noside #sideToggle{display:grid!important}
 .gal-item img{position:absolute;inset:0;width:100%!important;height:100%!important;object-fit:cover}
 .gal-meta{z-index:2}
 
+
+/* 文件页 tabs + 做点新的 */
+.pp-tabs{display:flex;gap:4px;margin:0 0 10px}
+.pp-tab{height:28px;padding:0 12px;border-radius:8px;font-size:13px;color:var(--dim)}
+.pp-tab:hover{background:var(--panel2)}
+.pp-tab.on{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text);font-weight:500}
+.make-new{margin:6px 0 20px}
+.mn-label{font-size:12px;color:var(--faint);margin-bottom:8px}
+.mn-cards{display:flex;gap:12px;flex-wrap:wrap}
+.mn-card{width:180px;height:104px;border-radius:12px;padding:12px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;color:#fff;border:0}
+.mn-文档{background:linear-gradient(135deg,#2b5f9e,#1f4778)}
+.mn-幻灯片{background:linear-gradient(135deg,#a4552f,#7d3a1f)}
+.mn-设计{background:linear-gradient(135deg,#6b4fa8,#4a3578)}
+.mn-ico{font-size:20px;opacity:.9}
+.mn-name{font-size:14px;font-weight:600}
+
