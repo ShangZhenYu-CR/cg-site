@@ -1433,3 +1433,8 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 .row-art{display:inline-flex;align-items:center;color:var(--faint);flex:none;margin-left:2px;opacity:.8}
 .kid:hover .row-art{opacity:1}
 
+
+/* 品牌标记：和首页星芒一致 */
+.brand .brand-mark{color:var(--brand);flex:none}
+body.noside .brand .brand-mark{width:20px;height:20px}
+
