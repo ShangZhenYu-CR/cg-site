@@ -1420,3 +1420,11 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 /* 反馈按钮（默认隐藏，仅开关打开时出现） */
 .msg .acts .fb-up.on,.msg .acts .fb-down.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 
+
+/* 侧栏布局修正：整列占满视口，只有列表滚动，底部账号永远可见 */
+#app{height:100vh!important;overflow:hidden}
+#side{height:100vh!important;min-height:0;overflow:hidden}
+#side .list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden}
+.side-foot{flex:none!important;position:relative;z-index:2;background:var(--side-bg,var(--panel))}
+@media (max-width:900px){#app,#side{height:100dvh!important}}
+
