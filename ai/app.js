@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:18';
+const APP_BUILD = '2026-11-11 23:20';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1742,6 +1742,33 @@ function bubble(m, idx) {
       acts.append(edit);
     }
     bd.append(acts);
+  }
+
+  // 用户消息也给操作：复制 + 编辑（Claude 对用户消息只给这两项）
+  if (isUser) {
+    const uacts = el('div', 'acts');
+    const ucp = el('button', null, '复制');
+    ucp.type = 'button';
+    ucp.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(m.text || '');
+        ucp.textContent = '已复制';
+        flashHint('已复制到剪贴板');
+        setTimeout(() => { ucp.textContent = '复制'; }, 1200);
+      } catch (err) {}
+    });
+    const uedit = el('button', null, '编辑');
+    uedit.type = 'button';
+    uedit.title = '把这条放回输入框修改';
+    uedit.addEventListener('click', () => {
+      input.value = m.text || '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      flashHint('已放回输入框，改完按 Enter 重发');
+    });
+    uacts.append(ucp, uedit);
+    bd.append(uacts);
   }
 
   wrap.append(bd);
