@@ -1407,3 +1407,16 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 .pre-copy{height:22px;padding:0 8px;border-radius:6px;font-size:11px;color:var(--dim)}
 .pre-copy:hover{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text)}
 
+
+/* 交接文档进度卡 */
+.hf-prog{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:90;width:min(420px,86vw);background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.14);padding:12px 14px}
+.hf-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)}
+.hf-txt{flex:1}
+.hf-sec{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.hf-spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--brand);animation:hfspin .8s linear infinite;flex:none}
+@keyframes hfspin{to{transform:rotate(360deg)}}
+.hf-bar{height:4px;border-radius:99px;background:var(--panel2);margin-top:10px;overflow:hidden}
+.hf-bar i{display:block;height:100%;background:var(--brand);transition:width .5s var(--ease-out)}
+/* 反馈按钮（默认隐藏，仅开关打开时出现） */
+.msg .acts .fb-up.on,.msg .acts .fb-down.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+

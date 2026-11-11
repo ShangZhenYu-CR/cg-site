@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:29';
+const APP_BUILD = '2026-11-11 23:40';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1745,6 +1745,38 @@ function bubble(m, idx) {
       });
       acts.append(edit);
     }
+    // 反馈与朗读：功能已实现，默认隐藏（FEATURES_FB 打开才显示）
+    if (FEATURES_FB.feedback) {
+      const up = el('button', 'fb-up', '赞');
+      up.type = 'button';
+      up.title = '这条回答有帮助';
+      const down = el('button', 'fb-down', '踩');
+      down.type = 'button';
+      down.title = '这条回答没帮上忙';
+      const mark = (which) => {
+        up.classList.toggle('on', which === 'up');
+        down.classList.toggle('on', which === 'down');
+        flashHint(which === 'up' ? '已记录：有帮助' : '已记录：没帮上忙');
+      };
+      up.addEventListener('click', () => mark('up'));
+      down.addEventListener('click', () => mark('down'));
+      acts.append(up, down);
+    }
+    if (FEATURES_FB.readAloud) {
+      const ro = el('button', null, '朗读');
+      ro.type = 'button';
+      ro.addEventListener('click', () => {
+        try {
+          if (!('speechSynthesis' in window)) { flashHint('这个浏览器不支持朗读'); return; }
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(String(m.text || '').slice(0, 4000));
+          u.lang = 'zh-CN';
+          window.speechSynthesis.speak(u);
+          flashHint('开始朗读');
+        } catch (err) { flashHint('朗读失败'); }
+      });
+      acts.append(ro);
+    }
     bd.append(acts);
   }
 
@@ -2325,6 +2357,30 @@ function setBusy(b) {
 
 /* 一闪而过的提示，贴在输入框上方 */
 let flashTimer = null;
+/* 交接文档进度：模型调用要十几秒，给个可见进度 */
+let handoffTimer = 0;
+function showHandoffProgress() {
+  hideHandoffProgress();
+  const box = el('div', 'hf-prog');
+  box.id = 'hfProg';
+  box.innerHTML = '<div class="hf-row"><span class="hf-spin"></span><span class="hf-txt">正在把上文压成交接文档…</span><b class="hf-sec">0s</b></div>'
+    + '<div class="hf-bar"><i style="width:4%"></i></div>';
+  document.body.append(box);
+  const t0 = Date.now();
+  handoffTimer = setInterval(() => {
+    const el2 = document.querySelector('#hfProg');
+    if (!el2) return;
+    const sec = Math.round((Date.now() - t0) / 1000);
+    const b = el2.querySelector('.hf-sec'); if (b) b.textContent = sec + 's';
+    const fill = el2.querySelector('.hf-bar i');
+    if (fill) fill.style.width = Math.min(92, 4 + sec * 7) + '%';
+  }, 500);
+}
+function hideHandoffProgress() {
+  clearInterval(handoffTimer);
+  const box = document.querySelector('#hfProg');
+  if (box) box.remove();
+}
 function flashHint(msg) {
   let h = $('#flashHint');
   if (!h) {
@@ -3331,6 +3387,7 @@ $('#handoffBtn').addEventListener('click', async () => {
 
   const btn = $('#handoffBtn');
   btn.disabled = true; btn.textContent = '生成中…';
+  showHandoffProgress();
   try {
     const r = await api('/summarize', { method: 'POST', body: { model: LS.model, messages: msgs.map(m => ({ role: m.role, text: m.text })) } });
     const j = await r.json().catch(() => ({}));
@@ -3347,6 +3404,7 @@ $('#handoffBtn').addEventListener('click', async () => {
     alert('生成失败：' + ((e && e.message) || e));
   } finally {
     btn.disabled = false; btn.textContent = '交接文档';
+    hideHandoffProgress();
   }
 });
 
@@ -5520,6 +5578,7 @@ $('#metaProject').addEventListener('click', () => {
   rows.push({ label: '＋ 新建项目…', sub: '', onClick: () => { $('#dlgList').hidden = true; openProjectDialog(null); } });
   openListPanel('归到哪个项目', '项目会带上它自己的指令和知识', rows);
 });
+const FEATURES_FB = { feedback: false, readAloud: false };
 /* 代码块复制（事件委托，流式重绘也能用） */
 document.addEventListener('click', async (e) => {
   const btn = e.target && e.target.closest && e.target.closest('.pre-copy');
