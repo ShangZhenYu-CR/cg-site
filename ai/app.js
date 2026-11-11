@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:40';
+const APP_BUILD = '2026-11-11 19:41';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1954,6 +1954,7 @@ async function sendChat(text, opts = {}) {
   if (host) { host.textContent = ''; host.append(textNode, caret); }
 
   setBusy(true);
+  showThinking();
   state.controller = new AbortController();
 
   let acc = '';
@@ -1965,6 +1966,22 @@ async function sendChat(text, opts = {}) {
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
+/** 等待首个字符时的「思考中」占位 */
+let thinkingEl = null;
+function showThinking() {
+  if (thinkingEl) return;
+  thinkingEl = el('div', 'msg ai thinking');
+  const bd = el('div', 'bd');
+  bd.innerHTML = '<span class="dots"><i></i><i></i><i></i></span><span class="tk">正在思考</span>';
+  thinkingEl.append(bd);
+  thread.append(thinkingEl);
+  if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
+}
+function hideThinking() {
+  if (!thinkingEl) return;
+  thinkingEl.remove();
+  thinkingEl = null;
+}
   /** 真打一次 /chat；imageOpts 允许被降档重试替换 */
   const postChat = async (io) => {
     const res = await api('/chat', {
@@ -1995,6 +2012,7 @@ async function sendChat(text, opts = {}) {
       acc = d.text || '';
       paint();
     } else {
+      hideThinking();
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = '';
@@ -2100,6 +2118,7 @@ async function sendChat(text, opts = {}) {
       if (!reply.text) reply.text = '';
     }
   } catch (e) {
+    hideThinking();
     delete reply.streaming;
     const aborted = e && e.name === 'AbortError';
     // 工具报错也要走兜底，否则用户只看到一段上游 JSON
@@ -2115,6 +2134,7 @@ async function sendChat(text, opts = {}) {
       if (e && e.status === 401) logout();
     }
   } finally {
+    hideThinking();
     state.controller = null;
     await saveConv(cv);
     setBusy(false);
