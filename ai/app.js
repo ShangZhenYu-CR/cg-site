@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:49';
+const APP_BUILD = '2026-11-11 21:54';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -149,6 +149,7 @@ const el = (tag, cls, txt) => {
   return n;
 };
 
+let thinkingEl = null;   // 等待首字时的占位元素
 const thread = $('#thread');
 const listBox = $('#list');
 const scrollBox = $('#scroll');
@@ -855,6 +856,13 @@ function persistSettings() {
 const RETIRED_DEFAULT_RE = /gpt-5\.6-(terra|luna)/i;
 
 function applyConvSettings(cv) {
+  // 这个会话带产物（文档/幻灯片/设计）就顺手把右侧面板打开
+  if (cv && cv.artifact && cv.artifact.kind) {
+    const pane = $('#artPane');
+    if (pane && pane.hidden) openArtifactPane(cv.artifact.kind, cv.artifact.name);
+  } else if (cv && !cv.artifact) {
+    closeArtifactPane();
+  }
   const s = cv && cv.settings;
   if (!s) return;
   // 空会话不吃历史设置：新对话一律用当前默认（6.1 Terra / 中等）
@@ -2385,7 +2393,6 @@ async function sendChat(text, opts = {}) {
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
 /** 等待首个字符时的「思考中」占位 */
-let thinkingEl = null;
 function showThinking() {
   if (thinkingEl) return;
   thinkingEl = el('div', 'msg ai thinking');
