@@ -1736,3 +1736,11 @@ body.artfull #app,body.artfull #main{transition:none!important}
 .art-menu .am-item.disabled:hover{background:transparent}
 .art-menu .am-sep{height:1px;background:var(--line);margin:6px 4px}
 
+
+/* 按 Claude 实测值校正产物菜单：宽 240 / 圆角 14 / 行高 28 / 说明行 33 */
+.art-menu{width:240px!important;min-width:240px!important;max-width:240px!important;border-radius:14px!important;padding:6px!important}
+.art-menu .am-note{height:33px;padding:8px 12px!important;font-size:13px!important;color:rgba(0,0,0,.6)}
+.art-menu .am-item{height:28px!important;padding:4px 10px!important;font-size:14px!important;gap:8px!important;border-radius:8px!important}
+.art-menu .am-sep{margin:4px 6px!important}
+html[data-theme="dark"] .art-menu .am-note{color:rgba(255,255,255,.6)}
+
