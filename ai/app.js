@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:30';
+const APP_BUILD = '2026-11-11 19:30 ';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -752,14 +752,18 @@ function renderSide() {
     return '更早';
   };
   let lastGroup = '';
+  let groupCount = 0;
+  const PER_GROUP = 8;
   const addGroupIfNeeded = (cv) => {
     const g = q ? '最近' : dayKey(cv.updatedAt);
     if (g === lastGroup) return;
     lastGroup = g;
+    groupCount = 0;
     const h = el('div', 'grp');
     h.innerHTML = '<span>' + g + '</span>';
     listBox.append(h);
   };
+  const budgetOk = () => { groupCount += 1; return groupCount <= PER_GROUP || q; };
   if (!loose.length) {
     if (q) listBox.append(el('div', 'kid', '没有匹配'));
     else {
@@ -769,7 +773,11 @@ function renderSide() {
       listBox.append(hint);
     }
   }
-  for (const cv of loose) { addGroupIfNeeded(cv); listBox.append(convRow(cv)); }
+  for (const cv of loose) {
+    addGroupIfNeeded(cv);
+    if (!budgetOk()) continue;
+    listBox.append(convRow(cv));
+  }
 
   // 已归档：默认收起，点开才列出来
   const arch = state.convs.filter((cv) => cv.archived && matches(cv));
