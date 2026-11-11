@@ -1144,3 +1144,42 @@ body.noside #sideToggle{display:grid!important}
 .pd-private{margin-top:14px;padding-left:8px;font-size:12px;color:var(--faint)}
 @media (max-width:900px){.proj-detail{flex-direction:column;gap:20px}.pd-side{width:100%}}
 
+
+/* ===== 项目页几何（对齐 claude.ai 1440×900 实测） ===== */
+#projDetail.proj-detail{display:grid;grid-template-columns:712px 318px;column-gap:62px;max-width:none;margin:0;padding:16px 36px 60px 24px;align-items:start}
+.pd-main{width:712px;max-width:712px}
+.pd-title{font-family:var(--font-serif);font-size:24px;font-weight:500;line-height:31.2px;margin:0 0 32px}
+.pd-composer{width:712px;height:95px;border-radius:14px;padding:8px;display:grid;grid-template-columns:1fr auto;grid-template-rows:1fr auto;align-items:end;gap:0;background:var(--panel);border:1px solid var(--line);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.pd-composer textarea{grid-column:1/-1;grid-row:1;width:100%;height:44px;padding:8px 12px 0;border:0;background:transparent;resize:none;outline:none;font-size:15px;line-height:21px;color:var(--text)}
+.pd-plus{grid-column:1;grid-row:2;justify-self:start;width:28px;height:28px;border-radius:8px;color:var(--dim);margin-left:4px}
+.pd-send{grid-column:2;grid-row:2;justify-self:end;width:28px;height:28px;margin-right:4px}
+.pd-meta{width:712px;display:flex;justify-content:flex-end;gap:16px;margin:8px 0 0;font-size:14px;color:var(--dim)}
+.pd-sec{font-size:12px;font-weight:520;color:rgba(0,0,0,.6);margin:30px 0 12px}
+.pd-item{height:32px;padding:0 8px;font-size:14px;border-radius:8px;margin:0 -8px;width:712px}
+.pd-when{font-size:14px;color:var(--dim)}
+.pd-side{width:318px;padding-top:9px}
+.pd-row{height:53px;padding:0 12px;gap:12px;border-radius:0;font-size:14px}
+.pd-row + .pd-row{border-top:0}
+.pd-ico{width:16px;font-size:14px;color:var(--dim)}
+.pd-act{font-size:14px;color:var(--dim);background:transparent!important}
+.pd-private{margin-top:24px;padding-left:12px;font-size:12px;color:var(--faint)}
+@media (max-width:1240px){#projDetail.proj-detail{grid-template-columns:1fr;padding-right:24px}.pd-main,.pd-composer,.pd-meta,.pd-item{width:100%}}
+
+
+/* ===== 侧栏一比一：项目行、缩进子项、查看全部 ===== */
+#list{padding:0 12px}
+.prow{display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 2px 0 10px;border-radius:8px;font-size:14px;font-weight:400;color:var(--text);text-align:left}
+.prow:hover{background:var(--panel2)}
+.prow.on{background:color-mix(in srgb,var(--text) 8%,transparent)}
+.prow .pico{display:flex;align-items:center;color:var(--dim);flex:none}
+.prow .pn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow .pchev{font-size:12px;color:var(--faint);transform:rotate(90deg);transition:transform .12s}
+.prow:not(.open) .pchev{transform:rotate(0)}
+.pkids{padding-left:20px;position:relative}
+.pkids::before{content:'';position:absolute;left:12px;top:2px;bottom:2px;width:1px;background:var(--line)}
+.pkids .kid{padding-left:10px}
+.pkids-empty{font-size:12px;color:var(--faint);padding:4px 10px}
+.viewall{display:block;width:100%;height:30px;padding:0 10px;margin-top:2px;border-radius:8px;font-size:14px;color:var(--dim);text-align:left}
+.viewall:hover{background:var(--panel2);color:var(--text)}
+#list .grp{padding-left:10px}
+

@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:50';
+const APP_BUILD = '2026-11-11 20:54';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -715,101 +715,98 @@ function renderSkeleton() {
 function renderSide() {
   const q = $('#q').value.trim().toLowerCase();
   listBox.textContent = '';
-
   const matches = (cv) => !q || String(cv.title || '').toLowerCase().includes(q);
+  const pinnedIds = new Set((state.convs || []).filter((cv) => isPinned(cv.id)).map((cv) => cv.id));
 
-  // 项目模式：只看这一个项目里的对话
+  // 项目过滤视图（从项目页返回时用）
   const pf = (state.projects || []).find((x) => x.id === state.projectFilter);
   if (pf) {
     const headP = el('div', 'grp');
     headP.innerHTML = '<span>' + esc(pf.name) + '</span><button id="pfExit">← 全部</button>';
     listBox.append(headP);
-    if (pf.instructions) listBox.append(el('div', 'pf-note', '该项目有指令，进入自动生效'));
     const kidsP = state.convs.filter((cv) => cv.projectId === pf.id && !cv.archived && matches(cv));
-    if (!kidsP.length) listBox.append(el('div', 'kid', '这个项目还没有对话'));
+    if (!kidsP.length) listBox.append(el('div', 'kid', '这个项目还没有会话'));
     for (const cv of kidsP) listBox.append(convRow(cv));
     const exitBtn = document.getElementById('pfExit');
     if (exitBtn) exitBtn.addEventListener('click', () => { state.projectFilter = null; renderAll(); });
     return;
   }
 
+  const sectionHead = (label, count, onClick, extra) => {
+    const h = el('div', 'grp grp-toggle');
+    h.innerHTML = '<span>' + label + '</span>' + (extra || '') + '<i class="chev">⌄</i>';
+    if (onClick) h.addEventListener('click', onClick);
+    return h;
+  };
 
-  const pinned = (state.convs || []).filter((cv) => !cv.archived && isPinned(cv.id) && matches(cv));
-  if (pinned.length) {
-    const hp = el('div', 'grp');
-    hp.innerHTML = '<span>置顶</span>';
-    listBox.append(hp);
+  // 已置顶：置顶的会话 + 项目（Claude 把项目行放在置顶区）
+  const pinned = (state.convs || []).filter((cv) => !cv.archived && pinnedIds.has(cv.id) && !cv.projectId && matches(cv));
+  const pinnedProjects = (state.projects || []).filter((p) => p.pinned);
+  if (pinned.length || pinnedProjects.length) {
+    listBox.append(sectionHead('已置顶'));
+    for (const p of pinnedProjects) appendProject(p);
     for (const cv of pinned) listBox.append(convRow(cv));
   }
 
-  const loose = state.convs.filter(cv => !cv.archived && matches(cv) && !isPinned(cv.id));
-  const dayKey = (ts) => {
-    if (!ts) return '更早';
-    const d = new Date(ts);
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    if (ts >= start) return '今天';
-    if (ts >= start - 86400000) return '昨天';
-    if (ts >= start - 7 * 86400000) return '本周';
-    return '更早';
-  };
-  // 先按天分桶，再按上限渲染，超过的给「显示更多」
-  const PER_GROUP = 8;
-  const buckets = new Map();
-  for (const cv of loose) {
-    const g = q ? '最近' : dayKey(cv.updatedAt);
-    if (!buckets.has(g)) buckets.set(g, []);
-    buckets.get(g).push(cv);
-  }
-  window.__sideExpand = window.__sideExpand || new Set();
-  if (!loose.length) {
-    if (q) listBox.append(el('div', 'kid', '没有匹配'));
-    else {
-      const hint = el('div', 'side-empty');
-      hint.append(el('div', 'se-t', '还没有对话'));
-      hint.append(el('div', 'se-d', '点上面的「新建」开始，或按 Ctrl+Shift+O。'));
-      listBox.append(hint);
-    }
-  }
-  window.__sideCollapsed = window.__sideCollapsed || new Set();
-  for (const [label, arr] of buckets) {
-    const collapsed = window.__sideCollapsed.has(label);
-    const h = el('div', 'grp grp-toggle');
-    h.innerHTML = '<span>' + label + '</span><i class="chev">' + (collapsed ? '›' : '⌄') + '</i>';
-    h.title = collapsed ? '展开' : '折叠';
-    h.addEventListener('click', () => {
-      if (collapsed) window.__sideCollapsed.delete(label);
-      else window.__sideCollapsed.add(label);
-      renderSide();
+  // 项目：可展开，子项缩进
+  function appendProject(p) {
+    const kids = state.convs.filter((cv) => cv.projectId === p.id && !cv.archived && matches(cv));
+    if (q && !String(p.name || '').toLowerCase().includes(q) && !kids.length) return;
+    const open = state.open && state.open[p.id] !== undefined ? !!state.open[p.id] : true;
+    const row = el('button', 'prow' + (open ? ' open' : '') + (state.projectId === p.id ? ' on' : ''));
+    row.type = 'button';
+    row.innerHTML = '<span class="pico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>'
+      + '<span class="pn">' + esc(p.name) + '</span>'
+      + '<span class="pchev">›</span>';
+    row.title = p.name;
+    row.addEventListener('click', () => {
+      if (state.open && state.open[p.id] !== undefined) { state.open[p.id] = !open; renderSide(); return; }
+      openProject(p.id);
     });
-    listBox.append(h);
-    if (collapsed) continue;
-    const expanded = window.__sideExpand.has(label) || !!q;
-    const shown = expanded ? arr : arr.slice(0, PER_GROUP);
-    for (const cv of shown) listBox.append(convRow(cv));
-    if (!expanded && arr.length > PER_GROUP) {
-      const more = el('button', 'side-more', '显示更多（' + (arr.length - PER_GROUP) + '）');
-      more.type = 'button';
-      more.addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.__sideExpand.add(label);
-        renderSide();
-      });
-      listBox.append(more);
-    }
+    row.addEventListener('dblclick', () => openProjectDialog(p));
+    listBox.append(row);
+    if (!open) return;
+    const box = el('div', 'pkids');
+    for (const cv of kids) box.append(convRow(cv));
+    if (!kids.length) box.append(el('div', 'pkids-empty', '还没有会话'));
+    listBox.append(box);
   }
 
-  // 已归档：默认收起，点开才列出来
-  const arch = state.convs.filter((cv) => cv.archived && matches(cv));
+  const projects = (state.projects || []).filter((p) => !p.pinned);
+  if (projects.length) {
+    listBox.append(sectionHead('项目'));
+    for (const p of projects) appendProject(p);
+  }
+
+  // 最近：平铺，不做按天分组（对齐 Claude）
+  const loose = (state.convs || []).filter((cv) => !cv.archived && matches(cv) && !pinnedIds.has(cv.id));
+  const LIMIT = 12;
+  const shown = state.sideAll ? loose : loose.slice(0, LIMIT);
+  listBox.append(sectionHead('最近'));
+  for (const cv of shown) listBox.append(convRow(cv));
+  if (!loose.length) {
+    const hint = el('div', 'side-empty');
+    hint.append(el('div', 'se-t', q ? '没有匹配' : '还没有会话'));
+    if (!q) hint.append(el('div', 'se-d', '点上面的「新建」开始，或按 Ctrl+Shift+O。'));
+    listBox.append(hint);
+  }
+  if (!state.sideAll && loose.length > LIMIT) {
+    const more = el('button', 'viewall', '查看全部');
+    more.type = 'button';
+    more.addEventListener('click', () => { state.sideAll = true; renderSide(); });
+    listBox.append(more);
+  }
+
+  // 已归档
+  const arch = (state.convs || []).filter((cv) => cv.archived && matches(cv));
   if (arch.length) {
-    const headA = el('div', 'grp');
-    headA.innerHTML = '<span>已归档</span><button id="archToggle">' + (state.showArchived ? '隐藏' : '显示 ' + arch.length) + '</button>';
-    listBox.append(headA);
+    const h = el('div', 'grp');
+    h.innerHTML = '<span>已归档</span><button id="archToggle">' + (state.showArchived ? '隐藏' : '显示 ' + arch.length) + '</button>';
+    listBox.append(h);
     if (state.showArchived) for (const cv of arch) listBox.append(convRow(cv));
     const tg = document.getElementById('archToggle');
     if (tg) tg.addEventListener('click', () => { state.showArchived = !state.showArchived; renderSide(); });
   }
-
 }
 
 /* ---------------- 消息操作：编辑 / 重新生成 ---------------- */
