@@ -1369,3 +1369,23 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 .art-deck{overflow:hidden}
 .deck-stage{max-width:100%}
 
+
+/* 幻灯片可编辑 + 设计源码视图 */
+.deck-thumb-row{display:flex;align-items:center;gap:2px}
+.deck-thumb-row .deck-thumb{flex:1;min-width:0}
+.deck-del{width:20px;height:20px;border-radius:6px;color:var(--faint);font-size:13px;opacity:0}
+.deck-thumb-row:hover .deck-del{opacity:1}
+.deck-del:hover{background:var(--danger);color:#fff}
+.deck-add{margin-top:6px;height:28px;border-radius:8px;font-size:12px;color:var(--dim);border:1px dashed var(--line)}
+.deck-add:hover{background:var(--panel2);color:var(--text)}
+.slide-title[contenteditable]:focus,.slide-bullets li[contenteditable]:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:3px;border-radius:4px}
+.slide-addb{align-self:flex-start;margin-top:10px;height:26px;padding:0 10px;border-radius:8px;font-size:12px;color:var(--faint);border:1px dashed var(--line)}
+.slide-addb:hover{color:var(--text);background:var(--panel2)}
+/* 设计：预览/源码 */
+.art-design{display:flex;flex-direction:column;height:100%}
+.design-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--line);flex:none}
+.design-tab{height:26px;padding:0 10px;border-radius:7px;font-size:12px;color:var(--dim)}
+.design-tab.on{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text)}
+.design-frame{flex:1;min-height:0}
+.design-src{flex:1;min-height:0;width:100%;border:0;padding:16px;background:var(--code-bg);color:var(--text);font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;resize:none;outline:none}
+

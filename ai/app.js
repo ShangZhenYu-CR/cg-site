@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:53';
+const APP_BUILD = '2026-11-11 22:56';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4335,7 +4335,7 @@ $('#artTitle').addEventListener('change', async () => {
   await saveConv(cv);
   renderArtifact();
 });
-$('#artAsk').addEventListener('click', () => { input.focus(); flashHint('在左边说一句要我改什么'); });
+// ✦ 让 AI 改：Claude 头部没有这个按钮，能力改为点标题聚焦输入框
 $('#cbDownload').addEventListener('click', () => $('#artExport').click());
 $('#cbPresent').addEventListener('click', togglePresent);
 $('#cbLayout').addEventListener('click', () => {
@@ -4601,46 +4601,127 @@ function parseDeck(file) {
   return { slides: [] };
 }
 
+/** 幻灯片：可编辑（标题/要点/增删页），保存回文件 */
 function renderDeck(body, file) {
   const deck = parseDeck(file);
   const wrap = el('div', 'art-deck');
   const rail = el('div', 'deck-rail');
   const stage = el('div', 'deck-stage');
   let current = 0;
+
+  const save = () => {
+    file.content = JSON.stringify(deck, null, 2);
+    const cv = current();
+    if (cv) saveConv(cv).catch(() => {});
+    paintRail();
+  };
+
+  const paintRail = () => {
+    rail.textContent = '';
+    deck.slides.forEach((s, i) => {
+      const row = el('div', 'deck-thumb-row');
+      const th = el('button', 'deck-thumb' + (i === current ? ' on' : ''));
+      th.type = 'button';
+      th.append(el('span', 'dt-n', String(i + 1)));
+      th.append(el('span', 'dt-t', s.title || '（空页）'));
+      th.addEventListener('click', () => { current = i; paintRail(); paint(); });
+      const del = el('button', 'deck-del', '×');
+      del.type = 'button';
+      del.title = '删除这一页';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (deck.slides.length <= 1) { flashHint('至少留一页'); return; }
+        deck.slides.splice(i, 1);
+        current = Math.max(0, Math.min(current, deck.slides.length - 1));
+        save(); paint();
+      });
+      row.append(th, del);
+      rail.append(row);
+    });
+    const add = el('button', 'deck-add', '＋ 新页');
+    add.type = 'button';
+    add.addEventListener('click', () => {
+      deck.slides.push({ title: '新的一页', bullets: ['第一条要点'] });
+      current = deck.slides.length - 1;
+      save(); paint();
+    });
+    rail.append(add);
+  };
+
   const paint = () => {
     stage.textContent = '';
-    const s = deck.slides[current] || { title: '（空页）', bullets: [] };
+    const s = deck.slides[current] || { title: '', bullets: [] };
     const slide = el('div', 'slide');
-    slide.append(el('div', 'slide-title', s.title || ''));
+    const titleEl = el('div', 'slide-title');
+    titleEl.contentEditable = 'true';
+    titleEl.textContent = s.title || '';
+    titleEl.addEventListener('input', () => { s.title = titleEl.textContent; file.content = JSON.stringify(deck, null, 2); });
+    titleEl.addEventListener('blur', () => { save(); });
     const ul = el('ul', 'slide-bullets');
-    for (const b of (s.bullets || [])) ul.append(el('li', null, b));
-    slide.append(ul);
+    (s.bullets || []).forEach((b, bi) => {
+      const li = el('li');
+      li.contentEditable = 'true';
+      li.textContent = b;
+      li.addEventListener('input', () => { s.bullets[bi] = li.textContent; file.content = JSON.stringify(deck, null, 2); });
+      li.addEventListener('blur', () => save());
+      ul.append(li);
+    });
+    const addB = el('button', 'slide-addb', '＋ 要点');
+    addB.type = 'button';
+    addB.addEventListener('click', () => { (s.bullets = s.bullets || []).push('新要点'); save(); paint(); });
+    slide.append(titleEl, ul, addB);
     stage.append(slide);
     stage.append(el('div', 'deck-page', (current + 1) + ' / ' + Math.max(1, deck.slides.length)));
-    for (const [i, n] of [...rail.children].entries()) n.classList.toggle('on', i === current);
   };
-  deck.slides.forEach((s, i) => {
-    const th = el('button', 'deck-thumb');
-    th.type = 'button';
-    th.append(el('div', 'dt-n', String(i + 1)));
-    th.append(el('div', 'dt-t', s.title || '（空页）'));
-    th.addEventListener('click', () => { current = i; paint(); });
-    rail.append(th);
-  });
+
   wrap.append(rail, stage);
   body.append(wrap);
+  paintRail();
   paint();
 }
 
 /** 设计：直接渲染 HTML（沙箱 iframe） */
+/** 设计：预览 / 源码 双视图，源码可改 */
 function renderDesign(body, file) {
   const wrap = el('div', 'art-design');
+  const tabs = el('div', 'design-tabs');
+  const bPrev = el('button', 'design-tab on', '预览');
+  const bSrc = el('button', 'design-tab', '源码');
+  bPrev.type = 'button'; bSrc.type = 'button';
+  tabs.append(bPrev, bSrc);
+
   const frame = document.createElement('iframe');
   frame.className = 'design-frame';
   frame.setAttribute('sandbox', 'allow-scripts');
-  frame.srcdoc = String(file.content || '<!doctype html><body style="font:15px system-ui;padding:24px;color:#888">还没有内容——在左边描述你要的页面，我会输出 HTML。</body>');
-  wrap.append(frame);
+  frame.srcdoc = designDoc(file);
+
+  const ta = el('textarea', 'design-src');
+  ta.value = String(file.content || '');
+  ta.spellcheck = false;
+  ta.hidden = true;
+  let timer = 0;
+  ta.addEventListener('input', () => {
+    file.content = ta.value;
+    clearTimeout(timer);
+    timer = setTimeout(() => { frame.srcdoc = designDoc(file); }, 500);
+  });
+  ta.addEventListener('blur', () => { const cv = current(); if (cv) saveConv(cv).catch(() => {}); });
+
+  bPrev.addEventListener('click', () => {
+    bPrev.classList.add('on'); bSrc.classList.remove('on');
+    frame.hidden = false; ta.hidden = true;
+  });
+  bSrc.addEventListener('click', () => {
+    bSrc.classList.add('on'); bPrev.classList.remove('on');
+    frame.hidden = true; ta.hidden = false; ta.focus();
+  });
+
+  wrap.append(tabs, frame, ta);
   body.append(wrap);
+}
+
+function designDoc(file) {
+  return String(file.content || '<!doctype html><body style="font:15px system-ui;padding:24px;color:#888">还没有内容——在左边描述你要的页面，我会输出 HTML。</body>');
 }
 function emptyArtifactState() {
   const box = el('div', 'art-empty');
