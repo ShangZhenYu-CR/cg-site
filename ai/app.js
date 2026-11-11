@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:49';
+const APP_BUILD = '2026-11-11 18:52';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3601,6 +3601,22 @@ function layoutHomeComposer() {
 async function boot() {
   initTheme();
   decorateIcons();
+  // 登录页复用品牌标记
+  const mk = document.querySelector('.greet .mark svg');
+  if (mk) {
+    const lm = $('#loginMark');
+    if (lm) lm.innerHTML = mk.outerHTML;
+    const art = $('#loginArt');
+    if (art && !art.firstChild) {
+      const big = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      big.setAttribute('viewBox', mk.getAttribute('viewBox') || '0 0 24 24');
+      big.setAttribute('class', 'big-mark');
+      big.setAttribute('fill', 'currentColor');
+      const path = mk.querySelector('path');
+      if (path) { const np = path.cloneNode(true); big.append(np); }
+      art.append(big);
+    }
+  }
   renderGreeting();
   renderIdentity();
   renderModels();

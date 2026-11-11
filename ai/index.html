@@ -226,14 +226,21 @@
 </div>
 
 <!-- 登录 -->
-<div class="overlay" id="dlgLogin" hidden>
-  <div class="card">
-    <h2>进聊天室</h2>
-    <p>填昵称和口令。昵称会显示在你发的每条消息上。</p>
-    <label class="field">昵称<input id="loginName" maxlength="24" autocomplete="nickname" placeholder="比如：老王"></label>
-    <label class="field">口令<input type="password" id="loginPass" autocomplete="current-password" placeholder="问站长要"></label>
-    <div class="msg-err" id="loginErr"></div>
-    <button class="primary" id="loginOk">进去</button>
+<div class="overlay login-ov" id="dlgLogin" hidden>
+  <div class="login-page">
+    <div class="login-left">
+      <div class="login-brand"><span class="mark-s" id="loginMark"></span><span>AI 工作台</span></div>
+      <h1 class="login-h1">进来接着聊</h1>
+      <p class="login-sub">问问题、写东西、看代码；也能发图问图、联网查资料。</p>
+      <div class="login-card">
+        <label class="field">昵称<input id="loginName" maxlength="24" autocomplete="nickname" placeholder="比如：老王"></label>
+        <label class="field">口令<input type="password" id="loginPass" autocomplete="current-password" placeholder="问站长要"></label>
+        <div class="msg-err" id="loginErr"></div>
+        <button class="primary login-btn" id="loginOk">进去</button>
+        <p class="login-legal">昵称会显示在你发的每条消息上；口令只存在本站。</p>
+      </div>
+    </div>
+    <div class="login-right"><div class="login-art" id="loginArt"></div></div>
   </div>
 </div>
 
