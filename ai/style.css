@@ -1744,3 +1744,11 @@ body.artfull #app,body.artfull #main{transition:none!important}
 .art-menu .am-sep{margin:4px 6px!important}
 html[data-theme="dark"] .art-menu .am-note{color:rgba(255,255,255,.6)}
 
+
+/* 选中会话行：不要蓝字，用正常文字色 + 10% 底（Claude 同款） */
+.kid.on{color:var(--text)!important}
+.kid.on .t{color:var(--text)!important}
+/* 正文色覆盖：选择器要和主题块同权重且更靠后 */
+:root[data-theme="light"]{--text:#1a1a1a}
+:root[data-theme="dark"]{--text:#ececea}
+
