@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:35';
+const APP_BUILD = '2026-11-11 21:38';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1037,7 +1037,8 @@ function renderSide() {
   }
 
   // 最近：平铺，不做按天分组（对齐 Claude）
-  const loose = (state.convs || []).filter((cv) => !cv.archived && matches(cv) && !pinnedIds.has(cv.id));
+  // 项目里的会话只在项目下显示，不进「最近」（对齐 Claude）
+  const loose = (state.convs || []).filter((cv) => !cv.archived && !cv.projectId && matches(cv) && !pinnedIds.has(cv.id));
   const LIMIT = 12;
   const shown = state.sideAll ? loose : loose.slice(0, LIMIT);
   listBox.append(sectionHead('最近'));
