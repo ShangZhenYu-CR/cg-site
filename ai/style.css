@@ -1526,3 +1526,15 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
 .pp-head .primary{margin-left:auto}
 .pp-sub{text-align:left!important;margin:0 0 16px!important}
 
+
+/* 项目页：头部宽度和卡片列对齐，按钮不再顶到窗口边缘 */
+.proj-page .pp-head,.proj-page .pp-sub{max-width:920px}
+.proj-page .pp-head .primary{margin-left:auto}
+/* 项目详情：右栏在 1280 也保留（主栏可伸缩） */
+#projDetail.proj-detail{grid-template-columns:minmax(0,1fr) 318px!important;column-gap:40px!important}
+#projDetail .pd-main{max-width:712px}
+@media (max-width:1100px){
+  #projDetail.proj-detail{grid-template-columns:1fr!important}
+  #projDetail .pd-side{display:none!important}
+}
+
