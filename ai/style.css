@@ -890,3 +890,8 @@ body{font:var(--ui-font)/1.65 var(--font-sans)}
 .composer.dragover{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
 .composer.dragover::after{content:'松手添加图片';position:absolute;inset:0;display:grid;place-items:center;font-size:13px;color:var(--accent);pointer-events:none}
 
+
+/* 文件多时：标签区可横向滚动 + 下拉快速跳转 */
+.tabs{overflow-x:auto;scrollbar-width:thin}
+.code-file-sel{height:24px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:12px;max-width:150px}
+

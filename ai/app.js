@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:08';
+const APP_BUILD = '2026-11-11 19:10';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1193,6 +1193,23 @@ function closeLightbox() {
   $('#lightboxImg').src = '';
 }
 
+/* 灯箱：← → 在同一条消息的图片间切换 */
+function lightboxNav(step) {
+  if (!lightboxUrl) return;
+  const imgs = [...document.querySelectorAll('.msg .imgbox img')].map((i) => i.getAttribute('src') || '');
+  const urls = imgs.map((s) => s.split('/').pop()).filter(Boolean);
+  const cur = String(lightboxUrl).split('/').pop();
+  let i = urls.indexOf(cur);
+  if (i < 0) return;
+  i = (i + step + urls.length) % urls.length;
+  lightboxUrl = urls[i];
+  $('#lightboxImg').src = fileUrl(lightboxUrl);
+}
+document.addEventListener('keydown', (e) => {
+  if ($('#lightbox').hidden) return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); lightboxNav(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); lightboxNav(1); }
+});
 $('#lbClose').addEventListener('click', closeLightbox);
 $('#lightbox').addEventListener('click', (e) => { if (e.target === $('#lightbox')) closeLightbox(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#lightbox').hidden) closeLightbox(); });
@@ -2264,6 +2281,20 @@ function renderCode() {
     tabs.append(t);
   });
 
+  if (files.length > 4) {
+    const sel = document.createElement('select');
+    sel.id = 'codeFileSel';
+    sel.className = 'code-file-sel';
+    files.forEach((f, i) => {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = f.name;
+      if (i === state.fileIdx) o.selected = true;
+      sel.append(o);
+    });
+    sel.addEventListener('change', () => { state.fileIdx = Number(sel.value); renderCode(); });
+    tabs.append(sel);
+  }
   if (!files.length) {
     $('#codeName').textContent = '还没有文件';
     $('#codeStat').textContent = '';
