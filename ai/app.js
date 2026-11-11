@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:33';
+const APP_BUILD = '2026-11-11 15:38';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -301,6 +301,11 @@ function renderUsageDialog() {
   $('#uEst').textContent = String(d.imageEst != null ? d.imageEst : 0.04);
   const a = d.allowance;
   $('#uLeft').textContent = a ? formatUsd(a.remaining) : '—';
+  const srcEl = $('#uSource');
+  if (srcEl) {
+    srcEl.textContent = a && a.source === 'admin' ? 'OpenAI 账单（Admin key）' : '本地记账';
+    srcEl.style.color = a && a.source === 'admin' ? '#6fe0a8' : '';
+  }
   if (a) {
     $('#uResetDay').textContent = String(a.resetDay);
     $('#uLimit').textContent = formatUsd(a.limit);
