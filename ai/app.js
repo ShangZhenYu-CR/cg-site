@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:45';
+const APP_BUILD = '2026-11-11 18:49';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -886,7 +886,77 @@ $('#brandMenu').addEventListener('click', (e) => {
   p.style.top = (r.bottom + 6) + 'px';
 });
 
-/* ---------------- 线程 ---------------- */
+/* ---------------- 设置（左导航） ---------------- */
+const SET_TABS = [
+  ['appearance', '外观'],
+  ['ins', '自定义指令'],
+  ['users', '成员'],
+  ['cfg', '接口'],
+  ['usage', '用量'],
+];
+
+/** 把已有的小弹窗内容搬进设置面板（保留原有事件） */
+const SET_SRC = { ins: 'dlgIns', users: 'dlgUsers', cfg: 'dlgCfg', usage: 'dlgUsage' };
+
+function renderSetNav(active) {
+  const nav = $('#setNav');
+  if (!nav) return;
+  nav.textContent = '';
+  for (const [k, label] of SET_TABS) {
+    const b = el('button', 'set-item' + (k === active ? ' on' : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', () => openSettings(k));
+    nav.append(b);
+  }
+}
+
+function mountPane(key) {
+  const pane = document.querySelector('.set-pane[data-pane="' + key + '"]');
+  if (!pane) return;
+  if (key === 'appearance') {
+    if (!pane.dataset.built) {
+      pane.dataset.built = '1';
+      const h = el('h3', null, '外观');
+      const p = el('p', 'set-hint', '浅色 / 深色 / 跟随系统。');
+      const row = el('div', 'set-row');
+      for (const [k, label] of [['auto', '跟随系统'], ['light', '浅色'], ['dark', '深色']]) {
+        const b = el('button', 'set-chip' + (LS.theme === k ? ' on' : ''), label);
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          LS.theme = k;
+          applyTheme();
+          persistSettings();
+          mountPane('appearance');
+        });
+        row.append(b);
+      }
+      pane.append(h, p, row);
+    }
+    return;
+  }
+  const srcId = SET_SRC[key];
+  const src = srcId && document.getElementById(srcId);
+  if (!src) return;
+  const card = src.querySelector('.card');
+  if (card && card.parentElement !== pane) {
+    card.classList.add('in-settings');
+    pane.append(card);
+  }
+}
+
+function openSettings(tab) {
+  const ov = $('#dlgSet');
+  ov.hidden = false;
+  const key = SET_TABS.some(([k]) => k === tab) ? tab : 'appearance';
+  renderSetNav(key);
+  for (const p of document.querySelectorAll('.set-pane')) p.hidden = p.dataset.pane !== key;
+  mountPane(key);
+}
+
+$('#setClose').addEventListener('click', () => { $('#dlgSet').hidden = true; });
+$('#dlgSet').addEventListener('click', (e) => { if (e.target.id === 'dlgSet') $('#dlgSet').hidden = true; });
+
+/* 线程 */
 function bubble(m, idx) {
   if (m.role === 'divider') {
     const d = el('div', 'divider');
@@ -3381,8 +3451,12 @@ $('#deleteBtn').addEventListener('click', async () => {
 });
 
 $('#newProjectBtn').addEventListener('click', () => { closePops(); openProjectDialog(null); });
-$('#insBtn').addEventListener('click', () => { closePops(); openInstructions(); });
-$('#usersBtn').addEventListener('click', () => { closePops(); openUsers(); });
+$('#insBtn').addEventListener('click', () => { closePops(); openSettings('ins'); });
+$('#usersBtn').addEventListener('click', () => { closePops(); openSettings('users'); });
+for (const sel of ['#setOpenTheme']) {
+  const b = document.querySelector(sel);
+  if (b) b.addEventListener('click', () => openSettings('appearance'));
+}
 $('#logoutBtn').addEventListener('click', () => { closePops(); if (confirm('退出登录？')) logout(); });
 
 $('#renameSelfBtn').addEventListener('click', async () => {
