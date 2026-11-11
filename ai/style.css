@@ -1189,3 +1189,19 @@ body.noside #sideToggle{display:grid!important}
 body.in-project .top-only-proj{display:grid!important}
 body.in-project .top .title::after{content:'⌄';font-size:11px;color:var(--faint);margin-left:6px}
 
+
+/* 发送键：空态不显示，有字才出现（Claude 实测：28×28 圆角 8，品牌橙，白箭头） */
+.pd-send{display:none;width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;place-items:center;margin-right:4px}
+.pd-composer.has-text .pd-send{display:grid}
+.pd-send svg{display:block}
+.composer .send{background:var(--brand);color:#fff;width:28px;height:28px;border-radius:8px}
+
+
+/* 输入框不要浏览器默认焦点环；按钮与 + 同一行居中 */
+.pd-composer textarea{outline:none!important;box-shadow:none!important;border:0}
+.pd-composer textarea:focus{outline:none!important;box-shadow:none!important}
+#pdComposer{grid-template-rows:1fr 28px;align-items:center}
+.pd-plus,.pd-send{align-self:center;margin-bottom:4px}
+.pd-send{margin-bottom:4px}
+.pd-composer{padding-bottom:8px}
+
