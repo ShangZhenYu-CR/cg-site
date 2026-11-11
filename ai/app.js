@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:33';
+const APP_BUILD = '2026-11-11 20:34';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1759,6 +1759,11 @@ function updateComposerMeta() {
 function modelMeta(id) {
   const m = String(id || '');
   if (/astra/i.test(m)) return { badge: canAstra() ? (LS.role === 'astra' ? 'Astra 专属' : (LS.role === 'admin' ? '管理员' : '成员')) : '受限', desc: '最强推理，适合复杂任务' };
+  // 5.6 Sol 单独给详细说明（其余 Sol 用一句话）
+  if (/gpt-5\.6-sol/i.test(m)) return {
+    badge: '',
+    desc: '上一代的旗舰通用模型。推理比 Terra 深、比 Astra 便宜，写长文、改代码、梳理复杂文档都稳；速度中等，长上下文表现好。适合「要一次做对、又不想等太久」的任务；简单问答会觉得有点重，极难推理仍建议 Astra。',
+  };
   if (/sol/i.test(m)) return { badge: '', desc: '通用主力，均衡稳定' };
   if (/terra/i.test(m)) return { badge: '', desc: '更快更省，适合日常' };
   if (/luna/i.test(m)) return { badge: '', desc: '最快最省，适合简单任务' };
