@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:56';
+const APP_BUILD = '2026-11-11 20:03';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3932,10 +3932,10 @@ document.addEventListener('error', (e) => {
   const img = e.target;
   if (!img || img.tagName !== 'IMG') return;
   const src = img.getAttribute('src') || '';
-  if (!src.includes('/oss/') || src.includes('/oss/legacy/')) return;
+  if (!src.includes('/oss/') || src.includes('/oss/alt/')) return;
   if (img.dataset.fallback) return;
   img.dataset.fallback = '1';
-  img.src = src.replace('/oss/', '/oss/legacy/');
+  img.src = src.replace('/oss/', '/oss/alt/');
 }, true);
 /* ---------------- 图库 ---------------- */
 /** 汇总所有对话里的图片（用户贴的 + 模型生成的），最近的在前 */
