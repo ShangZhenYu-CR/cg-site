@@ -1463,3 +1463,8 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
 /* 空态更像 Claude：标题 + 说明 + 按钮 */
 .art-empty-t{font-size:17px}
 
+
+/* 工具条要落在画布内、标题栏下方，别盖住头部按钮 */
+.art-canvasbar{top:58px!important;right:12px!important}
+#artPane .art-head{z-index:6;background:var(--bg)}
+
