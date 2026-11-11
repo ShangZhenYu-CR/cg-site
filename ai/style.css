@@ -170,7 +170,7 @@ button{cursor:pointer;background:none;border:0}
 .doc ul{margin:0 0 8px;padding-left:18px;font-size:14px}
 
 .empty{width:min(780px,100%);margin:14vh auto 0;padding:0 24px;text-align:center}
-.empty h1{font-family:var(--font-serif);font-size:46px;line-height:1.15;margin:0 0 12px;font-weight:500;letter-spacing:-.02em}
+.empty h1{font-family:var(--font-serif);font-size:38px;line-height:1.2;margin:0 0 10px;font-weight:400;letter-spacing:-.01em}
 .empty p{color:var(--dim);margin:0 0 24px;font-size:15px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .chips button{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:14px;transition:background 150ms ease,border-color 150ms ease}
@@ -258,7 +258,7 @@ button{cursor:pointer;background:none;border:0}
   display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--faint);
   border:1px dashed var(--line);border-radius:10px;padding:8px 12px;background:var(--panel);
 }
-.composer{width:min(780px,100%);margin:0 auto;display:flex;align-items:flex-end;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-composer);padding:12px 12px 10px;position:relative;box-shadow:0 1px 3px rgba(16,16,16,.05);transition:border-color var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out)}
+.composer{width:min(780px,100%);margin:0 auto;display:flex;align-items:flex-end;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:20px;padding:12px 12px 10px;position:relative;box-shadow:0 1px 3px rgba(16,16,16,.05);transition:border-color var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out)}
 .composer-meta{width:min(780px,100%);margin:8px auto 0;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--faint)}
 .composer-meta button{font-size:12px;color:var(--faint);padding:2px 6px;border-radius:6px}
 .composer-meta button:hover{background:var(--panel2);color:var(--text)}
@@ -479,7 +479,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .plan-pill{display:inline-flex;align-items:center;gap:8px;margin:0 auto 20px;padding:6px 14px;border-radius:999px;background:var(--panel2);color:var(--dim);font-size:13px;cursor:pointer;border:1px solid transparent}
 .plan-pill:hover{border-color:var(--line);color:var(--text)}
 .recent-art{margin:28px auto 0;width:100%;max-width:720px;text-align:left}
-.ra-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--faint);margin-bottom:10px}
+.ra-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--faint);margin-bottom:10px}
 .ra-head button{font-size:13px;color:var(--faint);padding:2px 6px;border-radius:6px}
 .ra-head button:hover{color:var(--text);background:var(--panel2)}
 .ra-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
@@ -521,7 +521,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* ---------- 多行输入框（Claude：上方文本、下方工具栏） ---------- */
 .composer{
   flex-wrap:wrap;align-items:center;align-content:space-between;
-  min-height:112px;padding:14px 16px 10px;gap:6px;
+  min-height:112px;padding:14px 16px 10px;gap:6px;border-radius:20px;
 }
 .composer textarea{
   flex:1 1 100%;order:-1;min-height:52px;max-height:220px;
@@ -534,14 +534,14 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .lk-row:hover{background:color-mix(in srgb, var(--text) 8%, transparent)}
 .lk-row .sub{font-size:12px;color:var(--faint)}
 /* ---------- 对照 Claude 修正：字重 / 字号 / hover 胶囊 ---------- */
-.brand{font-family:var(--font-serif);font-size:26px;font-weight:500;letter-spacing:-.01em;gap:10px;padding:2px 6px}
+.brand{font-family:var(--font-serif);font-size:20px;font-weight:500;letter-spacing:-.01em;gap:8px;padding:2px 4px}
 .brand svg{width:24px;height:24px}
 .side-head{gap:10px;padding-bottom:10px}
 .new-split{gap:8px}
 .new-btn{height:44px;font-size:17px;border-radius:10px;padding-left:12px;gap:10px}
 .new-btn .plus{font-size:18px}
-.nav-row{font-size:17px;height:38px;gap:12px;padding:0 10px;border-radius:10px;font-weight:400}
-.nav-row svg{width:20px;height:20px}
+.nav-row{font-size:14px;height:32px;gap:4px;padding:0 2px;border-radius:8px;font-weight:430}
+.nav-row svg{width:18px;height:18px}
 .nav-row:hover{background:var(--panel2)}
 .kid{font-size:16px;height:36px;border-radius:10px;padding:0 10px;gap:8px;font-weight:400}
 .kid:hover{background:var(--panel2)}
