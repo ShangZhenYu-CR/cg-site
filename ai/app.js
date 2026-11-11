@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:05';
+const APP_BUILD = '2026-11-11 19:08';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2191,6 +2191,13 @@ document.addEventListener('paste', (e) => {
 }, true);
 
 /* 拖图进输入区也能上传 */
+['dragenter', 'dragover'].forEach((evt) => {
+  $('#composer').addEventListener(evt, (e) => { e.preventDefault(); $('#composer').classList.add('dragover'); });
+});
+['dragleave', 'drop'].forEach((evt) => {
+  $('#composer').addEventListener(evt, () => $('#composer').classList.remove('dragover'));
+});
+
 ['dragover', 'drop'].forEach((evt) => {
   $('#composer').addEventListener(evt, (e) => {
     if (!e.dataTransfer) return;
@@ -2244,6 +2251,7 @@ function renderCode() {
   const files = (cv && cv.files) || [];
   const tabs = $('#codeTabs');
   tabs.textContent = '';
+  renderCodeSeg();
 
   files.forEach((f, i) => {
     const t = el('div', 'tab' + (i === state.fileIdx ? ' on' : ''));
@@ -2268,6 +2276,7 @@ function renderCode() {
   const f = files[state.fileIdx];
   $('#codeName').textContent = f.name;
   $('#codeArea').disabled = false;
+  renderCodeSeg();
   if (document.activeElement !== $('#codeArea') || $('#codeArea').dataset.for !== f.name) {
     $('#codeArea').value = f.content || '';
     $('#codeArea').dataset.for = f.name;
@@ -2389,6 +2398,35 @@ function closePreview() {
   $('#codePreview').classList.remove('on');
 }
 
+/* 代码面板：源码 / 预览 分段切换 */
+function renderCodeSeg() {
+  const box = $('#codeSeg');
+  if (!box) return;
+  const previewing = !$('#codeFrame').hidden;
+  box.textContent = '';
+  const modes = [['src', '源码'], ['preview', '预览']];
+  for (const pair of modes) {
+    const key = pair[0];
+    const b = el('button', 'seg' + ((key === 'preview') === previewing ? ' on' : ''), pair[1]);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const cv = current();
+      const file = cv && cv.files && cv.files[state.fileIdx];
+      if (!file) return;
+      if (key === 'preview') {
+        if (!canPreview(file)) { flashHint('只有 .html / .svg 能预览'); return; }
+        $('#codeFrame').hidden = false;
+        $('#codeArea').hidden = true;
+        renderPreview();
+      } else {
+        $('#codeFrame').hidden = true;
+        $('#codeArea').hidden = false;
+      }
+      renderCodeSeg();
+    });
+    box.append(b);
+  }
+}
 $('#codePreview').addEventListener('click', () => {
   const cv = current();
   const f = cv && cv.files && cv.files[state.fileIdx];
