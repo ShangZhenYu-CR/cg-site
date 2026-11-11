@@ -86,7 +86,7 @@ button{cursor:pointer;background:none;border:0}
 
 /* ---------- 主区 ---------- */
 #main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
-.top{height:54px;flex:0 0 54px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line);background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(10px)}
+.top{height:54px;flex:0 0 54px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--bg)}
 .burger{display:none;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2)}
 .title{font-size:14px;font-weight:600;max-width:40vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:4px 8px;border-radius:8px}
 .title:hover{background:var(--panel2)}
