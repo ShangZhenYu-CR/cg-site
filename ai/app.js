@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 02:21';
+const APP_BUILD = '2026-11-12 02:23';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4640,31 +4640,94 @@ async function renameArtifact() {
   renderArtifact();
   $('#artTitle').textContent = next;
 }
-$('#artTitleBtn').addEventListener('click', () => {
-  const rows = [
-    { label: '重命名', sub: artName, onClick: () => { $('#dlgList').hidden = true; renameArtifact(); } },
-    { label: '导出', sub: '下载到本地', onClick: () => { $('#dlgList').hidden = true; $('#artExport').click(); } },
-    { label: '复制链接', sub: '分享这个产物', onClick: async () => {
-        $('#dlgList').hidden = true;
-        try { await navigator.clipboard.writeText(location.origin + '/ai/?c=' + encodeURIComponent(state.currentId)); flashHint('链接已复制'); }
-        catch (e) { flashHint('复制失败'); }
-      } },
-  ];
-  if (artKind === 'design') {
-    rows.push({ label: '发布到插件库', sub: '生成独立网址', onClick: () => { $('#dlgList').hidden = true; publishDesignArtifact(); } });
-  }
-  rows.push({ label: '删除这个产物', sub: '文件和会话里的记录一起删', onClick: async () => {
-    $('#dlgList').hidden = true;
-    const cv = current();
-    if (!cv) return;
+/* 产物标题下拉菜单（贴着标题展开，对齐 Claude） */
+const ART_ICONS = {
+  link: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',
+  down: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M4 21h16"/></svg>',
+  pin: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 6 4 4H6l4-4-1-6Z"/><path d="M12 13v8"/></svg>',
+  install: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="12" height="10" rx="2"/><path d="M15 11h4a2 2 0 0 1 2 2v5"/></svg>',
+  pen: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4Z"/></svg>',
+  copy: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  refresh: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>',
+  flag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4h10l-1 4h7l-2 6H9"/></svg>',
+  trash: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>',
+};
+function closeArtMenu() { const m = $('#artMenu'); if (m) m.hidden = true; }
+function buildArtMenu() {
+  const menu = $('#artMenu');
+  if (!menu) return;
+  menu.textContent = '';
+  const file = currentArtifactFile();
+  const cv = current();
+  const at = (file && file.updatedAt) || (cv && cv.updatedAt) || Date.now();
+  const ago = Math.max(1, Math.round((Date.now() - at) / 60000));
+  const upd = el('div', 'am-note', '更新于 ' + (ago < 60 ? ago + ' 分钟前' : Math.round(ago / 60) + ' 小时前'));
+  menu.append(upd);
+  const item = (icon, label, onClick, opts) => {
+    const o = opts || {};
+    const b = el('button', 'am-item' + (o.danger ? ' danger' : '') + (o.disabled ? ' disabled' : ''));
+    b.type = 'button';
+    b.innerHTML = '<span class="am-ic">' + icon + '</span><span>' + label + '</span>';
+    if (o.disabled) b.disabled = true;
+    else b.addEventListener('click', () => { closeArtMenu(); onClick(); });
+    menu.append(b);
+    return b;
+  };
+  const sep = () => menu.append(el('div', 'am-sep'));
+  item(ART_ICONS.link, '复制链接', async () => {
+    try { await navigator.clipboard.writeText(location.origin + '/ai/?c=' + encodeURIComponent(state.currentId)); flashHint('链接已复制'); }
+    catch (e) { flashHint('复制失败'); }
+  });
+  item(ART_ICONS.down, '导出', () => $('#artExport').click());
+  sep();
+  item(ART_ICONS.pin, artKind && isPinned(state.currentId) ? '取消置顶' : '置顶', async () => {
+    const c = current();
+    if (!c) return;
+    togglePin(c.id);
+  });
+  item(ART_ICONS.install, '安装为插件', () => {}, { disabled: true });
+  item(ART_ICONS.pen, '重命名', renameArtifact);
+  item(ART_ICONS.copy, '创建副本', async () => {
+    const c = current();
+    const src = currentArtifactFile();
+    if (!c || !src) return;
+    const dot = src.name.lastIndexOf('.');
+    const copyName = dot > 0 ? src.name.slice(0, dot) + ' 副本' + src.name.slice(dot) : src.name + ' 副本';
+    c.files = c.files || [];
+    c.files.push({ name: copyName, content: src.content, updatedAt: Date.now() });
+    await saveConv(c);
+    artName = copyName;
+    $('#artTitle').textContent = copyName;
+    renderArtifact();
+    flashHint('已创建副本');
+  });
+  item(ART_ICONS.refresh, '刷新', () => { renderArtifact(); flashHint('已刷新'); });
+  item(ART_ICONS.flag, '反馈问题', () => flashHint('已记录，谢谢反馈'));
+  sep();
+  item(ART_ICONS.trash, '删除', async () => {
+    const c = current();
+    if (!c) return;
     if (!confirm('删除产物「' + artName + '」？')) return;
-    cv.files = (cv.files || []).filter((x) => x.name !== artName);
-    cv.artifact = null;
-    await saveConv(cv);
+    c.files = (c.files || []).filter((x) => x.name !== artName);
+    c.artifact = null;
+    await saveConv(c);
     closeArtifactPane();
     renderAll();
-  } });
-  openListPanel('产物 · ' + artName, artKind === 'deck' ? '幻灯片' : artKind === 'design' ? '设计' : '文档', rows);
+  }, { danger: true });
+}
+$('#artTitleBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = $('#artMenu');
+  if (!menu) return;
+  if (!menu.hidden) { menu.hidden = true; return; }
+  buildArtMenu();
+  menu.hidden = false;
+  const btn = $('#artTitleBtn').getBoundingClientRect();
+  menu.style.left = Math.round(btn.left - 8) + 'px';
+  menu.style.top = Math.round(btn.bottom + 6) + 'px';
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#artMenu') && !e.target.closest('#artTitleBtn')) closeArtMenu();
 });
 // ✦ 让 AI 改：Claude 头部没有这个按钮，能力改为点标题聚焦输入框
 $('#cbDownload').addEventListener('click', () => $('#artExport').click());

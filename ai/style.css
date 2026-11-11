@@ -1722,3 +1722,17 @@ body.artopen #artPane{transition:none!important}
 body.artfull #app,body.artfull #main{transition:none!important}
 /* 打开/关闭只让主区滑动，面板本身直接到位 */
 
+
+/* 产物标题下拉菜单：贴标题展开，样式对齐 Claude */
+.art-menu{position:fixed;z-index:140;min-width:216px;max-width:280px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14),0 2px 8px rgba(0,0,0,.06);padding:6px;display:flex;flex-direction:column}
+.art-menu .am-note{padding:6px 10px 8px;font-size:12px;color:var(--faint)}
+.art-menu .am-item{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border-radius:8px;font-size:14px;color:var(--text);text-align:left;width:100%}
+.art-menu .am-item:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
+.art-menu .am-item .am-ic{display:inline-flex;color:var(--dim);flex:none}
+.art-menu .am-item.danger{color:var(--danger,#c0392b)}
+.art-menu .am-item.danger .am-ic{color:inherit}
+.art-menu .am-item.disabled{color:var(--faint);cursor:default}
+.art-menu .am-item.disabled .am-ic{color:var(--faint)}
+.art-menu .am-item.disabled:hover{background:transparent}
+.art-menu .am-sep{height:1px;background:var(--line);margin:6px 4px}
+
