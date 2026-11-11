@@ -912,3 +912,31 @@ body{font:var(--ui-font)/1.65 var(--font-sans)}
 .pp-search{position:absolute;left:0;top:50%;transform:translateY(-50%);width:200px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font-size:13px;padding:0 10px;outline:0}
 .pp-search:focus{border-color:var(--accent)}
 
+
+/* 侧栏收起 = 迷你图标栏（64px），不是整块消失 */
+body.noside #side{width:64px!important;min-width:64px!important;padding:8px 6px;align-items:stretch}
+body.noside .brand{justify-content:center;padding:0}
+body.noside .brand > span{display:none}
+body.noside .brand svg{width:22px;height:22px}
+body.noside .brand-menu{display:none}
+body.noside .new-btn{justify-content:center;padding:0;width:100%}
+body.noside .new-btn .plus{font-size:16px}
+body.noside .new-btn{font-size:0}
+body.noside .search-row,body.noside .list,body.noside .usage-bar{display:none}
+body.noside .side-nav{margin-top:6px;gap:4px}
+body.noside .nav-row{justify-content:center;padding:0;height:36px;font-size:0;gap:0}
+body.noside .nav-row svg{width:20px;height:20px}
+body.noside .side-foot{margin-top:auto;border-top:0;padding-top:6px}
+body.noside .me{justify-content:center;padding:0}
+body.noside .me .who{display:none}
+body.noside .theme-btn{display:none}
+body.noside .me-row{flex-direction:column;gap:6px;height:auto}
+body.noside #side > *{flex:0 0 auto}
+
+
+/* 覆盖旧的「整列隐藏」，改成 64px 迷你栏 */
+body.noside #app{grid-template-columns:64px 1fr}
+body.noside #side{display:flex!important;width:64px!important}
+body.noside #main{grid-column:2}
+body.noside #sideToggle{display:grid!important}
+

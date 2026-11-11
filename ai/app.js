@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:19';
+const APP_BUILD = '2026-11-11 19:23';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3903,12 +3903,22 @@ $('#privateBtn').addEventListener('click', async () => {
 
 $('#q').addEventListener('input', renderSide);
 $('#burger').addEventListener('click', () => document.body.classList.toggle('nav'));
+function labelNavRows() {
+  const map = [['#navProjects', '项目'], ['#navFiles', '文件'], ['#navPrefs', '自定义']];
+  for (const pair of map) {
+    const el2 = document.querySelector(pair[0]);
+    if (el2) el2.title = pair[1];
+  }
+  const nb = document.querySelector('#newChat');
+  if (nb) nb.title = '新建对话（Ctrl+Shift+O）';
+}
 function closeNav() { document.body.classList.remove('nav'); }
 
 /* 侧栏收起 / 展开（桌面端，状态记在本机） */
 function applySide() {
   const open = LS.side;
   document.body.classList.toggle('noside', !open);
+  labelNavRows();
   const b = $('#sideToggle');
   b.textContent = open ? '«' : '»';
   b.title = open ? '收起侧栏' : '展开侧栏';
@@ -3916,8 +3926,8 @@ function applySide() {
   const narrow = window.matchMedia('(max-width:820px)').matches;
   const c = $('#sideCollapse');
   if (c) {
-    c.textContent = narrow ? '×' : '«';
-    c.title = narrow ? '关闭侧栏' : '收起侧栏';
+    c.textContent = narrow ? '×' : (open ? '«' : '»');
+    c.title = narrow ? '关闭侧栏' : (open ? '收起侧栏' : '展开侧栏');
   }
 }
 
@@ -3928,8 +3938,10 @@ $('#sideToggle').addEventListener('click', () => {
 
 /* 侧栏内的收起按钮：窄屏关抽屉，宽屏收起整列 */
 $('#sideCollapse').addEventListener('click', () => {
-  if (window.matchMedia('(max-width:820px)').matches) closeNav();
-  else { LS.side = false; applySide(); }
+  if (window.matchMedia('(max-width:820px)').matches) { closeNav(); return; }
+  // 收起态下点它就是展开回来
+  LS.side = !LS.side;
+  applySide();
 });
 
 /* 窄屏点空白处关抽屉 */
