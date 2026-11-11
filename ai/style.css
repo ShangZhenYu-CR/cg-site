@@ -1694,3 +1694,12 @@ body.art-resizing #main{transition:none!important}
 body.artopen #artPane{transition:width .12s var(--ease-out)}
 body.art-resizing #artPane{transition:none!important}
 
+
+/* 左侧栏右缘拖拽条 */
+.side-resizer{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:30;background:transparent}
+.side-resizer::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:1px;background:transparent;transition:background .12s}
+.side-resizer:hover::after,body.side-resizing .side-resizer::after{background:color-mix(in srgb,var(--accent) 60%,transparent)}
+body.side-resizing{cursor:col-resize;user-select:none}
+body.side-resizing #app{transition:none!important}
+#side{position:relative}
+

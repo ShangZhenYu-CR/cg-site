@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 02:09';
+const APP_BUILD = '2026-11-12 02:13';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4876,6 +4876,50 @@ function currentArtifactFile() {
   return files.find((f) => (f.name || '').endsWith(ext)) || files[0] || null;
 }
 
+/* 左侧栏宽度：拖右边缘可调，双击复位 */
+const SIDE_W_KEY = 'ai.sidew';
+function applySideWidth(w) {
+  const max = Math.min(460, Math.round(window.innerWidth * 0.42));
+  const v = Math.max(220, Math.min(w, max));
+  document.documentElement.style.setProperty('--side-w', v + 'px');
+  return v;
+}
+function initSideResizer() {
+  const side = document.querySelector('#side');
+  if (!side || side.querySelector('.side-resizer')) return;
+  const saved = Number(localStorage.getItem(SIDE_W_KEY));
+  if (saved) applySideWidth(saved);
+  const bar = el('div', 'side-resizer');
+  bar.title = '拖动调整侧栏宽度，双击复位';
+  side.append(bar);
+  let dragging = false, startX = 0, startW = 0;
+  bar.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startW = side.getBoundingClientRect().width;
+    try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+    document.body.classList.add('side-resizing');
+    e.preventDefault();
+  });
+  bar.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    applySideWidth(startW + (e.clientX - startX));
+  });
+  const stop = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('side-resizing');
+    try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+    try { localStorage.setItem(SIDE_W_KEY, String(Math.round(side.getBoundingClientRect().width))); } catch (err) {}
+  };
+  bar.addEventListener('pointerup', stop);
+  bar.addEventListener('pointercancel', stop);
+  bar.addEventListener('dblclick', () => {
+    document.documentElement.style.removeProperty('--side-w');
+    try { localStorage.removeItem(SIDE_W_KEY); } catch (err) {}
+    flashHint('侧栏宽度已复位');
+  });
+}
 /* 产物面板宽度：拖动左边缘可调，双击复位 */
 const ART_W_KEY = 'ai.artw';
 function applyArtWidth(w) {
@@ -5778,6 +5822,9 @@ async function boot() {
 }
 
 boot();
+initSideResizer();
+// 面板可能在启动时就是打开的（有产物），补一次初始化
+setTimeout(initArtResizer, 300);
 
 /* 输入框下方的「项目」标签：点开选项目 */
 $('#metaProject').addEventListener('click', () => {
