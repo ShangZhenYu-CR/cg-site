@@ -980,3 +980,6 @@ body.noside #sideToggle{display:grid!important}
 .msg .acts button:hover{background:var(--panel2);color:var(--text)}
 .msg .acts{position:relative;gap:2px}
 
+.side-more{margin:2px 0 4px;padding:4px 10px;border-radius:6px;font-size:12px;color:var(--faint);text-align:left}
+.side-more:hover{background:var(--panel2);color:var(--text)}
+

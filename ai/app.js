@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:30 ';
+const APP_BUILD = '2026-11-11 19:31';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -751,19 +751,15 @@ function renderSide() {
     if (ts >= start - 7 * 86400000) return '本周';
     return '更早';
   };
-  let lastGroup = '';
-  let groupCount = 0;
+  // 先按天分桶，再按上限渲染，超过的给「显示更多」
   const PER_GROUP = 8;
-  const addGroupIfNeeded = (cv) => {
+  const buckets = new Map();
+  for (const cv of loose) {
     const g = q ? '最近' : dayKey(cv.updatedAt);
-    if (g === lastGroup) return;
-    lastGroup = g;
-    groupCount = 0;
-    const h = el('div', 'grp');
-    h.innerHTML = '<span>' + g + '</span>';
-    listBox.append(h);
-  };
-  const budgetOk = () => { groupCount += 1; return groupCount <= PER_GROUP || q; };
+    if (!buckets.has(g)) buckets.set(g, []);
+    buckets.get(g).push(cv);
+  }
+  window.__sideExpand = window.__sideExpand || new Set();
   if (!loose.length) {
     if (q) listBox.append(el('div', 'kid', '没有匹配'));
     else {
@@ -773,10 +769,23 @@ function renderSide() {
       listBox.append(hint);
     }
   }
-  for (const cv of loose) {
-    addGroupIfNeeded(cv);
-    if (!budgetOk()) continue;
-    listBox.append(convRow(cv));
+  for (const [label, arr] of buckets) {
+    const h = el('div', 'grp');
+    h.innerHTML = '<span>' + label + '</span>';
+    listBox.append(h);
+    const expanded = window.__sideExpand.has(label) || !!q;
+    const shown = expanded ? arr : arr.slice(0, PER_GROUP);
+    for (const cv of shown) listBox.append(convRow(cv));
+    if (!expanded && arr.length > PER_GROUP) {
+      const more = el('button', 'side-more', '显示更多（' + (arr.length - PER_GROUP) + '）');
+      more.type = 'button';
+      more.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.__sideExpand.add(label);
+        renderSide();
+      });
+      listBox.append(more);
+    }
   }
 
   // 已归档：默认收起，点开才列出来
