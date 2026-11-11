@@ -1362,3 +1362,10 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 #artPane.present .deck-page{display:none}
 #artPane.expanded .deck-stage{padding:20px}
 
+
+/* 全屏时给左侧缩略图轨道留位置，避免横向滚动条 */
+#artPane.expanded .art-deck{--slide-base:min(calc(100vw - 260px), calc((100vh - 240px) * 16 / 9))}
+#artPane.present .art-deck{--slide-base:min(calc(100vw - 60px), calc((100vh - 120px) * 16 / 9))}
+.art-deck{overflow:hidden}
+.deck-stage{max-width:100%}
+
