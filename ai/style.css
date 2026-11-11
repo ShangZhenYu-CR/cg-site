@@ -759,3 +759,18 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .pal-foot b{font-weight:500;color:var(--dim)}
 .new-btn:hover{background:color-mix(in srgb, var(--text) 12%, transparent)}
 .kid.on{background:color-mix(in srgb, var(--text) 10%, transparent)}
+/* 首页收紧：Claude 的欢迎语到输入框只隔 ~36px */
+.empty p{margin:0 0 12px}
+.chips{margin:16px 0 0}
+.empty.with-composer #composerBlock{margin-top:18px}
+.empty .plan-pill{margin-bottom:14px}
+/* 侧栏项目分组：行首对齐、子项缩进 14px */
+.proj{padding-left:2px}
+.kids{padding-left:14px}
+.kids .kid{padding-left:6px}
+/* 消息里的图片：圆角 12、细边 */
+.imgbox img{border-radius:12px;border:1px solid var(--line)}
+/* Claude 首页没有那行副标题，去掉以贴近比例 */
+.empty > p{display:none}
+.empty.with-composer #composerBlock{margin-top:20px}
+.chips{margin:14px 0 0}
