@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:48';
+const APP_BUILD = '2026-11-12 00:52';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1767,7 +1767,9 @@ function bubble(m, idx) {
     const img = el('img');
     img.src = fileUrl(u);
     img.alt = '图片';
-    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.addEventListener('load', () => { box.classList.add('ready'); }, { once: true });
+    img.addEventListener('error', () => { box.classList.add('broken'); }, { once: true });
     img.title = '点击放大';
     img.addEventListener('click', () => openLightbox(u));
 

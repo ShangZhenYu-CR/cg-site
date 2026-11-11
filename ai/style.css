@@ -1575,3 +1575,10 @@ input:focus,input:focus-visible,textarea:focus,textarea:focus-visible,select:foc
 .lb-actions .ghost{color:#fff;border-color:rgba(255,255,255,.28)}
 .lb-actions .ghost:hover{background:rgba(255,255,255,.12)}
 
+
+/* 图片框：加载前给占位高度，避免被压成 2px 导致懒加载一直不触发 */
+.imgbox{min-width:120px;min-height:80px;background:var(--panel2);border-radius:12px;overflow:hidden}
+.imgbox.ready{min-width:0;min-height:0;background:transparent}
+.imgbox img{display:block;max-width:min(100%,420px);height:auto}
+.imgbox.broken::after{content:'图片加载失败';display:grid;place-items:center;height:80px;font-size:12px;color:var(--faint)}
+
