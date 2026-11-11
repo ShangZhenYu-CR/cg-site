@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:31';
+const APP_BUILD = '2026-11-11 19:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -687,50 +687,6 @@ function renderSide() {
     return;
   }
 
-  const head = el('div', 'grp');
-  head.innerHTML = '<span>项目</span><button id="newProjInline">＋ 新建</button>';
-  listBox.append(head);
-
-  for (const p of state.projects) {
-    const kids = state.convs.filter(cv => cv.projectId === p.id && !cv.archived);
-    if (q && !p.name.toLowerCase().includes(q) && !kids.some(matches)) continue;
-
-    const row = el('div', 'proj' + (state.open[p.id] ? ' open' : ''));
-    row.innerHTML = `<span class="caret">▶</span><span class="ico">📁</span>
-      <span class="pn">${esc(p.name)}</span><span class="cnt">${kids.length}</span>
-      <span class="pact"><i data-act="ins" title="项目指令">⚙</i><i data-act="add" title="在此新建">＋</i></span>`;
-
-    row.addEventListener('click', (e) => {
-      const act = e.target && e.target.dataset ? e.target.dataset.act : null;
-      if (act === 'ins') { e.stopPropagation(); openProjectDialog(p); return; }
-      if (act === 'add') { e.stopPropagation(); createConv({ projectId: p.id }).then(() => { state.open[p.id] = true; renderAll(); }); return; }
-      state.open[p.id] = !state.open[p.id];
-      renderSide();
-    });
-
-    row.addEventListener('dragover', (e) => { e.preventDefault(); row.classList.add('dragover'); });
-    row.addEventListener('dragleave', () => row.classList.remove('dragover'));
-    row.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      row.classList.remove('dragover');
-      const id = e.dataTransfer.getData('text/plain');
-      const cv = state.convs.find(x => x.id === id);
-      if (!cv) return;
-      cv.projectId = p.id;
-      state.open[p.id] = true;
-      await saveConv(cv);
-      renderAll();
-    });
-
-    listBox.append(row);
-
-    if (state.open[p.id]) {
-      const box = el('div', 'kids');
-      for (const cv of kids.filter(matches)) box.append(convRow(cv));
-      if (!kids.length) box.append(el('div', 'kid', '（空）'));
-      listBox.append(box);
-    }
-  }
 
   const pinned = (state.convs || []).filter((cv) => !cv.archived && isPinned(cv.id) && matches(cv));
   if (pinned.length) {
@@ -740,7 +696,7 @@ function renderSide() {
     for (const cv of pinned) listBox.append(convRow(cv));
   }
 
-  const loose = state.convs.filter(cv => !cv.projectId && !cv.archived && matches(cv) && !isPinned(cv.id));
+  const loose = state.convs.filter(cv => !cv.archived && matches(cv) && !isPinned(cv.id));
   const dayKey = (ts) => {
     if (!ts) return '更早';
     const d = new Date(ts);
@@ -799,8 +755,6 @@ function renderSide() {
     if (tg) tg.addEventListener('click', () => { state.showArchived = !state.showArchived; renderSide(); });
   }
 
-  const np = document.getElementById('newProjInline');
-  if (np) np.addEventListener('click', () => openProjectDialog(null));
 }
 
 /* ---------------- 消息操作：编辑 / 重新生成 ---------------- */
