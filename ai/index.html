@@ -129,7 +129,8 @@
             <button type="button" class="opt" data-mode="upload">📎　上传图片</button>
           </div>
         </div>
-        <textarea id="input" rows="1" placeholder="发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）"></textarea>
+        <textarea id="input" rows="1" placeholder="今天我能为您做些什么？"></textarea>
+        <button type="button" class="cm-model" id="cmModel" title="切换模型 / 思考强度"></button>
         <button type="submit" class="send" id="sendBtn" title="发送">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5 12 7-7 7 7"/></svg>
         </button>
@@ -138,9 +139,7 @@
         <div class="left">
           <span id="metaProject">未归档</span>
         </div>
-        <div class="right">
-          <button type="button" id="metaModel">—</button>
-        </div>
+        <div class="right"></div>
       </div>
     </div>
       <div class="meter">

@@ -629,3 +629,46 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .kn-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--panel2);font-size:13px}
 .kn-row button{font-size:12px;color:var(--faint)}
 .kn-empty{font-size:12px;color:var(--faint);padding:2px 0 6px}
+/* ---------- 按 live Claude 实测校准（288 侧栏 / 32 行 / 672 输入框） ---------- */
+:root{--side-w:288px;--side-bg:#FAFAFA;--row-fill:rgba(0,0,0,.10);--label-ink:rgba(0,0,0,.6)}
+:root[data-theme="light"]{--side-w:288px;--side-bg:#FAFAFA;--row-fill:rgba(0,0,0,.10);--label-ink:rgba(0,0,0,.6)}
+#side{background:var(--side-bg);padding:8px}
+.side-head{padding:0 0 6px;gap:4px}
+.brand-row{height:32px;margin-bottom:2px}
+.brand{font-size:20px;font-weight:500;padding:0 4px}
+.new-split{margin-bottom:2px}
+.new-btn{
+  height:32px;font-size:14px;font-weight:435;border-radius:8px;padding:0 8px;gap:6px;
+  background:var(--row-fill);border:0;
+}
+.new-btn:hover{background:rgba(0,0,0,.14)}
+.new-btn .plus{font-size:15px;color:var(--text)}
+.search-row{height:32px}
+.search input{height:32px;font-size:14px;font-weight:435;padding:0 8px 0 28px;border-radius:8px}
+.kbd-hint{display:none}
+.side-nav{gap:0}
+.nav-row{height:32px;font-size:14px;font-weight:435;gap:6px;padding:0 6px;border-radius:8px}
+.list{padding:4px 0 8px}
+.grp{font-size:12px;font-weight:520;color:var(--label-ink);text-transform:none;letter-spacing:0;padding:4px 8px;height:28px}
+.kid{height:32px;font-size:14px;font-weight:435;border-radius:8px;padding:0 6px}
+.kid.on{background:var(--row-fill)}
+.side-foot{padding:8px 0 0}
+.composer{width:min(672px,100%)}
+.composer-meta{width:min(672px,100%)}
+.composer .icon,.composer .send{width:28px;height:28px;border-radius:8px}
+.composer .send{border-radius:8px}
+/* 输入框内右下角：模型 + 强度（Claude 的 chip） */
+.cm-model{
+  height:28px;padding:0 9px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;
+  font-size:14px;font-weight:435;color:var(--text);white-space:nowrap;order:2;margin-left:auto;
+}
+.cm-model:hover{background:var(--panel2)}
+.cm-model .mm{color:var(--text)}
+.cm-model .me{color:var(--faint)}
+.composer .send{order:3;margin-left:8px}
+.composer-meta .right:empty{display:none}
+/* 空输入时藏起发送键（和 Claude 一致）；有字或在生成时才出现 */
+.composer .send{display:none}
+.composer.has-text .send{display:grid}
+.composer{border:1px solid var(--line)}
+.composer:focus-within{border-color:var(--accent)}

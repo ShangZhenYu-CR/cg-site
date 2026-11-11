@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:08';
+const APP_BUILD = '2026-11-11 18:12';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1144,11 +1144,11 @@ function visibleModels() {
 
 /** 输入框下方那行：模型 · 努力度（点开就是模型菜单） */
 function updateComposerMeta() {
-  const m = $('#metaModel');
-  if (m) {
-    // 模型名近黑、档位弱灰（对齐 Claude：Sonnet 5.5 中等）
-    m.innerHTML = '<span class="mm">' + esc(labelOf(LS.model)) + '</span><span class="me">' + esc(EFFORT_LABEL[LS.effort] || LS.effort) + '</span>';
-    m.title = '点这里切换模型 / 努力度';
+  const chip = '<span class="mm">' + esc(labelOf(LS.model)) + '</span><span class="me">' + esc(EFFORT_LABEL[LS.effort] || LS.effort) + '</span>';
+  const cm = $('#cmModel');
+  if (cm) {
+    cm.innerHTML = chip;
+    cm.title = '切换模型 / 思考强度';
   }
   const p = $('#metaProject');
   if (p) {
@@ -2459,7 +2459,7 @@ $('#moreModels').addEventListener('click', (e) => {
 });
 
 /* ---- 能力开关：默认不显示，开了才浮在输入框上方 ---- */
-const DEFAULT_PH = '发消息…（Enter 发送，Shift+Enter 换行，可粘贴图片）';
+const DEFAULT_PH = '今天我能为您做些什么？';
 const CAP_DEFS = [
   { k: 'image', icon: '🖼️', label: '画图' },
   { k: 'gif', icon: '🎞️', label: '动图' },
@@ -3053,18 +3053,30 @@ $('#composer').addEventListener('submit', async (e) => {
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#composer').requestSubmit(); }
 });
+function syncSendVisible() {
+  const has = !!input.value.trim() || state.attachments.length > 0;
+  const box = $('#composer');
+  if (box) box.classList.toggle('has-text', has || state.streaming);
+}
+
 input.addEventListener('input', () => {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 170) + 'px';
   sendBtn.disabled = !input.value.trim() && !state.attachments.length;
+  syncSendVisible();
 });
+syncSendVisible();
 
-$('#metaModel').addEventListener('click', (e) => {
-  e.stopPropagation();
-  const p = $('#modelPop');
-  if (!p.hidden) { p.hidden = true; return; }
-  openModelMenu();
-});
+for (const sel of ['#cmModel', '#metaModel']) {
+  const btn = document.querySelector(sel);
+  if (!btn) continue;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const p = $('#modelPop');
+    if (!p.hidden) { p.hidden = true; return; }
+    openModelMenu();
+  });
+}
 
 $('#themeBtn').addEventListener('click', () => {
   const cur = LS.theme;
