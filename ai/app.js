@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:55';
+const APP_BUILD = '2026-11-11 18:58';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -291,6 +291,10 @@ function applyTheme() {
   const mode = resolvedTheme();
   document.documentElement.dataset.theme = mode;
   document.documentElement.style.colorScheme = mode;
+  // 字号：写进 CSS 变量，body 与对话正文都跟着走
+  const fs = Number(LS.font) || 15;
+  document.documentElement.style.setProperty('--ui-font', fs + 'px');
+  document.documentElement.style.setProperty('--ui-line', Math.round(fs * 1.4) + 'px');
   const btn = $('#themeBtn');
   if (btn) {
     btn.textContent = LS.theme === 'auto' ? '◐' : (mode === 'light' ? '☀' : '☾');
@@ -917,7 +921,7 @@ function mountPane(key) {
     if (!pane.dataset.built) {
       pane.dataset.built = '1';
       const h = el('h3', null, '外观');
-      const p = el('p', 'set-hint', '浅色 / 深色 / 跟随系统。');
+      const p = el('p', 'set-hint', '主题跟随系统或手动指定。');
       const row = el('div', 'set-row');
       for (const [k, label] of [['auto', '跟随系统'], ['light', '浅色'], ['dark', '深色']]) {
         const b = el('button', 'set-chip' + (LS.theme === k ? ' on' : ''), label);
@@ -930,7 +934,21 @@ function mountPane(key) {
         });
         row.append(b);
       }
-      pane.append(h, p, row);
+      const h2 = el('p', 'set-hint', '字号（影响对话和界面文字）');
+      h2.style.marginTop = '18px';
+      const row2 = el('div', 'set-row wrap');
+      for (const size of [14, 15, 16]) {
+        const b = el('button', 'set-chip' + ((LS.font || 15) === size ? ' on' : ''), size + 'px');
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          LS.font = size;
+          applyTheme();
+          persistSettings();
+          mountPane('appearance');
+        });
+        row2.append(b);
+      }
+      pane.append(h, p, row, h2, row2);
     }
     return;
   }

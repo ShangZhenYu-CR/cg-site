@@ -125,15 +125,17 @@
         <div class="plus-wrap">
           <button type="button" class="icon" id="plusBtn" title="更多">＋</button>
           <div class="pop plus-pop" id="plusPop" hidden>
-            <button type="button" class="opt" data-mode="image">🖼️　生成图片</button>
-            <button type="button" class="opt" data-mode="gif">🎞️　生成动图</button>
-            <button type="button" class="opt" data-mode="drawcfg">⚙️　画图设置</button>
-            <button type="button" class="opt" data-mode="code">🧑‍💻　编程模式</button>
-            <button type="button" class="opt" data-mode="search">🌐　联网搜索</button>
-            <button type="button" class="opt" data-mode="fidelity">🔍　保真（高频纹理不压糊）</button>
-            <button type="button" class="opt" data-mode="raw">📷　原图（不压缩）</button>
-            <div class="sep"></div>
-            <button type="button" class="opt" data-mode="upload">📎　上传图片</button>
+            <div class="opt-sect">画图</div>
+            <button type="button" class="opt" data-mode="image"><span class="oi">🖼️</span>生成图片</button>
+            <button type="button" class="opt" data-mode="gif"><span class="oi">🎞️</span>生成动图</button>
+            <button type="button" class="opt" data-mode="drawcfg"><span class="oi">⚙️</span>画图设置</button>
+            <div class="opt-sect">写代码</div>
+            <button type="button" class="opt" data-mode="code"><span class="oi">🧑‍💻</span>编程模式</button>
+            <button type="button" class="opt" data-mode="upload"><span class="oi">📎</span>上传图片</button>
+            <div class="opt-sect">其他</div>
+            <button type="button" class="opt" data-mode="search"><span class="oi">🌐</span>联网搜索</button>
+            <button type="button" class="opt" data-mode="fidelity"><span class="oi">🔍</span>保真（纹理不压糊）</button>
+            <button type="button" class="opt" data-mode="raw"><span class="oi">📷</span>原图（不压缩）</button>
           </div>
         </div>
         <textarea id="input" rows="1" placeholder="今天我能为您做些什么？"></textarea>
