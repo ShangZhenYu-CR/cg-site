@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:06';
+const APP_BUILD = '2026-11-11 20:15';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1263,9 +1263,7 @@ function bubble(m, idx) {
     const img = el('img');
     img.src = fileUrl(u);
     img.alt = '图片';
-    img.loading = items.indexOf(it) < 12 ? 'eager' : 'lazy';
-    b.classList.add('loading');
-    img.addEventListener('load', () => b.classList.remove('loading'));
+    img.loading = 'lazy';
     img.title = '点击放大';
     img.addEventListener('click', () => openLightbox(u));
 
@@ -3962,9 +3960,11 @@ function renderGallery() {
     b.type = 'button';
     const img = document.createElement('img');
     img.src = fileUrl(it.url);
-    img.loading = 'lazy';
+    img.loading = items.indexOf(it) < 12 ? 'eager' : 'lazy';
     img.alt = it.convTitle;
-    img.addEventListener('error', () => { b.classList.add('broken'); img.remove(); });
+    b.classList.add('loading');
+    img.addEventListener('load', () => b.classList.remove('loading'));
+    img.addEventListener('error', () => { b.classList.remove('loading'); b.classList.add('broken'); img.remove(); });
     b.append(img);
     const meta = el('div', 'gal-meta');
     meta.textContent = it.convTitle + ' · ' + when(it.at);
