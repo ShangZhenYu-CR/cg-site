@@ -951,3 +951,9 @@ body.noside #sideToggle{display:grid!important}
 .pp-card .acts button{transition:background var(--dur-fast) var(--ease-out)}
 .pp-card .acts button:hover{background:var(--panel2)}
 
+
+/* 骨架行 */
+.sk-row{height:32px;border-radius:8px;margin:2px 0;background:linear-gradient(90deg,var(--panel2) 25%,color-mix(in srgb,var(--text) 6%,transparent) 37%,var(--panel2) 63%);background-size:400% 100%;animation:sk 1.4s ease infinite}
+@keyframes sk{0%{background-position:100% 0}100%{background-position:0 0}}
+.msg .err + .msg-more{margin-top:6px}
+
