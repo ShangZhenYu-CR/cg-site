@@ -735,3 +735,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* 流式中：末尾一个脉动光标 */
 .msg.streaming .bd > div:last-child::after{content:'▍';margin-left:2px;color:var(--brand);animation:caret 1s steps(2) infinite}
 @keyframes caret{0%,50%{opacity:1}50.01%,100%{opacity:0}}
+/* 实测确认：Claude 的回答正文用衬线体（15/21/400），用户消息用无衬线 */
+.msg.ai .bd{font-family:var(--font-serif);font-size:15px;line-height:21px}
+.msg.ai .bd pre,.msg.ai .bd code,.msg.ai .bd .meta,.msg.ai .bd .acts,.msg.ai .bd .imgprompt{font-family:var(--font-sans)}
+.msg.user .bd{font-family:var(--font-sans)}
