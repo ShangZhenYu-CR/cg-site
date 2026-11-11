@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:56';
+const APP_BUILD = '2026-11-11 22:58';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4607,7 +4607,7 @@ function renderDeck(body, file) {
   const wrap = el('div', 'art-deck');
   const rail = el('div', 'deck-rail');
   const stage = el('div', 'deck-stage');
-  let current = 0;
+  let curIdx = 0;
 
   const save = () => {
     file.content = JSON.stringify(deck, null, 2);
@@ -4620,11 +4620,11 @@ function renderDeck(body, file) {
     rail.textContent = '';
     deck.slides.forEach((s, i) => {
       const row = el('div', 'deck-thumb-row');
-      const th = el('button', 'deck-thumb' + (i === current ? ' on' : ''));
+      const th = el('button', 'deck-thumb' + (i === curIdx ? ' on' : ''));
       th.type = 'button';
       th.append(el('span', 'dt-n', String(i + 1)));
       th.append(el('span', 'dt-t', s.title || '（空页）'));
-      th.addEventListener('click', () => { current = i; paintRail(); paint(); });
+      th.addEventListener('click', () => { curIdx = i; paintRail(); paint(); });
       const del = el('button', 'deck-del', '×');
       del.type = 'button';
       del.title = '删除这一页';
@@ -4632,7 +4632,7 @@ function renderDeck(body, file) {
         e.stopPropagation();
         if (deck.slides.length <= 1) { flashHint('至少留一页'); return; }
         deck.slides.splice(i, 1);
-        current = Math.max(0, Math.min(current, deck.slides.length - 1));
+        curIdx = Math.max(0, Math.min(curIdx, deck.slides.length - 1));
         save(); paint();
       });
       row.append(th, del);
@@ -4642,7 +4642,7 @@ function renderDeck(body, file) {
     add.type = 'button';
     add.addEventListener('click', () => {
       deck.slides.push({ title: '新的一页', bullets: ['第一条要点'] });
-      current = deck.slides.length - 1;
+      curIdx = deck.slides.length - 1;
       save(); paint();
     });
     rail.append(add);
@@ -4650,7 +4650,7 @@ function renderDeck(body, file) {
 
   const paint = () => {
     stage.textContent = '';
-    const s = deck.slides[current] || { title: '', bullets: [] };
+    const s = deck.slides[curIdx] || { title: '', bullets: [] };
     const slide = el('div', 'slide');
     const titleEl = el('div', 'slide-title');
     titleEl.contentEditable = 'true';
@@ -4671,7 +4671,7 @@ function renderDeck(body, file) {
     addB.addEventListener('click', () => { (s.bullets = s.bullets || []).push('新要点'); save(); paint(); });
     slide.append(titleEl, ul, addB);
     stage.append(slide);
-    stage.append(el('div', 'deck-page', (current + 1) + ' / ' + Math.max(1, deck.slides.length)));
+    stage.append(el('div', 'deck-page', (curIdx + 1) + ' / ' + Math.max(1, deck.slides.length)));
   };
 
   wrap.append(rail, stage);
