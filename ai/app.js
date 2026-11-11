@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:53';
+const APP_BUILD = '2026-11-12 01:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -659,6 +659,29 @@ function openArtifact(it) {
   if (idx >= 0) { state.fileIdx = idx; openCodePane(); }
 }
 
+/* 图片尺寸记忆：先按已知比例占位，避免加载时才撑开导致页面跳动 */
+const DIMS_KEY = 'ai.imgdims';
+let imgDims = {};
+try { imgDims = JSON.parse(localStorage.getItem(DIMS_KEY) || '{}') || {}; } catch (e) { imgDims = {}; }
+let dimsSaveTimer = 0;
+function rememberDims(url, w, h) {
+  if (!url || !w || !h) return;
+  imgDims[url] = [w, h];
+  clearTimeout(dimsSaveTimer);
+  dimsSaveTimer = setTimeout(() => {
+    try {
+      const keys = Object.keys(imgDims);
+      if (keys.length > 600) {
+        // 只留最近写入的一部分，避免无限膨胀
+        const keep = {};
+        for (const k of keys.slice(-400)) keep[k] = imgDims[k];
+        imgDims = keep;
+      }
+      localStorage.setItem(DIMS_KEY, JSON.stringify(imgDims));
+    } catch (e) {}
+  }, 600);
+}
+function dimsOf(url) { return imgDims[url] || null; }
 /** 产物预览：md 渲染 / 幻灯片首页 / 网页缩略 / 图片 */
 function artifactPreview(it) {
   const name = String(it.name || '');
@@ -1765,11 +1788,24 @@ function bubble(m, idx) {
   for (const u of (m.images || [])) {
     const box = el('div', 'imgbox');
     const img = el('img');
+    const known = dimsOf(u) || dimsOf(fileUrl(u));
+    // 已知比例 → 直接按比例占位；未知 → 先按 1:1 占（生成图多数是方图）
+    const ratio = known ? (known[0] + ' / ' + known[1]) : '1 / 1';
+    img.style.aspectRatio = ratio;
+    img.style.width = 'min(420px, 100%)';
+    img.style.height = 'auto';
     img.src = fileUrl(u);
     img.alt = '图片';
     img.decoding = 'async';
-    img.addEventListener('load', () => { box.classList.add('ready'); }, { once: true });
-    if (img.complete && img.naturalWidth) box.classList.add('ready');
+    const settle = () => {
+      box.classList.add('ready');
+      if (img.naturalWidth && img.naturalHeight) {
+        img.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+        rememberDims(u, img.naturalWidth, img.naturalHeight);
+      }
+    };
+    img.addEventListener('load', settle, { once: true });
+    if (img.complete && img.naturalWidth) settle();
     img.addEventListener('error', () => { box.classList.add('broken'); }, { once: true });
     img.title = '点击放大';
     img.addEventListener('click', () => openLightbox(u));
