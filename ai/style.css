@@ -1488,3 +1488,33 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
 .dark .mini-slide .ms-t{color:#f0efec}
 .dark .mini-slide .ms-b{color:#a8a6a0}
 
+
+/* 页面标题左对齐（项目/文件/图库），别再居中 */
+.proj-page .pp-head{display:flex;align-items:center;gap:12px;justify-content:flex-start;flex-wrap:wrap}
+.proj-page .pp-head h1{font-size:20px;font-weight:500;margin:0 8px 0 0;text-align:left}
+.proj-page .pp-sub{text-align:left;margin:0 0 18px;color:var(--dim);font-size:13px}
+.proj-page .pp-head .pp-search{margin-left:0}
+.proj-page .pp-head .primary{margin-left:auto}
+/* 「做点新的」卡片改成克制的样式 */
+.mn-card{background:var(--panel2)!important;border:1px solid var(--line)!important;color:var(--text)!important;border-radius:12px!important;min-height:96px;display:flex!important;flex-direction:column;justify-content:flex-end;gap:6px;padding:14px!important}
+.mn-card:hover{background:var(--panel3,color-mix(in srgb,var(--text) 7%,transparent))!important}
+.mn-card .mn-ic{color:var(--brand)}
+.mn-card b,.mn-card span{color:var(--text)!important}
+/* 设置左侧导航去掉浏览器蓝色焦点环 */
+.set-item:focus,.set-item:focus-visible{outline:none}
+.set-item.on{box-shadow:inset 0 0 0 1px var(--line)}
+/* 项目页输入区：模型胶囊回到框内 */
+.proj-page .composer-meta .right,.proj-page .composer .cm-model{position:static}
+
+
+/* 项目页：模型胶囊放回输入框内，避免横向溢出 */
+.pd-composer{display:flex;flex-direction:column;gap:0}
+.pd-row1{display:flex;align-items:flex-end;gap:8px;width:100%}
+.pd-row1 textarea{flex:1;min-width:0}
+#projDetail.proj-detail{grid-template-columns:minmax(0,712px) 318px}
+#projDetail .pd-meta{width:auto;justify-content:flex-end;margin:2px 4px 6px 0;font-size:13px;color:var(--faint)}
+@media (max-width:1560px){
+  #projDetail.proj-detail{grid-template-columns:1fr;padding-right:24px}
+  #projDetail .pd-side{display:none}
+}
+
