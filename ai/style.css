@@ -277,7 +277,7 @@ button{cursor:pointer;background:none;border:0}
 .handoff-btn{flex:0 0 auto;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--dim);background:var(--panel2)}
 .handoff-btn:hover{border-color:var(--accent);color:var(--accent)}
 
-#modelPop{right:16px;top:52px;width:330px}
+#modelPop{position:fixed;width:330px}
 #menuPop{right:16px;top:52px;width:210px}
 #userPop{left:12px;bottom:64px;width:230px}
 
@@ -377,7 +377,7 @@ body:not(.noside) #sideToggle{display:none}
   .title{max-width:36vw}
   .thread{padding:18px 16px 8px}
   .composer-wrap{padding:8px 12px 12px}
-  #modelPop{left:8px;right:8px;width:auto}
+  #modelPop{left:8px!important;right:8px;width:auto}
   #codepane{width:100vw}
   body.coding #main{margin-right:0}
 }
@@ -592,3 +592,22 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .pp-card .acts{display:flex;gap:8px;margin-top:12px}
 .pp-card .acts button{font-size:12px;color:var(--faint);padding:3px 8px;border-radius:6px;border:1px solid var(--line)}
 .pp-card .acts button:hover{color:var(--text)}
+/* 消息上的轻操作：编辑 */
+.msg.user .bd{position:relative}
+.msg-edit{
+  position:absolute;top:8px;right:10px;font-size:12px;color:var(--faint);
+  padding:2px 8px;border-radius:6px;opacity:0;transition:opacity var(--dur-fast) var(--ease-out);
+}
+.msg.user:hover .msg-edit{opacity:1}
+.msg-edit:hover{background:color-mix(in srgb, var(--text) 10%, transparent);color:var(--text)}
+/* 命令面板 */
+.pal-ov{align-items:flex-start;justify-content:center;padding-top:12vh}
+.pal{width:min(560px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-panel);box-shadow:var(--shadow);overflow:hidden}
+.pal input{width:100%;height:48px;border:0;border-bottom:1px solid var(--line);background:transparent;padding:0 16px;font-size:15px;color:var(--text);outline:0}
+.pal-list{max-height:min(52vh,420px);overflow-y:auto;padding:6px}
+.pal-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:8px;font-size:14px;color:var(--text);text-align:left}
+.pal-item:hover,.pal-item.on{background:var(--panel2)}
+.pal-item .k{font-size:11px;color:var(--faint);margin-left:auto}
+.brand-menu{display:none}
+@media (min-width:900px){.brand-menu{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;color:var(--faint)}
+.brand-menu:hover{background:var(--panel2);color:var(--text)}}

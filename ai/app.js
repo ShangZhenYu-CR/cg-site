@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:40';
+const APP_BUILD = '2026-11-11 18:03';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -722,8 +722,121 @@ function renderSide() {
   if (np) np.addEventListener('click', () => openProjectDialog(null));
 }
 
+/* ---------------- 消息操作：编辑 / 重新生成 ---------------- */
+/** 把某条用户消息拿回输入框，并把它之后的内容清掉（等于"从这里重来"） */
+function startEdit(idx) {
+  const cv = current();
+  if (!cv || state.streaming) return;
+  const m = (cv.messages || [])[idx];
+  if (!m || m.role !== 'user') return;
+  const text = m.text || '';
+  cv.messages.splice(idx, cv.messages.length - idx);
+  saveConv(cv);
+  renderAll();
+  input.value = text;
+  input.dispatchEvent(new Event('input'));
+  input.focus();
+  input.setSelectionRange(text.length, text.length);
+}
+
+/** 从某条 AI 回答处重新生成 */
+async function regenerateFrom(idx) {
+  const cv = current();
+  if (!cv || state.streaming) return;
+  const msgs = cv.messages || [];
+  let u = -1;
+  for (let i = idx - 1; i >= 0; i--) { if (msgs[i].role === 'user') { u = i; break; } }
+  if (u < 0) return;
+  const ask = msgs[u];
+  const text = ask.text || '';
+  const imgs = (ask.images || []).slice();
+  msgs.splice(u, msgs.length - u);
+  await saveConv(cv);
+  renderAll();
+  sendChat(text, imgs.length ? { refImages: imgs } : {});
+}
+
+/* ---------------- 命令面板 ---------------- */
+function palActions() {
+  const acts = [
+    { label: '新建对话', key: 'N', run: () => { $('#newChat').click(); } },
+    { label: '打开项目页', key: '', run: () => showProjectsPage() },
+    { label: '打开文件列表', key: '', run: () => showFiles() },
+    { label: '切换模型…', key: '', run: () => openModelMenu() },
+    { label: '自定义指令', key: '', run: () => openInstructions() },
+  ];
+  return acts;
+}
+
+function renderPalette(q) {
+  const box = $('#palList');
+  if (!box) return;
+  const query = String(q || '').trim().toLowerCase();
+  box.textContent = '';
+  const hit = (s) => !query || String(s).toLowerCase().includes(query);
+
+  for (const a of palActions()) {
+    if (!hit(a.label)) continue;
+    const b = el('button', 'pal-item');
+    b.type = 'button';
+    b.append(el('span', null, a.label));
+    if (a.key) b.append(el('span', 'k', a.key));
+    b.addEventListener('click', () => { closePalette(); a.run(); });
+    box.append(b);
+  }
+  const convs = (state.convs || []).filter((c) => hit(c.title || '新对话') && !c.archived);
+  for (const cv of convs.slice(0, 8)) {
+    const b = el('button', 'pal-item');
+    b.type = 'button';
+    b.append(el('span', null, cv.title || '新对话'));
+    b.append(el('span', 'k', when(cv.updatedAt)));
+    b.addEventListener('click', () => {
+      closePalette();
+      state.view = 'chat';
+      state.currentId = cv.id;
+      applyConvSettings(cv);
+      renderAll();
+    });
+    box.append(b);
+  }
+  const first = box.querySelector('.pal-item');
+  if (first) first.classList.add('on');
+}
+
+function openPalette() {
+  const ov = $('#dlgPal');
+  ov.hidden = false;
+  const inputEl = $('#palInput');
+  inputEl.value = '';
+  renderPalette('');
+  inputEl.focus();
+}
+
+function closePalette() {
+  const ov = $('#dlgPal');
+  if (ov) ov.hidden = true;
+}
+
+$('#palInput').addEventListener('input', (e) => renderPalette(e.target.value));
+$('#palInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const first = $('#palList .pal-item');
+    if (first) first.click();
+  }
+});
+$('#dlgPal').addEventListener('click', (e) => { if (e.target.id === 'dlgPal') closePalette(); });
+$('#brandMenu').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const p = $('#menuPop');
+  const r = e.currentTarget.getBoundingClientRect();
+  closePops();
+  p.hidden = false;
+  p.style.left = Math.min(r.left, window.innerWidth - 228) + 'px';
+  p.style.top = (r.bottom + 6) + 'px';
+});
+
 /* ---------------- 线程 ---------------- */
-function bubble(m) {
+function bubble(m, idx) {
   if (m.role === 'divider') {
     const d = el('div', 'divider');
     d.append(el('span', null, m.text || '以上内容不再发送给模型'));
@@ -744,6 +857,13 @@ function bubble(m) {
 
   const bd = el('div', 'bd');
   if (isUser) bd.append(el('div', 'name', m.who || LS.name || '我'));
+  if (isUser) {
+    const edit = el('button', 'msg-edit', '编辑');
+    edit.type = 'button';
+    edit.title = '拿回输入框重新发';
+    edit.addEventListener('click', () => startEdit(idx));
+    bd.append(edit);
+  }
 
   const content = el('div');
   if (m.err) content.append(el('div', 'err', m.text || '出错了'));
@@ -823,6 +943,11 @@ function bubble(m) {
       try { await navigator.clipboard.writeText(m.text || ''); cp.textContent = '已复制'; setTimeout(() => cp.textContent = '复制', 1200); } catch {}
     });
     acts.append(cp);
+    const regen = el('button', null, '重新生成');
+    regen.type = 'button';
+    regen.title = '从这条开始重新回答';
+    regen.addEventListener('click', () => regenerateFrom(idx));
+    acts.append(regen);
     bd.append(acts);
   }
 
@@ -930,7 +1055,7 @@ function renderThread() {
   $('#empty').hidden = !!msgs.length;
   if (!msgs.length) renderRecentArtifacts();
   layoutHomeComposer();
-  for (const m of msgs) thread.append(bubble(m));
+  msgs.forEach((m, i) => thread.append(bubble(m, i)));
   $('#titleBtn').textContent = cv ? cv.title : '新对话';
   updateCtx();
 
@@ -1013,7 +1138,7 @@ function updateCtx() {
 let modelPinned = false;   // 会话指定的模型，不要被列表自动纠正掉
 
 function visibleModels() {
-  const all = LS.models;
+  const all = LS.models.filter((m) => !DEAD_MODEL_RE.test(String(m)));
   return canAstra() ? all : all.filter(m => !/astra/i.test(m));
 }
 
@@ -1047,9 +1172,17 @@ let showAllModels = false;
 let showRetired = false;   // 已淘汰模型默认折叠
 
 /** 在售模型：只保留 5.6 的 Terra / Luna，其余归入已淘汰 */
+/** 首页菜单上的模型（用户指定：6 Sol 只出现在「更多模型」里） */
+const HOME_MODEL_RE = [
+  /gpt-6\.1-sol/i, /gpt-6-astra/i, /gpt-6\.1-terra/i, /gpt-6-luna/i,
+  /gpt-5\.6-sol/i, /gpt-5\.6-terra/i, /gpt-5\.6-luna/i,
+];
+/** 明确用不上的（搜索/嵌入/语音/审核类），直接不显示 */
+const DEAD_MODEL_RE = /search-api|embedding|whisper|tts|transcribe|moderation|dall-e|realtime|image-1|^o[13](-|$)/i;
+
 function isActiveModel(id) {
   const m = String(id || '');
-  return /5\.6/i.test(m) && /(sol|terra|luna)/i.test(m);
+  return HOME_MODEL_RE.some((re) => re.test(m));
 }
 
 function modelRow(id, retired) {
@@ -1080,8 +1213,12 @@ function modelRank(id) {
   for (let i = 0; i < MODEL_ORDER.length; i++) if (m.includes(MODEL_ORDER[i])) return i;
   return 9;
 }
+function homeRank(id) {
+  const i = HOME_MODEL_RE.findIndex((re) => re.test(String(id)));
+  return i < 0 ? 99 : i;
+}
 function activeModels() {
-  return visibleModels().filter(isActiveModel).sort((a, b) => modelRank(a) - modelRank(b));
+  return visibleModels().filter(isActiveModel).sort((a, b) => homeRank(a) - homeRank(b));
 }
 
 /** 「更多模型」的飞出面板：全部模型 + 已淘汰（折叠） */
@@ -1128,7 +1265,8 @@ function renderModels() {
   const active = activeModels();
   const current = active.length ? active : list;
 
-  // 主菜单不再列模型：模型全在「更多模型」面板里，这里只显示当前是哪个
+  // 首页菜单列出常用模型；「更多模型」里放剩下的
+  for (const id of current) box.append(modelRow(id, !isActiveModel(id)));
   if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = current[0] || list[0];
 
   $('#modelName').textContent = labelOf(LS.model);
@@ -2231,7 +2369,33 @@ $('#cfgSave').addEventListener('click', () => {
 const pops = ['modelPop', 'menuPop', 'userPop', 'plusPop', 'newPop'];
 function closePops(except) { pops.forEach(id => { if (id !== except) $('#' + id).hidden = true; }); }
 
-$('#modelBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#modelPop'); const h = p.hidden; closePops(); p.hidden = !h; });
+/** 把面板放在触发元素上方（底部不够就翻到下方），Claude 的模型菜单就是这么弹的 */
+function placeAbove(pop, anchor, align) {
+  const r = anchor.getBoundingClientRect();
+  pop.hidden = false;
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  let left = align === 'left' ? r.left : r.right - w;
+  left = Math.min(Math.max(8, left), window.innerWidth - w - 8);
+  let top = r.top - h - 8;
+  if (top < 8) top = Math.min(r.bottom + 8, window.innerHeight - h - 8);
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(8, top) + 'px';
+}
+
+function openModelMenu() {
+  const p = $('#modelPop');
+  const anchor = $('#metaModel') && $('#metaModel').offsetParent ? $('#metaModel') : $('#modelBtn');
+  closePops();
+  placeAbove(p, anchor, 'right');
+}
+
+$('#modelBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const p = $('#modelPop');
+  if (!p.hidden) { p.hidden = true; return; }
+  openModelMenu();
+});
 $('#menuBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#menuPop'); const h = p.hidden; closePops(); p.hidden = !h; });
 $('#meBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#userPop'); const h = p.hidden; closePops(); p.hidden = !h; });
 $('#plusBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#plusPop'); const h = p.hidden; closePops(); p.hidden = !h; });
@@ -2860,7 +3024,12 @@ input.addEventListener('input', () => {
   sendBtn.disabled = !input.value.trim() && !state.attachments.length;
 });
 
-$('#metaModel').addEventListener('click', (e) => { e.stopPropagation(); $('#modelBtn').click(); });
+$('#metaModel').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const p = $('#modelPop');
+  if (!p.hidden) { p.hidden = true; return; }
+  openModelMenu();
+});
 
 $('#themeBtn').addEventListener('click', () => {
   const cur = LS.theme;
@@ -2876,10 +3045,7 @@ $('#planPill').addEventListener('click', async () => {
   $('#dlgUsage').hidden = false;
 });
 
-$('#raAll').addEventListener('click', () => {
-  const first = recentArtifacts(1)[0];
-  if (first) openArtifact(first);
-});
+$('#raAll').addEventListener('click', () => { showFiles(); });
 
 $('#usageBar').addEventListener('click', async () => {
   await refreshUsage();
@@ -3012,9 +3178,9 @@ $('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; }
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
     e.preventDefault();
-    $('#q').focus();
-    $('#q').select();
+    if ($('#dlgPal').hidden) openPalette(); else closePalette();
   }
+  if (e.key === 'Escape' && !$('#dlgPal').hidden) closePalette();
 });
 
 $('#newMore').addEventListener('click', (e) => {
