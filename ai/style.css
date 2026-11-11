@@ -1816,3 +1816,41 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 #side .search svg{left:11px;top:11px;width:16px;height:16px}
 
 #side .nav-row svg{stroke-width:2}
+
+/* ---- 图片加载中：骨架微光，替代“图片”文字占位（2026-11-12） ---- */
+.imgbox{position:relative}
+.imgbox::before{
+  content:"";
+  position:absolute; inset:0;
+  border-radius:12px;
+  background:linear-gradient(100deg,
+    var(--panel2) 18%,
+    color-mix(in srgb, var(--panel2) 68%, var(--text) 10%) 42%,
+    var(--panel2) 64%);
+  background-size:220% 100%;
+  animation:img-shimmer 1.35s linear infinite;
+  pointer-events:none;
+}
+.imgbox.ready::before,
+.imgbox.broken::before{content:none;animation:none}
+.imgbox img{opacity:0;transition:opacity .22s ease}
+.imgbox.ready img{opacity:1}
+.imgbox.broken img{display:none}
+@keyframes img-shimmer{
+  0%{background-position:130% 0}
+  100%{background-position:-130% 0}
+}
+
+/* 图片加载中的中心转圈 */
+.img-load{
+  position:absolute;left:50%;top:50%;
+  width:22px;height:22px;margin:-11px 0 0 -11px;
+  border-radius:50%;
+  border:2px solid color-mix(in srgb,var(--text) 16%,transparent);
+  border-top-color:color-mix(in srgb,var(--text) 55%,transparent);
+  animation:img-spin .8s linear infinite;
+  pointer-events:none;z-index:2;
+}
+.imgbox.ready .img-load,
+.imgbox.broken .img-load{display:none}
+@keyframes img-spin{to{transform:rotate(360deg)}}
