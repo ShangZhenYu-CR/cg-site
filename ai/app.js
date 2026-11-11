@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 16:37';
+const APP_BUILD = '2026-11-11 16:41';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -303,6 +303,7 @@ async function refreshUsage() {
     if (!r.ok) return;
     usageData = await r.json();
     renderUsageBar();
+    renderPlanPill();
     if (!$('#dlgUsage').hidden) renderUsageDialog();
   } catch { /* 统计失败不影响聊天 */ }
 }
@@ -310,6 +311,56 @@ async function refreshUsage() {
 function scheduleUsage() {
   clearTimeout(usageTimer);
   usageTimer = setTimeout(refreshUsage, 1500);
+}
+
+/** 首页额度药丸（点开看明细） */
+function renderPlanPill() {
+  const el = $('#planPill');
+  if (!el) return;
+  const a = usageData && usageData.allowance;
+  if (!a) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = '剩余 ' + formatUsd(a.remaining) + ' · 每月 ' + a.resetDay + ' 日重置';
+}
+
+/** 跨会话收集编程模式产物（files），最近优先 */
+function recentArtifacts(limit) {
+  const out = [];
+  for (const c of state.convs || []) {
+    for (const f of (c.files || [])) {
+      out.push({ name: f.name, at: f.updatedAt || 0, convId: c.id, convTitle: c.title || '未命名' });
+    }
+  }
+  out.sort((a, b) => b.at - a.at);
+  return out.slice(0, limit || 6);
+}
+
+function openArtifact(it) {
+  state.currentId = it.convId;
+  renderAll();
+  const cv = current();
+  if (!cv) return;
+  const idx = (cv.files || []).findIndex((f) => f.name === it.name);
+  if (idx >= 0) { state.fileIdx = idx; openCodePane(); }
+}
+
+function renderRecentArtifacts() {
+  const box = $('#recentArt');
+  const list = $('#raList');
+  if (!box || !list) return;
+  const items = recentArtifacts(6);
+  if (!items.length) { box.hidden = true; return; }
+  box.hidden = false;
+  list.textContent = '';
+  for (const it of items) {
+    const b = el('button', 'ra-card');
+    b.type = 'button';
+    const n = el('div', 'n', it.name);
+    const m = el('div', 'm', it.convTitle + ' · ' + when(it.at));
+    b.append(n, m);
+    b.addEventListener('click', () => openArtifact(it));
+    list.append(b);
+  }
 }
 
 function renderUsageBar() {
@@ -806,6 +857,7 @@ function renderThread() {
   const cv = current();
   const msgs = cv ? cv.messages : [];
   $('#empty').hidden = !!msgs.length;
+  if (!msgs.length) renderRecentArtifacts();
   layoutHomeComposer();
   for (const m of msgs) thread.append(bubble(m));
   $('#titleBtn').textContent = cv ? cv.title : '新对话';
@@ -2615,6 +2667,17 @@ $('#themeBtn').addEventListener('click', () => {
   showToast('外观：<b>' + THEME_LABEL[next] + '</b>' + (next === 'auto' ? '（跟随系统，现在是' + (resolvedTheme() === 'light' ? '浅色' : '深色') + '）' : ''));
 });
 
+$('#planPill').addEventListener('click', async () => {
+  await refreshUsage();
+  renderUsageDialog();
+  $('#dlgUsage').hidden = false;
+});
+
+$('#raAll').addEventListener('click', () => {
+  const first = recentArtifacts(1)[0];
+  if (first) openArtifact(first);
+});
+
 $('#usageBar').addEventListener('click', async () => {
   await refreshUsage();
   renderUsageDialog();
@@ -2810,6 +2873,8 @@ function layoutHomeComposer() {
   const inEmpty = composerBlockEl.parentElement === emptyBox;
   if (isEmpty && !inEmpty) {
     emptyBox.append(composerBlockEl);
+    const art = $('#recentArt');
+    if (art) emptyBox.append(art);   // 产物放在输入框下方（Claude 的位置）
     emptyBox.classList.add('with-composer');
   } else if (!isEmpty && inEmpty) {
     mainBox.insertBefore(composerBlockEl, document.querySelector('.meter'));

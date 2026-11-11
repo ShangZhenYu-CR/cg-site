@@ -77,8 +77,13 @@
 
     <div class="scroll" id="scroll">
       <div class="empty" id="empty">
+        <div class="plan-pill" id="planPill" hidden></div>
         <h1 class="greet"><span class="mark">✳</span><span id="greetText">今天想聊点什么？</span></h1>
         <p>问问题、写东西、看代码；也能发图问图、联网查资料。</p>
+        <div class="recent-art" id="recentArt" hidden>
+          <div class="ra-head"><span>最近的产物</span><button type="button" id="raAll">查看全部</button></div>
+          <div class="ra-list" id="raList"></div>
+        </div>
         <div class="chips">
           <button data-p="帮我把这段需求拆成可执行的任务清单">拆解需求</button>
           <button data-p="用通俗的话解释一下注意力机制">解释概念</button>
