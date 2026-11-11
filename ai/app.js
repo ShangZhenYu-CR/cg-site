@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-10 18:00';
+const APP_BUILD = '2026-11-11 14:30';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -818,11 +818,35 @@ function turnImageToGif(u) {
   sendChat('把这张图做成动图：主体保持原样，动作自然，首尾能衔接循环播放', { draw: true, gif: true, refImage: u });
 }
 
+/** 把上游 JSON 提炼成一句人话 + 建议；认不出来的返回空串，由调用方保留原文 */
+function humanError(msg) {
+  const s = String(msg || '');
+  if (!s) return '';
+  if (/pixel budget|No supported sheet|3840/i.test(s)) {
+    return 'GIF 的帧数 × 尺寸超过了图片工具的像素上限（已自动降到 512² 重试过一次）。帧数调到 8 或更少更稳。';
+  }
+  if (/safety|violence|safety_violations/i.test(s)) {
+    return '上游安全策略拦下了这次生成——被拒的是生成内容，不是你的操作。换个说法或换一张参考图再试。';
+  }
+  if (/Invalid value: 'input_image'|Supported values are: 'output_text' and 'refusal'/i.test(s)) {
+    return '这轮请求里混进了不该回传的图片段（多来自历史消息）。已跳过历史图，重发这一句即可。';
+  }
+  if (/GIF output is not enabled/i.test(s)) {
+    return '当前模型没开 GIF 输出。动图必须走 gpt-image-2.6-sunburst，把画图模型切回它再试。';
+  }
+  if (/rate limit|429|quota|insufficient/i.test(s)) return '上游限流或额度不足，等一会儿再试。';
+  return '';
+}
+
 async function sendChat(text, opts = {}) {
   const cv = current() || await createConv();
   if (!cv) return;
 
-  const imgs = opts.refImage ? [opts.refImage] : state.attachments.map(a => a.url);
+  // 参考图：显式指定的优先，否则把当前附件全部带上（多图参考，最多 4 张）
+  const picked = (opts.refImages && opts.refImages.length) ? opts.refImages
+    : opts.refImage ? [opts.refImage]
+    : state.attachments.map(a => a.url);
+  const imgs = picked.filter(Boolean).slice(0, MAX_REF_IMAGES);
   state.attachments = [];
   renderAttach();
 
@@ -835,7 +859,11 @@ async function sendChat(text, opts = {}) {
   if (drawMode) {
     for (let i = cv.messages.length - 1; i >= 0; i--) {
       const m = cv.messages[i];
-      if (m.images && m.images.length) { refImages = [m.images[m.images.length - 1]]; break; }
+      if (m.images && m.images.length) {
+        // 最多补 2 张上文图，且不要和本次附件重复
+        refImages = m.images.slice(-2).filter((u) => !imgs.includes(u));
+        break;
+      }
     }
   }
 
@@ -856,8 +884,29 @@ async function sendChat(text, opts = {}) {
   const effort = LS.effort;
   // 图像生成模型不接受 reasoning 参数，所以只在明确要图时才挂工具
   const wantsImage = drawMode || /(画一|画个|画只|画张|画幅|生成.{0,6}图|来张图|出图|绘图|插画|海报|头像|表情包|配图|draw|image|picture|illustration)/i.test(text);
+
+  // GIF：帧数 → 尺寸联动，别让上游 sheet 的像素预算把请求打回来（16 帧 @768² 必超）
+  const gifFrames = Math.max(2, Math.min(16, Number(LS.draw.frames) || 8));
+  const gifDuration = Math.max(20, Math.min(2000, Number(LS.draw.dur) || 150));
+  const gifOpts = (frames, size) => ({
+    model: 'gpt-image-2.6-sunburst',
+    size: size || gifSizeForFrames(frames),
+    output_format: 'gif',
+    frame_count: Math.max(2, Math.min(16, Number(frames) || 8)),
+    frame_duration_ms: gifDuration,
+  });
+  let imageOpts = drawMode
+    ? (gifAsk ? gifOpts(gifFrames) : {
+        model: LS.draw.model || undefined,
+        size: LS.draw.size && LS.draw.size !== 'auto' ? LS.draw.size : undefined,
+        quality: LS.draw.quality && LS.draw.quality !== 'auto' ? LS.draw.quality : undefined,
+        background: LS.draw.bg || undefined,
+        output_format: (LS.draw.format && LS.draw.format !== 'gif') ? LS.draw.format : undefined,
+      })
+    : undefined;
+
   reply.meta = drawMode
-    ? ('画图 · ' + (imgs.length ? '带参考图' : (refImages.length ? '参考上文图' : '无参考图')))
+    ? ('画图 · ' + (imgs.length ? '参考 ' + imgs.length + ' 张图' : (refImages.length ? '参考上文图' : '无参考图')))
     : labelOf(model) + ' · ' + (wantsImage ? '图像' : (EFFORT_LABEL[effort] || effort));
 
   const node = thread.lastElementChild;
@@ -880,26 +929,14 @@ async function sendChat(text, opts = {}) {
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
-  try {
+  /** 真打一次 /chat；imageOpts 允许被降档重试替换 */
+  const postChat = async (io) => {
     const res = await api('/chat', {
       method: 'POST', signal: state.controller.signal,
       body: {
         model, search: state.search, convId: cv.id, projectId: cv.projectId || null,
         ...(drawMode
-          ? {
-              imageTool: true,
-              imageMode: true,
-              refImages: refImages.length ? refImages : undefined,
-              imageOpts: gifAsk
-                ? { model: 'gpt-image-2.6-sunburst', size: '768x768', output_format: 'gif', frame_count: LS.draw.frames || 8, frame_duration_ms: LS.draw.dur || 150 }
-                : {
-                    model: LS.draw.model || undefined,
-                    size: LS.draw.size && LS.draw.size !== 'auto' ? LS.draw.size : undefined,
-                    quality: LS.draw.quality && LS.draw.quality !== 'auto' ? LS.draw.quality : undefined,
-                    background: LS.draw.bg || undefined,
-                    output_format: (LS.draw.format && LS.draw.format !== 'gif') ? LS.draw.format : undefined,
-                  },
-            }
+          ? { imageTool: true, imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io }
           : wantsImage ? { imageTool: true } : { effort }),
         codeMode: state.codeMode,
         fileNames: (cv.files || []).map(f => f.name),
@@ -950,31 +987,72 @@ async function sendChat(text, opts = {}) {
       }
       paint();
     }
+  };
+
+  /**
+   * 兜底：这一轮没出图、或工具直接 400，就直连画图接口，别让用户白等。
+   * 旧写法只在「请求成功但没图」时兜底，工具报错会直接穿透成一段上游 JSON。
+   */
+  const fallbackImage = async () => {
+    if (!(drawMode || gifAsk) || (reply.images || []).length) return false;
+    try {
+      if (gifAsk) {
+        const r = await api('/gif', {
+          method: 'POST', timeout: 300000,
+          body: { prompt: text, frames: (imageOpts && imageOpts.frame_count) || gifFrames, duration: gifDuration, image: imgs[0] },
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d.url) { reply.images = [d.url]; reply.meta = 'GIF · 回退生成'; return true; }
+        return false;
+      }
+      const r2 = await api('/draw', {
+        method: 'POST', timeout: 300000,
+        body: { prompt: text, image: imgs[0], size: LS.draw.size, quality: LS.draw.quality, format: LS.draw.format === 'gif' ? 'png' : LS.draw.format, n: Math.max(countImages(text), LS.draw.n || 1), compression: LS.draw.compression },
+      });
+      const d2 = await r2.json().catch(() => ({}));
+      const u = (d2.urls || [])[0];
+      if (u) { reply.images = [u]; reply.meta = '画图 · 回退生成'; return true; }
+      return false;
+    } catch { return false; }
+  };
+
+  try {
+    // 上游把 GIF 帧拼成 sheet，帧多尺寸大就 400；撞预算自动降一档重来一次
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        acc = '';
+        textNode.nodeValue = '';
+        await postChat(imageOpts);
+        lastErr = null;
+        break;
+      } catch (e) {
+        if (e && e.name === 'AbortError') throw e;
+        lastErr = e;
+        const m = String((e && e.message) || '');
+        if (attempt === 0 && gifAsk && /pixel budget|No supported sheet|3840/i.test(m)) {
+          imageOpts = gifOpts(imageOpts.frame_count || gifFrames, '512x512');
+          reply.meta = 'GIF · ' + imageOpts.frame_count + ' 帧 · 512² · 已降档重试';
+          acc = '';
+          continue;
+        }
+        break;
+      }
+    }
+    if (lastErr) throw lastErr;
     reply.text = acc;
     delete reply.streaming;
 
-    // 兜底：模型没出图时，直接打画图接口（避免这一轮白跑）
-    if ((drawMode || gifAsk) && !(reply.images || []).length) {
-      try {
-        if (gifAsk) {
-          const r = await api('/gif', { method: 'POST', timeout: 300000, body: { prompt: text, frames: LS.draw.frames || 8, duration: LS.draw.dur || 150, image: imgs[0] } });
-          const d = await r.json().catch(() => ({}));
-          if (d.url) { reply.images = [d.url]; reply.meta = 'GIF · 回退生成'; }
-        } else {
-          const r2 = await api('/draw', {
-            method: 'POST', timeout: 300000,
-            body: { prompt: text, image: imgs[0], size: LS.draw.size, quality: LS.draw.quality, format: LS.draw.format === 'gif' ? 'png' : LS.draw.format, n: Math.max(countImages(text), LS.draw.n || 1), compression: LS.draw.compression },
-          });
-          const d2 = await r2.json().catch(() => ({}));
-          const u = (d2.urls || [])[0];
-          if (u) { reply.images = [u]; reply.meta = '画图 · 回退生成'; }
-        }
-      } catch { /* 兜底也失败就保留文字 */ }
-    }
+    // 兜底：切到直连接口，避免这一轮白跑
+    if (!(reply.images || []).length) await fallbackImage();
 
     // 结束后一次性渲染 Markdown（流式期间只有纯文本）
     if (reply.images && reply.images.length > 1) reply.meta = '画图 · ' + reply.images.length + ' 张';
-    if (gifAsk && reply.images && reply.images.length) reply.meta = 'GIF · ' + (LS.draw.frames || 8) + ' 帧';
+    if (gifAsk && reply.images && reply.images.length) {
+      const fr = (imageOpts && imageOpts.frame_count) || gifFrames;
+      const sz = String((imageOpts && imageOpts.size) || gifSizeForFrames(fr)).replace('x', '×');
+      reply.meta = 'GIF · ' + fr + ' 帧 · ' + sz + (reply.images.length > 1 ? ' · ' + reply.images.length + ' 张' : '');
+    }
     if (host) host.innerHTML = md(reply.text || '');
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
 
@@ -987,8 +1065,19 @@ async function sendChat(text, opts = {}) {
     }
   } catch (e) {
     delete reply.streaming;
-    if (e && e.name === 'AbortError') reply.text = acc || '（已停止）';
-    else { reply.err = true; reply.text = (e && e.message) || '出错了'; if (e && e.status === 401) logout(); }
+    const aborted = e && e.name === 'AbortError';
+    // 工具报错也要走兜底，否则用户只看到一段上游 JSON
+    let recovered = false;
+    if (!aborted) { try { recovered = await fallbackImage(); } catch { recovered = false; } }
+    if (recovered) {
+      reply.text = acc || '';
+    } else if (aborted) {
+      reply.text = acc || '（已停止）';
+    } else {
+      reply.err = true;
+      reply.text = humanError(e && e.message) || (e && e.message) || '出错了';
+      if (e && e.status === 401) logout();
+    }
   } finally {
     state.controller = null;
     await saveConv(cv);
@@ -1036,6 +1125,8 @@ function renderAttach() {
     x.title = '移除';
     x.addEventListener('click', () => { state.attachments.splice(i, 1); renderAttach(); });
     chip.append(img, x);
+    // 多图时必须能分清谁是谁：模型按「图1/图2」理解，用户也得看到同一个编号
+    if (state.attachments.length > 1) chip.append(el('span', 'idx', '图' + (i + 1)));
     box.append(chip);
   });
 
@@ -1196,6 +1287,10 @@ async function uploadFile(file) {
 
 async function doUploadFile(file) {
   if (!file || !/^image\//.test(file.type)) { alert('只支持图片'); return; }
+  if (state.attachments.length + state.uploading.length >= MAX_REF_IMAGES) {
+    alert('一条消息最多带 ' + MAX_REF_IMAGES + ' 张图');
+    return;
+  }
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) { alert('图片不能超过 ' + MAX_IMAGE_MB + 'MB'); return; }
 
   // 上传中的占位放进 state，切换对话也不会「看起来消失」
@@ -1816,6 +1911,17 @@ $('#barMore').addEventListener('click', () => {
   pop.addEventListener('mouseleave', hideDrawPanelSoon);
 })();
 
+/** 帧数 → 尺寸的联动提示，避免用户选了 16 帧才发现超预算 */
+function updateGifHint() {
+  const h = $('#gifAutoHint');
+  if (!h) return;
+  const f = Number($('#gifFrames').value) || 8;
+  const sz = gifSizeForFrames(f).replace('x', '×');
+  h.textContent = f <= 8
+    ? f + ' 帧 → ' + sz + '（在工具像素预算内）'
+    : f + ' 帧会自动降到 ' + sz + '，否则一定超像素预算被拒';
+}
+
 /* 画图设置 */
 function openDrawDialog() {
   const d = LS.draw;
@@ -1832,10 +1938,12 @@ function openDrawDialog() {
     for (let i = 2; i <= 16; i++) { const o = el('option', null, String(i)); o.value = String(i); f.append(o); }
   }
   f.value = String(d.frames);
+  updateGifHint();
   $('#gifDur').value = String(d.dur);
   $('#dlgDraw').hidden = false;
 }
 
+$('#gifFrames').addEventListener('change', updateGifHint);
 $('#drawCancel').addEventListener('click', () => { $('#dlgDraw').hidden = true; });
 $('#drawSave').addEventListener('click', () => {
   LS.draw = {
@@ -1854,12 +1962,29 @@ $('#drawSave').addEventListener('click', () => {
 });
 
 /**
+ * GIF 尺寸跟着帧数走：上游把帧拼成一张 sheet（4 列排布），
+ * sheet 长边 ≤3840、总像素 ≤8.29M，所以帧越多每帧必须越小。
+ * 实测：8 帧 @768² = 3072×1536 可以；16 帧 @768² = 3072×3072 超预算被拒。
+ * → ≤8 帧用 768²，9–16 帧用 512²（4×4 = 2048² 仍在预算内）
+ */
+function gifSizeForFrames(n) {
+  const f = Math.max(2, Math.min(16, Number(n) || 8));
+  return f <= 8 ? '768x768' : '512x512';
+}
+
+/** 单条消息最多带几张参考图（服务端每消息上限 6，这里留余量） */
+const MAX_REF_IMAGES = 4;
+
+/**
  * 决定这条消息走哪条路（纯函数，便于测试）
  * 规则：动图模式 > 关键词动图 > 画图模式 > 普通聊天
- * 返回 { route: 'gif' | 'draw' | 'chat', ref }
+ * 返回 { route: 'gif' | 'draw' | 'chat', ref } —— ref 是参考图数组，最多 4 张
  */
-function decideRoute({ text, hasAttach, attachUrl, gifMode, imageMode }) {
-  const ref = hasAttach ? attachUrl : null;
+function decideRoute({ text, hasAttach, attachUrl, attachUrls, gifMode, imageMode }) {
+  const list = Array.isArray(attachUrls) && attachUrls.length
+    ? attachUrls.filter(Boolean).slice(0, 4)
+    : (attachUrl ? [attachUrl] : []);
+  const ref = list.length ? list : null;
   const gifByWord = /(gif|动图|动画|动起来|会动的图)/i.test(text || '');
   if (gifMode || gifByWord) return { route: 'gif', ref };
   if (imageMode) return { route: 'draw', ref };
@@ -1893,10 +2018,12 @@ $('#composer').addEventListener('submit', async (e) => {
   const hasAttach = state.attachments.length > 0;
   if (!text && !hasAttach) return;
 
+  const attachUrls = state.attachments.map((a) => a.url);
   const decision = decideRoute({
     text,
     hasAttach,
     attachUrl: hasAttach ? state.attachments[0].url : null,
+    attachUrls,
     gifMode: state.gifMode,
     imageMode: state.imageMode,
   });
@@ -1912,12 +2039,12 @@ $('#composer').addEventListener('submit', async (e) => {
   setTimeout(repin, 80);
 
   if (decision.route === 'gif') {
-    sendChat(text || '把这张图做成动图', { draw: true, gif: true, refImage: decision.ref || undefined });
+    sendChat(text || '把这张图做成动图', { draw: true, gif: true, refImages: decision.ref || undefined });
     return;
   }
   if (decision.route === 'draw') {
     // 统一走对话模型 + 图像工具：能联系上文，也会自己写提示词
-    sendChat(text || '画一张图', { draw: true, refImage: decision.ref || undefined });
+    sendChat(text || '画一张图', { draw: true, refImages: decision.ref || undefined });
     return;
   }
   sendChat(text);
