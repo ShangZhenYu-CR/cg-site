@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 16:41';
+const APP_BUILD = '2026-11-11 16:48';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -945,30 +945,63 @@ function updateComposerMeta() {
   }
 }
 
+/** 模型的一句话定位（对应 Claude 菜单里的第二行说明） */
+function modelMeta(id) {
+  const m = String(id || '');
+  if (/astra/i.test(m)) return { badge: '高级', desc: '最强推理，适合复杂任务' };
+  if (/sol/i.test(m)) return { badge: '', desc: '通用主力，均衡稳定' };
+  if (/terra/i.test(m)) return { badge: '', desc: '更快更省，适合日常' };
+  if (/luna/i.test(m)) return { badge: '', desc: '最快最省，适合简单任务' };
+  return { badge: '', desc: '' };
+}
+
+let showAllModels = false;
+
 function renderModels() {
   const list = visibleModels();
   const box = $('#modelList');
   box.textContent = '';
-  const rec = RECOMMENDED.filter(m => list.includes(m));
-  const rest = list.filter(m => !rec.includes(m));
+  const rec = RECOMMENDED.filter((m) => list.includes(m));
+  const rows = showAllModels ? list : (rec.length ? rec : list);
 
-  const addGroup = (title, arr) => {
-    if (!arr.length) return;
-    if (title) box.append(el('h4', null, title));
-    for (const id of arr) {
-      const b = el('button', 'opt' + (id === LS.model ? ' on' : ''), labelOf(id));
-      b.addEventListener('click', () => { modelPinned = false; LS.model = id; renderModels(); renderEffort(); updateCtx(); persistSettings(); });
-      box.append(b);
-    }
-  };
-  addGroup('推荐', rec);
-  addGroup('全部', rest);
+  for (const id of rows) {
+    const meta = modelMeta(id);
+    const b = el('button', 'mp-item');
+    b.type = 'button';
+    const t = el('div', 't');
+    t.append(el('span', null, labelOf(id)));
+    if (meta.badge) t.append(el('span', 'badge', meta.badge));
+    if (id === LS.model) t.append(el('span', 'ck', '✓'));
+    b.append(t);
+    if (meta.desc) b.append(el('div', 'd', meta.desc));
+    b.addEventListener('click', () => {
+      modelPinned = false;
+      LS.model = id;
+      renderModels();
+      renderEffort();
+      updateCtx();
+      persistSettings();
+    });
+    box.append(b);
+  }
 
   if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = rec[0] || list[0];
   $('#modelName').textContent = labelOf(LS.model);
+  const mm = $('#moreModels');
+  if (mm) mm.firstElementChild.textContent = showAllModels ? '收起模型' : '更多模型';
+  const note = $('#mpNote');
+  if (note) note.textContent = canAstra() ? '模型越高越慢越贵；带图请求会自动省略推理档位。' : '高级模型需要高级口令。';
   updateComposerMeta();
   renderEffort();
 }
+
+const EFFORT_DESC = {
+  minimal: '最快，几乎不思考',
+  low: '轻量思考，响应快',
+  medium: '日常推荐，兼顾质量与速度',
+  high: '更详尽的推理，耗时更长',
+  max: '最深推理，用量达 5× 或以上',
+};
 
 function renderEffort() {
   const list = effortsFor(LS.model);
@@ -976,23 +1009,30 @@ function renderEffort() {
   if (idx < 0) idx = Math.max(0, list.indexOf('medium'));
   LS.effort = list[idx];
 
-  const range = $('#effRange');
-  range.max = String(Math.max(0, list.length - 1));
-  range.value = String(idx);
-
-  const ticks = $('#effTicks');
-  ticks.textContent = '';
-  list.forEach((e, i) => {
-    const s = el('span', i === idx ? 'on' : '', EFFORT_LABEL[e]);
-    s.style.cursor = 'pointer';
-    s.addEventListener('click', () => { LS.effort = e; renderEffort(); persistSettings(); });
-    ticks.append(s);
-  });
+  const box = $('#effList');
+  if (box) {
+    box.textContent = '';
+    for (const e of list) {
+      const b = el('button', 'eff-item');
+      b.type = 'button';
+      b.append(el('span', null, EFFORT_LABEL[e] || e));
+      if (e === 'medium') b.append(el('span', 'rec', '推荐'));
+      if (e === 'max') b.append(el('span', 'warn', '⚠ 用量达 5× 或以上'));
+      if (e === LS.effort) b.append(el('span', 'ck', '✓'));
+      b.title = EFFORT_DESC[e] || '';
+      b.addEventListener('click', () => {
+        LS.effort = e;
+        renderEffort();
+        persistSettings();
+        $('#effPop').hidden = true;
+      });
+      box.append(b);
+    }
+  }
 
   $('#effName').textContent = EFFORT_LABEL[LS.effort] || LS.effort;
   updateComposerMeta();
   $('#popEff').textContent = EFFORT_LABEL[LS.effort] || LS.effort;
-  $('#effHint').textContent = '这个模型最高到「' + EFFORT_LABEL[list[list.length - 1]] + '」。档位越高越慢、越贵。';
 }
 
 /* ---------------- 发送 ---------------- */
@@ -2049,11 +2089,17 @@ $('#meBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $(
 $('#plusBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#plusPop'); const h = p.hidden; closePops(); p.hidden = !h; });
 document.addEventListener('click', () => closePops());
 
-$('#effRange').addEventListener('input', (e) => {
-  const l = effortsFor(LS.model);
-  LS.effort = l[Number(e.target.value)] || l[0];
-  renderEffort();
-  persistSettings();
+/* 思考强度：点开子菜单（Claude 的二级面板），不再用滑杆 */
+$('#popEffRow').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const p = $('#effPop');
+  p.hidden = !p.hidden;
+});
+
+$('#moreModels').addEventListener('click', (e) => {
+  e.stopPropagation();
+  showAllModels = !showAllModels;
+  renderModels();
 });
 
 /* ---- 能力开关：默认不显示，开了才浮在输入框上方 ---- */

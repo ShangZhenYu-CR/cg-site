@@ -471,3 +471,26 @@ button,.nav-row,.kid,.proj,.chips button{transition:background 150ms ease,color 
 .ra-card:hover{background:var(--panel2);border-color:var(--color-line-strong,var(--line))}
 .ra-card .n{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ra-card .m{font-size:11px;color:var(--faint);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ---------- 模型菜单（Claude 结构） ---------- */
+.model-pop{width:340px;padding:6px;border-radius:16px}
+.mp-list{display:grid;gap:1px}
+.mp-item{display:block;width:100%;text-align:left;padding:9px 10px;border-radius:10px}
+.mp-item:hover{background:var(--panel2)}
+.mp-item .t{display:flex;align-items:center;gap:7px;font-size:15px;color:var(--text)}
+.mp-item .badge{font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--line);color:var(--faint);font-weight:400}
+.mp-item .d{font-size:12px;color:var(--faint);margin-top:2px}
+.mp-item .ck{margin-left:auto;color:var(--accent);font-size:14px}
+.mp-sep{height:1px;background:var(--line);margin:6px 4px}
+.mp-row{display:flex;justify-content:space-between;align-items:center;width:100%;padding:10px;border-radius:10px;font-size:14px;color:var(--text)}
+.mp-row:hover{background:var(--panel2)}
+.mp-right{display:flex;align-items:center;gap:6px;color:var(--faint);font-size:13px}
+.mp-right b{font-weight:400;color:var(--dim)}
+.chev{font-style:normal;font-size:15px;color:var(--faint)}
+.mp-note{font-size:11px;color:var(--faint);padding:8px 10px 6px;line-height:1.5}
+.eff-pop{position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);width:300px;padding:12px;border-radius:16px;z-index:5}
+.eff-desc{font-size:12px;color:var(--faint);margin:0 0 8px;line-height:1.55}
+.eff-item{display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border-radius:10px;font-size:14px;color:var(--text)}
+.eff-item:hover{background:var(--panel2)}
+.eff-item .rec{font-size:10px;padding:1px 6px;border-radius:999px;background:var(--panel2);color:var(--faint)}
+.eff-item .warn{font-size:11px;color:var(--warn)}
+.eff-item .ck{margin-left:auto;color:var(--accent)}

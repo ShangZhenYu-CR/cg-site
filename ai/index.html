@@ -171,14 +171,22 @@
 
 <input type="file" id="fileInput" accept="image/*" multiple hidden>
 
-<div class="pop" id="modelPop" hidden>
-  <h4>模型</h4>
-  <div id="modelList"></div>
-  <div class="sep"></div>
-  <div class="row"><span>推理强度</span><span id="popEff">中</span></div>
-  <input type="range" id="effRange" min="0" max="2" step="1" value="1">
-  <div class="ticks" id="effTicks"></div>
-  <div class="hint" id="effHint"></div>
+<div class="pop model-pop" id="modelPop" hidden>
+  <div id="modelList" class="mp-list"></div>
+  <div class="mp-sep"></div>
+  <button type="button" class="mp-row" id="popEffRow">
+    <span>思考强度</span><span class="mp-right"><b id="popEff">中</b><i class="chev">›</i></span>
+  </button>
+  <div class="mp-sep"></div>
+  <button type="button" class="mp-row" id="moreModels">
+    <span>更多模型</span><span class="mp-right"><i class="chev">›</i></span>
+  </button>
+  <div class="mp-note" id="mpNote"></div>
+
+  <div class="pop eff-pop" id="effPop" hidden>
+    <p class="eff-desc">投入程度越高，回复越详尽，但耗时越长，也会更快消耗额度。</p>
+    <div id="effList"></div>
+  </div>
 </div>
 
 <div class="pop" id="menuPop" hidden>
