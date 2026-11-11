@@ -527,8 +527,11 @@
 <!-- 命令面板（Ctrl+K） -->
 <div class="overlay pal-ov" id="dlgPal" hidden>
   <div class="pal">
-    <input id="palInput" placeholder="搜索对话，或输入 新建 / 模型 / 项目 / 文件…" autocomplete="off">
+    <div class="pal-head"><span>搜索</span><button type="button" id="palClose" title="关闭">✕</button></div>
+    <div class="pal-tabs" id="palTabs"></div>
+    <input id="palInput" placeholder="搜索对话、文件或动作…" autocomplete="off">
     <div class="pal-list" id="palList"></div>
+    <div class="pal-foot"><span>关闭 <b>Esc</b></span><span>切换类型 <b>Tab</b></span><span>执行 <b>↵</b></span></div>
   </div>
 </div>
 

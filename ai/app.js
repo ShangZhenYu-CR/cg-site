@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:30';
+const APP_BUILD = '2026-11-11 18:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -768,37 +768,85 @@ function palActions() {
   return acts;
 }
 
+const PAL_TABS = [['all', '全部'], ['conv', '会话'], ['file', '文件'], ['act', '动作']];
+let palTab = 'all';
+
+function renderPalTabs() {
+  const box = $('#palTabs');
+  if (!box) return;
+  box.textContent = '';
+  for (const [k, label] of PAL_TABS) {
+    const b = el('button', 'pal-tab' + (palTab === k ? ' on' : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', () => { palTab = k; renderPalTabs(); renderPalette($('#palInput').value); });
+    box.append(b);
+  }
+}
+
+function palSect(box, title) {
+  box.append(el('div', 'pal-sect', title));
+}
+
 function renderPalette(q) {
   const box = $('#palList');
   if (!box) return;
   const query = String(q || '').trim().toLowerCase();
   box.textContent = '';
   const hit = (s) => !query || String(s).toLowerCase().includes(query);
+  const want = (t) => palTab === 'all' || palTab === t;
 
-  for (const a of palActions()) {
-    if (!hit(a.label)) continue;
-    const b = el('button', 'pal-item');
-    b.type = 'button';
-    b.append(el('span', null, a.label));
-    if (a.key) b.append(el('span', 'k', a.key));
-    b.addEventListener('click', () => { closePalette(); a.run(); });
-    box.append(b);
+  if (want('act')) {
+    const acts = palActions().filter((a) => hit(a.label));
+    if (acts.length) {
+      palSect(box, '动作');
+      for (const a of acts) {
+        const b = el('button', 'pal-item');
+        b.type = 'button';
+        b.append(el('span', null, a.label));
+        if (a.key) b.append(el('span', 'k', a.key));
+        b.addEventListener('click', () => { closePalette(); a.run(); });
+        box.append(b);
+      }
+    }
   }
-  const convs = (state.convs || []).filter((c) => hit(c.title || '新对话') && !c.archived);
-  for (const cv of convs.slice(0, 8)) {
-    const b = el('button', 'pal-item');
-    b.type = 'button';
-    b.append(el('span', null, cv.title || '新对话'));
-    b.append(el('span', 'k', when(cv.updatedAt)));
-    b.addEventListener('click', () => {
-      closePalette();
-      state.view = 'chat';
-      state.currentId = cv.id;
-      applyConvSettings(cv);
-      renderAll();
-    });
-    box.append(b);
+
+  if (want('conv')) {
+    const convs = (state.convs || []).filter((c) => hit(c.title || '新对话') && !c.archived).slice(0, 12);
+    if (convs.length) {
+      palSect(box, '会话');
+      for (const cv of convs) {
+        const b = el('button', 'pal-item');
+        b.type = 'button';
+        b.append(el('span', null, cv.title || '新对话'));
+        b.append(el('span', 'k', when(cv.updatedAt)));
+        b.addEventListener('click', () => {
+          closePalette();
+          state.view = 'chat';
+          state.currentId = cv.id;
+          applyConvSettings(cv);
+          renderAll();
+        });
+        box.append(b);
+      }
+    }
   }
+
+  if (want('file')) {
+    const files = recentArtifacts(30).filter((it) => hit(it.name));
+    if (files.length) {
+      palSect(box, '文件');
+      for (const it of files.slice(0, 10)) {
+        const b = el('button', 'pal-item');
+        b.type = 'button';
+        b.append(el('span', null, it.name));
+        b.append(el('span', 'k', it.convTitle));
+        b.addEventListener('click', () => { closePalette(); openArtifact(it); });
+        box.append(b);
+      }
+    }
+  }
+
+  if (!box.querySelector('.pal-item')) box.append(el('div', 'pal-sect', '没有匹配项'));
   const first = box.querySelector('.pal-item');
   if (first) first.classList.add('on');
 }
@@ -808,6 +856,8 @@ function openPalette() {
   ov.hidden = false;
   const inputEl = $('#palInput');
   inputEl.value = '';
+  palTab = 'all';
+  renderPalTabs();
   renderPalette('');
   inputEl.focus();
 }
@@ -825,6 +875,7 @@ $('#palInput').addEventListener('keydown', (e) => {
   }
 });
 $('#dlgPal').addEventListener('click', (e) => { if (e.target.id === 'dlgPal') closePalette(); });
+$('#palClose').addEventListener('click', () => closePalette());
 $('#brandMenu').addEventListener('click', (e) => {
   e.stopPropagation();
   const p = $('#menuPop');

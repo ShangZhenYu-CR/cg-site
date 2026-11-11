@@ -630,8 +630,9 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .kn-row button{font-size:12px;color:var(--faint)}
 .kn-empty{font-size:12px;color:var(--faint);padding:2px 0 6px}
 /* ---------- 按 live Claude 实测校准（288 侧栏 / 32 行 / 672 输入框） ---------- */
-:root{--side-w:288px;--side-bg:#FAFAFA;--row-fill:rgba(0,0,0,.10);--label-ink:rgba(0,0,0,.6)}
+:root{--side-w:288px;--side-bg:#1A1915;--row-fill:rgba(255,255,255,.08);--label-ink:rgba(255,255,255,.58)}
 :root[data-theme="light"]{--side-w:288px;--side-bg:#FAFAFA;--row-fill:rgba(0,0,0,.10);--label-ink:rgba(0,0,0,.6)}
+:root[data-theme="dark"]{--side-bg:#1A1915;--row-fill:rgba(255,255,255,.08);--label-ink:rgba(255,255,255,.58)}
 #side{background:var(--side-bg);padding:8px}
 .side-head{padding:0 0 6px;gap:4px}
 .brand-row{height:32px;margin-bottom:2px}
@@ -739,3 +740,22 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .msg.ai .bd{font-family:var(--font-serif);font-size:15px;line-height:21px}
 .msg.ai .bd pre,.msg.ai .bd code,.msg.ai .bd .meta,.msg.ai .bd .acts,.msg.ai .bd .imgprompt{font-family:var(--font-sans)}
 .msg.user .bd{font-family:var(--font-sans)}
+/* 命令面板：对齐 Claude 的居中搜索面板 */
+.pal-ov{align-items:flex-start;padding-top:14vh}
+.pal{width:485px;max-width:94vw;border-radius:12px;box-shadow:0 12px 40px rgba(16,16,16,.16)}
+.pal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px;font-size:12px;color:var(--faint)}
+.pal-head button{width:22px;height:22px;border-radius:6px;color:var(--faint);display:grid;place-items:center}
+.pal-head button:hover{background:var(--panel2);color:var(--text)}
+.pal-tabs{display:flex;gap:2px;padding:0 10px 8px;flex-wrap:wrap}
+.pal-tab{font-size:12px;padding:4px 10px;border-radius:999px;color:var(--dim)}
+.pal-tab:hover{background:var(--panel2)}
+.pal-tab.on{background:color-mix(in srgb, var(--text) 10%, transparent);color:var(--text);font-weight:500}
+.pal input{height:40px;font-size:14px;border-bottom:1px solid var(--line)}
+.pal-list{max-height:min(46vh,380px);padding:6px}
+.pal-sect{font-size:11px;color:var(--faint);padding:8px 12px 4px}
+.pal-item{height:34px;font-size:14px;font-weight:435;gap:10px;padding:0 12px;border-radius:8px}
+.pal-item .k{font-size:11px;color:var(--faint)}
+.pal-foot{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)}
+.pal-foot b{font-weight:500;color:var(--dim)}
+.new-btn:hover{background:color-mix(in srgb, var(--text) 12%, transparent)}
+.kid.on{background:color-mix(in srgb, var(--text) 10%, transparent)}
