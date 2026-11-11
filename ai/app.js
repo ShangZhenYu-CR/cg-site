@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:13';
+const APP_BUILD = '2026-11-11 15:22';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -1969,9 +1969,11 @@ function renderDrawPanel() {
       const b = el('button', 'seg-btn' + (cur ? ' on' : ''), text);
       b.type = 'button';
       b.addEventListener('click', () => {
-        const nd = LS.draw;
+        const nd = Object.assign({}, LS.draw);
         nd[g.key] = g.key === 'n' ? Number(val) : val;
-        LS.draw = nd;
+        const { s, notes } = normalizeDraw(nd, g.key);
+        LS.draw = s;
+        if (notes.length) showToast(notes.join('<br>'));
         renderDrawPanel();
       });
       seg.append(b);
@@ -2024,14 +2026,107 @@ $('#barMore').addEventListener('click', () => {
   pop.addEventListener('mouseleave', hideDrawPanelSoon);
 })();
 
-/** 帧图集上限如实算给用户看，而不是写死一个数字 */
+/* ---------------- 参数冲突：自动降档 + 解释 ---------------- */
+let toastTimer = null;
+/** 全局小提示：参数被自动改小时说明原因 */
+function showToast(msg, ms) {
+  const t = $('#toast');
+  if (!t) return;
+  t.innerHTML = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, ms || 5200);
+}
+
+/** "1024x1024" → 像素数；auto/非法返回 0 */
+function sizePixels(s) {
+  const p = parseSize(s);
+  return p ? p.w * p.h : 0;
+}
+
+/** 给定尺寸最多能放几帧；返回 0 表示这个尺寸在任何帧数下都放不下 */
+function maxFramesForSize(size) {
+  if (!parseSize(size)) return 16;
+  const px = sizePixels(size);
+  for (let n = 16; n >= 2; n--) if (sizePixels(gifSizeForFrames(n)) >= px) return n;
+  return 0;
+}
+
+/**
+ * 把一组画图参数收敛成「上游一定接受」的组合，并解释为什么改。
+ * changed 表示用户刚动的是哪个字段，决定往哪边让步：
+ *  - 动帧数 → 降尺寸
+ *  - 动尺寸 → 降帧数
+ */
+function normalizeDraw(input, changed) {
+  const s = Object.assign({}, input);
+  const notes = [];
+  const model = String(s.model || '');
+
+  s.n = Math.min(10, Math.max(1, Number(s.n) || 1));
+  s.frames = Math.max(2, Math.min(16, Number(s.frames) || 8));
+
+  if ((s.quality === 'xhigh' || s.quality === 'max') && !/^gpt-image-2\.5/.test(model)) {
+    notes.push('xhigh / max 只有 2.5 系模型支持，质量已降为 <b>high</b>');
+    s.quality = 'high';
+  }
+  if (s.complexity && !/^gpt-image-2\.6/.test(model)) {
+    notes.push('complexity 是 2.6 系模型才有的参数，已清空');
+    s.complexity = '';
+  }
+  if (s.bg === 'transparent' && !['png', 'webp'].includes(s.format)) {
+    notes.push('透明背景只能输出 png / webp，格式已改为 <b>png</b>');
+    s.format = 'png';
+  }
+  if (s.format === 'gif' && s.n > 1) {
+    notes.push('GIF 只支持单张，张数已改为 <b>1</b>');
+    s.n = 1;
+  }
+  if (s.format === 'svg' && s.n > 1) {
+    notes.push('SVG 每次只能出 1 张，张数已改为 <b>1</b>');
+    s.n = 1;
+  }
+
+  if (s.format === 'gif') {
+    const want = s.size === 'custom' ? s.custom : s.size;
+    const applyCap = () => {
+      const capped = gifSizeForFrames(s.frames, want);
+      if (sizePixels(want) <= sizePixels(capped)) return;
+      const from = want.replace('x', '×');
+      const to = capped.replace('x', '×');
+      notes.push(s.frames + ' 帧时每帧上限 <b>' + to + '</b>（帧图集 ≤8,294,400 像素），尺寸已从 ' + from + ' 降到 ' + to);
+      s.custom = capped;
+      s.size = PRESET_SIZES.includes(capped) ? capped : 'custom';
+    };
+    if (parseSize(want)) {
+      const max = maxFramesForSize(want);
+      if (max === 0) {
+        // 这个尺寸任何帧数都放不下 → 降尺寸，保留帧数
+        applyCap();
+      } else if (changed === 'size' && s.frames > max) {
+        notes.push(want.replace('x', '×') + ' 最多 <b>' + max + ' 帧</b>（帧图集 ≤8,294,400 像素），帧数已从 ' + s.frames + ' 降到 ' + max);
+        s.frames = max;
+      } else if (changed !== 'size') {
+        applyCap();
+      }
+    }
+  }
+  return { s, notes };
+}
+
+/** 帧数 × 尺寸两个方向都提示，避免用户自己试错 */
 function updateGifHint() {
   const h = $('#gifAutoHint');
   if (!h) return;
   const f = Number($('#gifFrames').value) || 8;
   const requested = $('#drawSize').value === 'custom' ? $('#drawCustomSize').value : $('#drawSize').value;
-  const sz = gifSizeForFrames(f, requested).replace('x', '×');
-  h.textContent = '帧图集上限：长边 ≤3840、总像素 ≤8,294,400 → ' + f + ' 帧每帧最大 ' + sz;
+  if (!parseSize(requested)) {
+    h.textContent = '帧图集上限：长边 ≤3840、总像素 ≤8,294,400 → ' + f + ' 帧每帧最大 ' + gifSizeForFrames(f).replace('x', '×');
+    return;
+  }
+  const maxF = maxFramesForSize(requested);
+  const maxForF = gifSizeForFrames(f, requested).replace('x', '×');
+  h.textContent = '帧图集上限：' + f + ' 帧 → 每帧最大 ' + maxForF + '；' + requested.replace('x', '×') + ' → 最多 ' + maxF + ' 帧';
 }
 
 /** 自定义尺寸校验 + 张数费用提示 */
@@ -2053,75 +2148,102 @@ function updateDrawHints() {
   updateGifHint();
 }
 
-/** xhigh / max 只有 2.5 系支持，其它模型灰掉并回退 */
-function syncQualityOptions(model, cur) {
+/** xhigh / max 只有 2.5 系支持：这里只负责灰掉，改值交给 normalizeDraw（才带提示） */
+function syncQualityOptions(model) {
   const sel = $('#drawQuality');
   const advanced = /^gpt-image-2\.5/.test(model || '');
   for (const opt of sel.options) {
     if (opt.value !== 'xhigh' && opt.value !== 'max') continue;
     opt.disabled = !advanced;
   }
-  sel.value = (!advanced && (cur === 'xhigh' || cur === 'max')) ? 'high' : cur;
+}
+
+function readDrawForm() {
+  return {
+    model: $('#drawModel').value,
+    size: $('#drawSize').value,
+    custom: $('#drawCustomSize').value.trim(),
+    quality: $('#drawQuality').value,
+    complexity: $('#drawComplexity').value,
+    bg: $('#drawBg').value,
+    moderation: $('#drawModeration').value,
+    format: $('#drawFormat').value,
+    n: Number($('#drawN').value) || 1,
+    compression: Number($('#drawCompression').value),
+    frames: Number($('#gifFrames').value) || 8,
+    dur: Number($('#gifDur').value) || 150,
+  };
+}
+
+function writeDrawForm(s) {
+  $('#drawSize').value = s.size;
+  $('#drawCustomSize').value = s.custom || '';
+  $('#drawCustomSizeWrap').hidden = s.size !== 'custom';
+  $('#drawQuality').value = s.quality;
+  $('#drawComplexity').value = s.complexity || '';
+  $('#drawBg').value = s.bg || '';
+  $('#drawFormat').value = s.format;
+  $('#drawN').value = String(s.n);
+  $('#gifFrames').value = String(s.frames);
+}
+
+/** 任一字段变化：收敛参数 → 提示原因 → 刷新说明 */
+function onDrawField(key) {
+  const { s, notes } = normalizeDraw(readDrawForm(), key);
+  if (notes.length) writeDrawForm(s);
+  syncQualityOptions(s.model);
+  updateDrawHints();
+  if (notes.length) showToast(notes.join('<br>'));
 }
 
 /* 画图设置 */
 function openDrawDialog() {
   const d = LS.draw;
   $('#drawModel').value = d.model;
-  $('#drawSize').value = d.size;
   $('#drawBg').value = d.bg || '';
   $('#drawModeration').value = d.moderation || 'auto';
-  $('#drawFormat').value = d.format || 'png';
-  $('#drawComplexity').value = d.complexity || '';
-  $('#drawCustomSize').value = d.custom || '';
+  $('#drawCompression').value = String(d.compression != null ? d.compression : 100);
   const nSel = $('#drawN');
   if (!nSel.options.length) {
     for (let i = 1; i <= 10; i++) { const o = el('option', null, String(i)); o.value = String(i); nSel.append(o); }
   }
-  nSel.value = String(Math.min(10, Math.max(1, Number(d.n) || 1)));
-  $('#drawCompression').value = String(d.compression != null ? d.compression : 100);
   const f = $('#gifFrames');
   if (!f.options.length) {
     for (let i = 2; i <= 16; i++) { const o = el('option', null, String(i)); o.value = String(i); f.append(o); }
   }
-  f.value = String(d.frames);
   $('#gifDur').value = String(d.dur);
-  syncQualityOptions(d.model, d.quality);
+  writeDrawForm(Object.assign({ n: 1, frames: 8, format: 'png', quality: 'auto', complexity: '', size: '1024x1024', custom: '' }, d));
+  syncQualityOptions(d.model);
   updateDrawHints();
   $('#dlgDraw').hidden = false;
 }
 
-['#gifFrames', '#gifDur'].forEach((s) => $(s).addEventListener('change', updateDrawHints));
-['#drawSize', '#drawCustomSize', '#drawN'].forEach((s) => {
-  $(s).addEventListener('change', updateDrawHints);
-  $(s).addEventListener('input', updateDrawHints);
+const DRAW_FIELD_KEYS = {
+  '#drawModel': 'model', '#drawSize': 'size', '#drawCustomSize': 'size', '#drawN': 'n',
+  '#drawFormat': 'format', '#drawQuality': 'quality', '#drawComplexity': 'complexity',
+  '#drawBg': 'bg', '#gifFrames': 'frames', '#gifDur': 'dur',
+};
+Object.entries(DRAW_FIELD_KEYS).forEach(([sel, key]) => {
+  $(sel).addEventListener('change', () => onDrawField(key));
 });
-$('#drawModel').addEventListener('change', () => syncQualityOptions($('#drawModel').value, $('#drawQuality').value));
+['#drawCustomSize', '#drawN'].forEach((sel) => {
+  $(sel).addEventListener('input', () => onDrawField(DRAW_FIELD_KEYS[sel]));
+});
 $('#drawCancel').addEventListener('click', () => { $('#dlgDraw').hidden = true; });
 $('#drawSave').addEventListener('click', () => {
-  const size = $('#drawSize').value;
-  const custom = $('#drawCustomSize').value.trim();
-  if (size === 'custom' && !parseSize(custom)) {
+  const { s, notes } = normalizeDraw(readDrawForm(), 'save');
+  if (s.size === 'custom' && !parseSize(s.custom)) {
     alert('自定义尺寸要写成 宽x高（如 1536x864）：16 的倍数、单边 ≤3840、总像素 ≤8,294,400（约合 3840×2160）、比例 1:3–3:1');
     $('#drawCustomSize').focus();
     return;
   }
-  LS.draw = {
-    model: $('#drawModel').value,
-    size,
-    custom,
-    quality: $('#drawQuality').value,
-    complexity: $('#drawComplexity').value,
-    bg: $('#drawBg').value,
-    moderation: $('#drawModeration').value,
-    format: $('#drawFormat').value,
-    n: Math.min(10, Math.max(1, Number($('#drawN').value) || 1)),
-    compression: Number($('#drawCompression').value),
-    frames: Number($('#gifFrames').value) || 8,
-    dur: Number($('#gifDur').value) || 150,
-  };
+  LS.draw = s;
   $('#dlgDraw').hidden = true;
+  if (notes.length) showToast(notes.join('<br>'));
 });
+
+/** 尺寸下拉里的预设值；降档到别的值时要切到「自定义」，否则下拉会变空 */
+const PRESET_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536'];
 
 /** 单张图像素预算：实测硬限（3840×2160 正好等于它，2880×2880 也能过） */
 const SIZE_PIXEL_BUDGET = 8294400;
@@ -2157,9 +2279,10 @@ function gifSizeForFrames(n, want) {
   // 帧数向上取 2 的幂再排网格：长边 ≤3840、总像素 ≤8,294,400
   let cells = 1;
   while (cells < f) cells *= 2;
-  const layout = (cols) => [cols, Math.ceil(cells / cols)];
-  const grids = [layout(4), layout(Math.ceil(Math.sqrt(cells)))];
-  const cell = Math.min(...grids.map(([c, r]) => Math.min(3840 / Math.max(c, r), Math.sqrt(8294400 / cells))));
+  // 上游按 2 的幂做近似方形排布：2 帧 2×1、4 帧 2×2、8 帧 4×2、16 帧 4×4
+  const cols = Math.pow(2, Math.round(Math.log2(cells) / 2));
+  const rows = cells / cols;
+  const cell = Math.min(3840 / Math.max(cols, rows), Math.sqrt(8294400 / cells));
   const maxCell = Math.max(256, Math.floor(cell / 16) * 16);   // size 必须是 16 的倍数
   const wantMax = parseSize(want) ? Math.max(parseSize(want).w, parseSize(want).h) : 0;
   const side = wantMax ? Math.min(wantMax, maxCell) : maxCell;
