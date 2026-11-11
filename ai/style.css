@@ -1684,3 +1684,13 @@ html[data-theme="dark"] #side .side-collapse:hover,html[data-theme="dark"] #side
 #list .pkids{gap:2px;display:flex;flex-direction:column}
 #list .grp{margin-top:12px}
 
+
+/* 产物面板左缘拖拽条 */
+.art-resizer{position:absolute;left:0;top:0;bottom:0;width:8px;margin-left:-4px;cursor:col-resize;z-index:20;background:transparent}
+.art-resizer::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:1px;background:transparent;transition:background .12s}
+.art-resizer:hover::after,.art-resizing .art-resizer::after{background:color-mix(in srgb,var(--accent) 60%,transparent)}
+body.art-resizing{cursor:col-resize;user-select:none}
+body.art-resizing #main{transition:none!important}
+body.artopen #artPane{transition:width .12s var(--ease-out)}
+body.art-resizing #artPane{transition:none!important}
+

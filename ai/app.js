@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 02:07';
+const APP_BUILD = '2026-11-12 02:09';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4876,6 +4876,51 @@ function currentArtifactFile() {
   return files.find((f) => (f.name || '').endsWith(ext)) || files[0] || null;
 }
 
+/* 产物面板宽度：拖动左边缘可调，双击复位 */
+const ART_W_KEY = 'ai.artw';
+function applyArtWidth(w) {
+  const max = Math.round(window.innerWidth * 0.78);
+  const v = Math.max(360, Math.min(w, max));
+  document.body.style.setProperty('--art-w', v + 'px');
+  return v;
+}
+function initArtResizer() {
+  const pane = document.querySelector('#artPane');
+  if (!pane || pane.querySelector('.art-resizer')) return;
+  const saved = Number(localStorage.getItem(ART_W_KEY));
+  if (saved) applyArtWidth(saved);
+  const bar = el('div', 'art-resizer');
+  bar.title = '拖动调整宽度，双击复位';
+  pane.prepend(bar);
+  let dragging = false, startX = 0, startW = 0;
+  bar.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startW = pane.getBoundingClientRect().width;
+    bar.setPointerCapture(e.pointerId);
+    document.body.classList.add('art-resizing');
+    e.preventDefault();
+  });
+  bar.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    applyArtWidth(startW - (e.clientX - startX));
+  });
+  const stop = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('art-resizing');
+    try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+    const w = Math.round(pane.getBoundingClientRect().width);
+    try { localStorage.setItem(ART_W_KEY, String(w)); } catch (err) {}
+  };
+  bar.addEventListener('pointerup', stop);
+  bar.addEventListener('pointercancel', stop);
+  bar.addEventListener('dblclick', () => {
+    document.body.style.removeProperty('--art-w');
+    try { localStorage.removeItem(ART_W_KEY); } catch (err) {}
+    flashHint('宽度已复位');
+  });
+}
 function openArtifactPane(kind, name) {
   artKind = kind;
   artName = name || ('未命名' + (ART_KINDS[kind] ? ART_KINDS[kind].ext : '.md'));
@@ -4883,6 +4928,7 @@ function openArtifactPane(kind, name) {
   if (!pane) return;
   pane.hidden = false;
   document.body.classList.add('artopen');
+  initArtResizer();
   $('#artKind').textContent = ART_KINDS[kind] ? ART_KINDS[kind].label : '产物';
   $('#artPublish').hidden = kind !== 'design';
   const dsBtn = $('#artDesignSystem');
