@@ -672,3 +672,19 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .composer.has-text .send{display:grid}
 .composer{border:1px solid var(--line)}
 .composer:focus-within{border-color:var(--accent)}
+/* 侧栏底部：Claude 是一行「头像 + 名字 · 套餐 + 右侧图标」，高度 44 */
+.side-foot{border-top:1px solid var(--line);padding:4px 0 0}
+.me-row{display:flex;align-items:center;gap:6px;height:44px}
+.me{flex:1;display:flex;align-items:center;gap:8px;padding:0 6px;border-radius:8px;min-width:0}
+.me:hover{background:var(--panel2)}
+.me .avatar{width:24px;height:24px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:600;background:var(--brand);color:#fff;flex:0 0 24px}
+.me .who{display:flex;align-items:center;gap:4px;min-width:0;font-size:14px;font-weight:435}
+.me .name{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me .role{color:var(--faint);white-space:nowrap}
+.me .tag{font-size:10px;padding:0 5px;border-radius:999px;border:1px solid var(--line);color:var(--faint)}
+.theme-btn{width:28px;height:28px;border-radius:8px;color:var(--faint);display:grid;place-items:center}
+.theme-btn:hover{background:var(--panel2);color:var(--text)}
+.side-foot{padding:0}
+.me-row{height:44px}
+.me .tag{display:none}
+.me .chev-s{color:var(--faint);font-size:11px;margin-left:2px}

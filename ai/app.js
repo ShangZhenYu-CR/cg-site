@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:12';
+const APP_BUILD = '2026-11-11 18:14';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -273,7 +273,7 @@ function renderIdentity() {
   $('#meAvatar').textContent = (LS.name || '?').slice(0, 1);
   const r = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
   $('#meRole').textContent = r; $('#meRole').hidden = !r;
-  $('#meHint').textContent = 'Free · 自建站' + (isAdmin() ? ' · 管理员' : '');
+  $('#meHint').textContent = '· Free';
 }
 
 /* ---------------- 主题（跟随系统 / 浅色 / 深色） ---------------- */
@@ -2420,7 +2420,7 @@ function placeAbove(pop, anchor, align) {
 
 function openModelMenu() {
   const p = $('#modelPop');
-  const anchor = $('#metaModel') && $('#metaModel').offsetParent ? $('#metaModel') : $('#modelBtn');
+  const anchor = $('#cmModel') || $('#modelBtn');
   closePops();
   placeAbove(p, anchor, 'right');
 }
@@ -3067,7 +3067,7 @@ input.addEventListener('input', () => {
 });
 syncSendVisible();
 
-for (const sel of ['#cmModel', '#metaModel']) {
+for (const sel of ['#cmModel']) {
   const btn = document.querySelector(sel);
   if (!btn) continue;
   btn.addEventListener('click', (e) => {
