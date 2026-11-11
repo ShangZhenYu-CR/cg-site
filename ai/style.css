@@ -556,3 +556,11 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .mp-item.retired .t{color:var(--dim)}
 .mp-item.retired .d{opacity:.75}
 .mp-item .badge.legacy{color:var(--faint);border-color:var(--line);background:transparent}
+/* 输入框下方元信息：模型近黑 + 档位弱灰（Claude 样式） */
+.composer-meta{font-size:14px;flex-wrap:nowrap}
+#metaModel{display:inline-flex;align-items:baseline;gap:8px;white-space:nowrap;flex:0 0 auto;font-size:14px}
+#metaModel .mm,#metaModel .me{white-space:nowrap}
+#metaModel .mm{color:var(--text)}
+#metaModel .me{color:var(--faint)}
+#metaProject{display:inline-flex;align-items:center;gap:4px;color:var(--dim)}
+#metaProject .chev-s{font-size:11px;color:var(--faint)}

@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:19';
+const APP_BUILD = '2026-11-11 17:21';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -989,14 +989,15 @@ function visibleModels() {
 function updateComposerMeta() {
   const m = $('#metaModel');
   if (m) {
-    m.textContent = labelOf(LS.model) + ' · ' + (EFFORT_LABEL[LS.effort] || LS.effort);
+    // 模型名近黑、档位弱灰（对齐 Claude：Sonnet 5.5 中等）
+    m.innerHTML = '<span class="mm">' + esc(labelOf(LS.model)) + '</span><span class="me">' + esc(EFFORT_LABEL[LS.effort] || LS.effort) + '</span>';
     m.title = '点这里切换模型 / 努力度';
   }
   const p = $('#metaProject');
   if (p) {
     const cv = current();
     const proj = cv && cv.projectId ? (state.projects || []).find((x) => x.id === cv.projectId) : null;
-    p.textContent = proj ? proj.name : '未归档';
+    p.innerHTML = '<span class="pm">' + esc(proj ? proj.name : '项目') + '</span><span class="chev-s">⌄</span>';
   }
 }
 
