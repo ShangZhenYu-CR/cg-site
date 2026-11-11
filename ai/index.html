@@ -229,6 +229,24 @@
   </main>
 </div>
 
+<!-- 产物面板（文档 / 幻灯片 / 设计） -->
+<aside id="artPane" hidden>
+  <div class="art-head">
+    <div class="art-title-wrap">
+      <span class="art-kind" id="artKind">文档</span>
+      <input class="art-title" id="artTitle" spellcheck="false" />
+    </div>
+    <div class="art-acts">
+      <button class="icon" id="artAsk" title="让 AI 改">✦</button>
+      <button class="icon" id="artExport" title="导出">⇩</button>
+      <button class="icon" id="artExpand" title="放大">⤢</button>
+      <button class="icon" id="artClose" title="关闭">✕</button>
+    </div>
+  </div>
+  <div class="art-body" id="artBody"></div>
+  <div class="art-foot"><span class="art-hint" id="artHint"></span></div>
+</aside>
+
 <!-- 代码面板 -->
 <aside id="codepane" hidden>
   <div class="code-resizer" id="codeResizer" title="拖动调整宽度"></div>

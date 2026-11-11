@@ -1242,3 +1242,47 @@ body.in-project .top .title::after{content:'⌄';font-size:11px;color:var(--fain
 .mem-tier{flex:none;font-size:10px;padding:1px 6px;border-radius:999px;background:var(--panel2);color:var(--dim)}
 .mem-tier.deep{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
 
+
+/* 产物面板：文档 / 幻灯片 / 设计（对齐 Claude 右侧编辑器） */
+#artPane{position:fixed;right:0;top:0;bottom:0;width:min(720px,46vw);background:var(--bg);border-left:1px solid var(--line);display:flex;flex-direction:column;z-index:40}
+#artPane[hidden]{display:none}
+#artPane.wide{width:min(1100px,72vw)}
+body.artopen #main{margin-right:min(720px,46vw)}
+body.artopen #artPane.wide ~ #main{margin-right:min(1100px,72vw)}
+.art-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);flex:none}
+.art-title-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.art-kind{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel2);color:var(--dim);flex:none}
+.art-title{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:14px;font-weight:500;color:var(--text);outline:none;padding:4px 2px;border-radius:6px}
+.art-title:focus{background:var(--panel2)}
+.art-acts{display:flex;gap:2px;flex:none}
+.art-body{flex:1;overflow:auto;padding:0}
+.art-foot{flex:none;height:32px;display:flex;align-items:center;padding:0 12px;border-top:1px solid var(--line);font-size:12px;color:var(--faint)}
+.art-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;padding:40px 24px;text-align:center}
+.art-empty-t{font-size:18px;font-weight:500;color:var(--text)}
+.art-empty-d{font-size:13px;color:var(--faint);line-height:1.7;max-width:420px}
+/* 文档：左编辑右预览 */
+.art-doc{display:grid;grid-template-columns:1fr 1fr;height:100%}
+.art-md{width:100%;height:100%;border:0;border-right:1px solid var(--line);padding:20px 18px;background:transparent;color:var(--text);font:14px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;resize:none;outline:none}
+.art-preview{padding:20px 22px;overflow:auto;font-size:15px;line-height:1.7}
+/* 幻灯片 */
+.art-deck{display:grid;grid-template-columns:132px 1fr;height:100%}
+.deck-rail{border-right:1px solid var(--line);overflow:auto;padding:10px 8px;display:flex;flex-direction:column;gap:6px}
+.deck-thumb{display:flex;gap:6px;align-items:center;text-align:left;padding:6px;border-radius:8px;font-size:12px;color:var(--dim)}
+.deck-thumb:hover{background:var(--panel2)}
+.deck-thumb.on{background:color-mix(in srgb,var(--text) 8%,transparent);color:var(--text)}
+.dt-n{width:18px;height:18px;display:grid;place-items:center;border-radius:4px;background:var(--panel2);font-size:10px;flex:none}
+.dt-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.deck-stage{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:10px;overflow:auto}
+.slide{width:100%;max-width:640px;aspect-ratio:16/9;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:32px 36px;display:flex;flex-direction:column;gap:14px;justify-content:center}
+.slide-title{font-family:var(--font-serif);font-size:26px;font-weight:500;color:var(--text)}
+.slide-bullets{margin:0;padding-left:18px;color:var(--dim);font-size:15px;line-height:1.8}
+.deck-page{font-size:12px;color:var(--faint)}
+/* 设计 */
+.art-design{height:100%;padding:0}
+.design-frame{width:100%;height:100%;border:0;background:#fff}
+@media (max-width:900px){#artPane{width:100vw}body.artopen #main{margin-right:0}}
+
+
+.art-start{margin-top:6px;height:30px;padding:0 14px;border-radius:8px;border:1px solid var(--line);font-size:13px;color:var(--text)}
+.art-start:hover{background:var(--panel2)}
+

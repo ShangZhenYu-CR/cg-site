@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:38';
+const APP_BUILD = '2026-11-11 21:49';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -827,6 +827,7 @@ async function saveConv(conv, extra) {
     files: conv.files || [],
     settings: conv.settings || {},
     archived: !!conv.archived,
+    artifact: conv.artifact || null,
     ...(extra || {}),
   };
   try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {} finally { state.saving = false; }
@@ -2410,8 +2411,9 @@ function hideThinking() {
         ...(drawMode
           ? { imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wa }
           : { effort }),
-        codeMode: state.codeMode,
+        codeMode: state.codeMode || !!cv.artifact,
         fileNames: (cv.files || []).map(f => f.name),
+        artifact: cv.artifact || undefined,
         messages: sentMessages(cv).map(m => ({
           role: m.role,
           text: m.text,
@@ -2559,6 +2561,8 @@ function hideThinking() {
     await saveConv(cv);
     setBusy(false);
     renderAll();
+    // 模型写完文件后，右侧产物面板跟着刷新
+    if (!$('#artPane').hidden) renderArtifact();
     scheduleUsage();
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   }
@@ -4291,6 +4295,33 @@ function showProjects() {
 }
 
 /* 图片加载失败时不再回退老桶 */
+$('#artClose').addEventListener('click', closeArtifactPane);
+$('#artTitle').addEventListener('change', async () => {
+  const cv = current();
+  if (!cv) return;
+  const f = currentArtifactFile();
+  if (!f) return;
+  const next = $('#artTitle').value.trim() || artName;
+  f.name = next;
+  artName = next;
+  await saveConv(cv);
+  renderArtifact();
+});
+$('#artAsk').addEventListener('click', () => { input.focus(); flashHint('在左边说一句要我改什么'); });
+$('#artExport').addEventListener('click', () => {
+  const f = currentArtifactFile();
+  if (!f) { flashHint('还没有内容'); return; }
+  const blob = new Blob([f.content || ''], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = artName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+$('#artExpand').addEventListener('click', () => {
+  const pane = $('#artPane');
+  pane.classList.toggle('wide');
+});
 /* ---------------- 项目详情（对齐 Claude） ---------------- */
 /* 顶栏：项目视图才显示的搜索/收藏 */
 $('#topSearch').addEventListener('click', () => { $('#q').focus(); $('#q').select && $('#q').select(); });
@@ -4400,6 +4431,149 @@ function renderProjectDetail() {
     list.append(empty);
   }
 }
+/* ---------------- 产物面板：文档 / 幻灯片 / 设计 ---------------- */
+const ART_KINDS = {
+  doc: { label: '文档', ext: '.md', tip: '把想法写下来，或者让我来写：直接在左边发一句「写一份……」，我会把内容放进这份文档。' },
+  deck: { label: '幻灯片', ext: '.deck.json', tip: '一句话说清主题（比如「给团队讲一下新插件」），我按每页标题 + 要点写成分页。' },
+  design: { label: '设计', ext: '.html', tip: '描述你要的页面（比如「一个深色落地页」），我输出可以直接看的 HTML。' },
+};
+
+let artKind = 'doc';
+let artName = '';
+
+function currentArtifactFile() {
+  const cv = current();
+  if (!cv) return null;
+  return (cv.files || []).find((f) => f && (f.name || '').startsWith(artName)) || null;
+}
+
+function openArtifactPane(kind, name) {
+  artKind = kind;
+  artName = name || ('未命名' + (ART_KINDS[kind] ? ART_KINDS[kind].ext : '.md'));
+  const pane = $('#artPane');
+  if (!pane) return;
+  pane.hidden = false;
+  document.body.classList.add('artopen');
+  $('#artKind').textContent = ART_KINDS[kind] ? ART_KINDS[kind].label : '产物';
+  $('#artTitle').value = artName;
+  renderArtifact();
+}
+
+function closeArtifactPane() {
+  const pane = $('#artPane');
+  if (pane) pane.hidden = true;
+  document.body.classList.remove('artopen');
+}
+
+function renderArtifact() {
+  const body = $('#artBody');
+  if (!body) return;
+  body.textContent = '';
+  const file = currentArtifactFile();
+  const hint = $('#artHint');
+  if (hint) hint.textContent = file ? (ART_KINDS[artKind] || {}).label + ' · ' + artName : '';
+  const empty = !file || !String(file.content || '').trim() || (artKind === 'deck' && parseDeck(file).slides.length === 0);
+  if (empty) {
+    body.append(emptyArtifactState(file));
+    if (artKind === 'doc' && file) {
+      const start = el('button', 'art-start', '开始写');
+      start.type = 'button';
+      start.addEventListener('click', () => {
+        body.textContent = '';
+        renderDoc(body, file);
+        const ta = body.querySelector('.art-md');
+        if (ta) ta.focus();
+      });
+      body.querySelector('.art-empty').append(start);
+    }
+    return;
+  }
+  if (artKind === 'deck') renderDeck(body, file);
+  else if (artKind === 'design') renderDesign(body, file);
+  else renderDoc(body, file);
+}
+
+/** 文档：可编辑 markdown，右侧实时预览 */
+function renderDoc(body, file) {
+  const wrap = el('div', 'art-doc');
+  const ta = el('textarea', 'art-md');
+  ta.value = file.content || '';
+  ta.spellcheck = false;
+  const prev = el('div', 'art-preview bd');
+  prev.innerHTML = md(file.content || '');
+  let timer = 0;
+  ta.addEventListener('input', () => {
+    file.content = ta.value;
+    clearTimeout(timer);
+    timer = setTimeout(() => { prev.innerHTML = md(file.content || ''); hydrateCalcs(prev); }, 250);
+  });
+  ta.addEventListener('blur', () => { const cv = current(); if (cv) saveConv(cv).catch(() => {}); });
+  wrap.append(ta, prev);
+  body.append(wrap);
+}
+
+/** 幻灯片：左缩略图 + 右画布；数据是 {slides:[{title,bullets}]} */
+function parseDeck(file) {
+  try {
+    const j = JSON.parse(file.content || '{}');
+    if (Array.isArray(j.slides)) return j;
+  } catch (e) {}
+  return { slides: [] };
+}
+
+function renderDeck(body, file) {
+  const deck = parseDeck(file);
+  const wrap = el('div', 'art-deck');
+  const rail = el('div', 'deck-rail');
+  const stage = el('div', 'deck-stage');
+  let current = 0;
+  const paint = () => {
+    stage.textContent = '';
+    const s = deck.slides[current] || { title: '（空页）', bullets: [] };
+    const slide = el('div', 'slide');
+    slide.append(el('div', 'slide-title', s.title || ''));
+    const ul = el('ul', 'slide-bullets');
+    for (const b of (s.bullets || [])) ul.append(el('li', null, b));
+    slide.append(ul);
+    stage.append(slide);
+    stage.append(el('div', 'deck-page', (current + 1) + ' / ' + Math.max(1, deck.slides.length)));
+    for (const [i, n] of [...rail.children].entries()) n.classList.toggle('on', i === current);
+  };
+  deck.slides.forEach((s, i) => {
+    const th = el('button', 'deck-thumb');
+    th.type = 'button';
+    th.append(el('div', 'dt-n', String(i + 1)));
+    th.append(el('div', 'dt-t', s.title || '（空页）'));
+    th.addEventListener('click', () => { current = i; paint(); });
+    rail.append(th);
+  });
+  wrap.append(rail, stage);
+  body.append(wrap);
+  paint();
+}
+
+/** 设计：直接渲染 HTML（沙箱 iframe） */
+function renderDesign(body, file) {
+  const wrap = el('div', 'art-design');
+  const frame = document.createElement('iframe');
+  frame.className = 'design-frame';
+  frame.setAttribute('sandbox', 'allow-scripts');
+  frame.srcdoc = String(file.content || '<!doctype html><body style="font:15px system-ui;padding:24px;color:#888">还没有内容——在左边描述你要的页面，我会输出 HTML。</body>');
+  wrap.append(frame);
+  body.append(wrap);
+}
+function emptyArtifactState() {
+  const box = el('div', 'art-empty');
+  const titles = { doc: '把想法变成文档', deck: '一句话变成幻灯片', design: '描述一个页面设计' };
+  const subs = {
+    doc: '左边直接发一句「写一份……」，内容会落进这份文档；也可以点「开始写」自己动手。',
+    deck: '左边说一句主题（比如「给团队讲新插件」），我按「每页标题 + 三条要点」写成分页。',
+    design: '左边描述你要的页面（比如「深色落地页，产品是本地 AI 助手」），我输出能直接看的 HTML。',
+  };
+  box.append(el('div', 'art-empty-t', titles[artKind] || '还没内容'));
+  box.append(el('div', 'art-empty-d', subs[artKind] || ''));
+  return box;
+}
 /* ---------------- 图库 ---------------- */
 /** 汇总所有对话里的图片（用户贴的 + 模型生成的），最近的在前 */
 function allImages(limit) {
@@ -4505,10 +4679,19 @@ function renderMakeNew() {
       state.view = 'chat';
       const cv = await createConv();
       if (!cv) return;
+      const kind = name === '文档' ? 'doc' : name === '幻灯片' ? 'deck' : 'design';
+      const meta = ART_KINDS[kind];
+      const fname = '未命名' + meta.ext;
+      cv.files = cv.files || [];
+      cv.files.push({ name: fname, content: kind === 'deck' ? '{"slides":[]}' : '', updatedAt: Date.now() });
+      cv.artifact = { kind, name: fname };
+      cv.codeMode = true;
+      await saveConv(cv);
+      openArtifactPane(kind, fname);
       input.value = promptText;
       input.focus();
       renderAll();
-      flashHint('已新建对话，按 Enter 发送');
+      flashHint('左边写需求，右边就是 ' + meta.label);
     });
     box.append(b);
   }
