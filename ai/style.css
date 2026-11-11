@@ -1314,3 +1314,18 @@ body.artfull .app{margin-right:0}
 #artPane.expanded .art-body{background:var(--bg)}
 body.artfull #side,body.artfull #main{visibility:hidden}
 
+
+/* 全屏时幻灯片跟着放大（保持 16:9，同时不超出高度） */
+#artPane.expanded .deck-stage{padding:24px 32px 12px}
+#artPane.expanded .slide{
+  width:min(92vw, calc((100vh - 210px) * 16 / 9));
+  max-width:none;
+  padding:clamp(28px, 4vh, 64px) clamp(32px, 4vw, 80px);
+  gap:clamp(14px, 2vh, 28px);
+}
+#artPane.expanded .slide-title{font-size:clamp(26px, 3.4vw, 54px);line-height:1.25}
+#artPane.expanded .slide-bullets{font-size:clamp(15px, 1.55vw, 26px);line-height:1.75;padding-left:clamp(18px, 2vw, 32px)}
+#artPane.expanded .deck-page{font-size:14px}
+/* 全屏时缩略图轨道也宽一点 */
+#artPane.expanded .art-deck{grid-template-columns:180px 1fr}
+
