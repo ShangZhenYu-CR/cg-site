@@ -1304,3 +1304,13 @@ body.artopen #artPane.wide ~ #main{margin-right:min(1100px,72vw)}
 
 .plug-warn{font-size:11px;color:var(--faint);margin-left:4px}
 
+
+/* 产物面板：真正全屏（覆盖整页），并让主区让位 */
+body{--art-w:min(720px,46vw)}
+body.artopen .app{margin-right:var(--art-w);transition:margin-right .16s var(--ease-out)}
+body.artfull .app{margin-right:0}
+#artPane{width:var(--art-w)}
+#artPane.expanded{position:fixed;inset:0;width:100vw!important;max-width:none;z-index:120;box-shadow:none}
+#artPane.expanded .art-body{background:var(--bg)}
+body.artfull #side,body.artfull #main{visibility:hidden}
+

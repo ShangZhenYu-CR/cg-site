@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:36';
+const APP_BUILD = '2026-11-11 22:41';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4347,10 +4347,15 @@ $('#artExport').addEventListener('click', () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 });
-$('#artExpand').addEventListener('click', () => {
+function toggleArtFull() {
   const pane = $('#artPane');
-  pane.classList.toggle('wide');
-});
+  if (!pane) return;
+  const on = pane.classList.toggle('expanded');
+  document.body.classList.toggle('artfull', on);
+  $('#artExpand').textContent = on ? '⤡' : '⤢';
+  $('#artExpand').title = on ? '退出全屏' : '放大';
+}
+$('#artExpand').addEventListener('click', toggleArtFull);
 /* ---------------- 项目详情（对齐 Claude） ---------------- */
 /* 顶栏：项目视图才显示的搜索/收藏 */
 $('#topSearch').addEventListener('click', () => { $('#q').focus(); $('#q').select && $('#q').select(); });
@@ -4491,8 +4496,9 @@ function openArtifactPane(kind, name) {
 
 function closeArtifactPane() {
   const pane = $('#artPane');
-  if (pane) pane.hidden = true;
-  document.body.classList.remove('artopen');
+  if (pane) { pane.hidden = true; pane.classList.remove('expanded'); }
+  document.body.classList.remove('artopen', 'artfull');
+  const btn = $('#artExpand'); if (btn) { btn.textContent = '⤢'; btn.title = '放大'; }
 }
 
 function renderArtifact() {
@@ -4927,7 +4933,8 @@ document.addEventListener('keydown', (e) => {
     if (!$('#dlgPal').hidden) { closePalette(); return; }
     const openDlg = [...document.querySelectorAll('.overlay')].find((o) => !o.hidden && o.id !== 'dlgLogin');
     if (openDlg) { openDlg.hidden = true; return; }
-    if (document.body.classList.contains('coding') && !$('#codepane').hidden) { setCap('code', false); return; }
+    if (document.body.classList.contains('artfull')) { toggleArtFull(); return; }
+  if (document.body.classList.contains('coding') && !$('#codepane').hidden) { setCap('code', false); return; }
     closePops();
   }
 });
