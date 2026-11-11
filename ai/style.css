@@ -1715,3 +1715,10 @@ body.side-resizing #app{transition:none!important}
 .art-head .design-tabs{margin-left:auto;padding:0;border:0;flex:none}
 .art-body{display:flex;flex-direction:column}
 
+
+/* 放大时不要过渡宽度：否则第一帧会先冲出去再收回 */
+body.artopen #artPane{transition:none!important}
+#artPane.expanded{transition:none!important}
+body.artfull #app,body.artfull #main{transition:none!important}
+/* 打开/关闭只让主区滑动，面板本身直接到位 */
+
