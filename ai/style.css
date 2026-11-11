@@ -719,3 +719,19 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* 文件页卡片 */
 .pp-card .n .ftype{font-size:10px;font-weight:500;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 4px;letter-spacing:.02em}
 #filesPage .pp-card{border-radius:14px}
+/* ---------- 第 5 轮：meta 13px、代码块、流式光标 ---------- */
+.composer-meta{font-size:13px;color:var(--faint)}
+#metaProject{font-size:13px}
+.msg .bd pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:13px;line-height:20px}
+.msg .bd pre code{background:none;border:0;padding:0;font-size:13px}
+.msg .bd code{font-size:13px}
+.msg .bd h1,.msg .bd h2,.msg .bd h3{font-weight:600;line-height:1.35;margin:18px 0 8px}
+.msg .bd h1{font-size:20px}
+.msg .bd h2{font-size:17px}
+.msg .bd h3{font-size:15px}
+.msg .bd ul,.msg .bd ol{margin:0 0 10px;padding-left:22px}
+.msg .bd li{margin:2px 0}
+.msg .bd blockquote{margin:0 0 10px;padding:2px 0 2px 12px;border-left:2px solid var(--line);color:var(--dim)}
+/* 流式中：末尾一个脉动光标 */
+.msg.streaming .bd > div:last-child::after{content:'▍';margin-left:2px;color:var(--brand);animation:caret 1s steps(2) infinite}
+@keyframes caret{0%,50%{opacity:1}50.01%,100%{opacity:0}}
