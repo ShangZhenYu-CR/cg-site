@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:10';
+const APP_BUILD = '2026-11-11 23:18';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -411,7 +411,12 @@ function md(src) {
         try { b64 = btoa(unescape(encodeURIComponent(codeTxt))); } catch (e) { b64 = ''; }
         out.push('<div class="calc" data-code="' + b64 + '">计算中…</div>');
       }
-      else out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
+      else {
+        const code = buf.join('\n');
+        out.push('<div class="pre-wrap"><div class="pre-head"><span class="pre-lang">' + esc(lang || 'text') + '</span>'
+          + '<button type="button" class="pre-copy" data-code="' + encodeURIComponent(code).replace(/"/g, '&quot;') + '">复制</button></div>'
+          + '<pre><code>' + esc(code) + '</code></pre></div>');
+      }
       continue;
     }
     if (!line.trim()) { flush(); i++; continue; }
@@ -1029,10 +1034,16 @@ function renderSide() {
     row.innerHTML = '<span class="pico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>'
       + '<span class="pn">' + esc(p.name) + '</span>'
       + '<span class="pchev">›</span>';
-    row.title = p.name;
-    row.addEventListener('click', () => {
-      if (state.open && state.open[p.id] !== undefined) { state.open[p.id] = !open; renderSide(); return; }
-      openProject(p.id);
+    row.title = p.name + '（点名字进项目，点箭头展开）';
+    row.addEventListener('click', (e) => {
+      const onChevron = e.target && e.target.closest && e.target.closest('.pchev');
+      if (onChevron) {                       // 只有箭头负责折叠
+        state.open = state.open || {};
+        state.open[p.id] = !open;
+        renderSide();
+        return;
+      }
+      openProject(p.id);                     // 点名字 = 进项目页
     });
     row.addEventListener('dblclick', () => openProjectDialog(p));
     listBox.append(row);
@@ -1716,6 +1727,20 @@ function bubble(m, idx) {
     regen.title = '从这条开始重新回答';
     regen.addEventListener('click', () => regenerateFrom(idx));
     acts.append(regen);
+    // 用户消息额外给「编辑」：把原文放回输入框，改完重发（Claude 的 Edit）
+    if (isUser) {
+      const edit = el('button', null, '编辑');
+      edit.type = 'button';
+      edit.title = '把这条放回输入框修改';
+      edit.addEventListener('click', () => {
+        input.value = m.text || '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        flashHint('已放回输入框，改完按 Enter 重发');
+      });
+      acts.append(edit);
+    }
     bd.append(acts);
   }
 
@@ -5431,3 +5456,20 @@ async function boot() {
 }
 
 boot();
+
+/* 代码块复制（事件委托，流式重绘也能用） */
+document.addEventListener('click', async (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('.pre-copy');
+  if (!btn) return;
+  const raw = btn.getAttribute('data-code') || '';
+  let text = '';
+  try { text = decodeURIComponent(raw); } catch (err) { text = raw; }
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = '已复制';
+    setTimeout(() => { btn.textContent = '复制'; }, 1200);
+  } catch (err) {
+    flashHint('复制失败');
+  }
+});
+

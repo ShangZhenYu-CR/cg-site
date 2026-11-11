@@ -1394,3 +1394,16 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 .art-chip{height:24px;padding:0 8px;border-radius:6px;font-size:12px;color:var(--dim)}
 .art-chip:hover{background:var(--panel2);color:var(--text)}
 
+
+.prow .pchev{padding:2px 4px;border-radius:4px;cursor:pointer}
+.prow .pchev:hover{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text)}
+
+
+/* 代码块头部（语言 + 复制） */
+.pre-wrap{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:12px 0;background:var(--code-bg)}
+.pre-wrap pre{margin:0;border:0;border-radius:0;background:transparent}
+.pre-head{display:flex;align-items:center;justify-content:space-between;height:28px;padding:0 8px 0 12px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.pre-lang{font-size:11px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.pre-copy{height:22px;padding:0 8px;border-radius:6px;font-size:11px;color:var(--dim)}
+.pre-copy:hover{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text)}
+
