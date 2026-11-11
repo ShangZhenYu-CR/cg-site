@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:38';
+const APP_BUILD = '2026-11-11 15:41';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -2031,7 +2031,7 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
 
 /* 画图参数面板：并排按钮，选中高亮 */
 const DRAW_GROUPS = [
-  { key: 'size', label: '尺寸', opts: [['1024x1024', '1024²'], ['1536x1024', '1536×1024'], ['1024x1536', '1024×1536'], ['auto', 'auto']] },
+  { key: 'size', label: '尺寸', opts: [['1024x1024', '1024²'], ['1536x1024', '1536×1024'], ['1024x1536', '1024×1536'], ['2880x2880', '2880²'], ['3840x2160', '4K'], ['auto', 'auto']] },
   { key: 'quality', label: '质量', opts: [['auto', 'auto'], ['low', '低'], ['medium', '中'], ['high', '高']] },
   { key: 'complexity', label: '复杂度', opts: [['', '默认'], ['low', '低'], ['medium', '中'], ['high', '高']] },
   { key: 'bg', label: '背景', opts: [['', 'auto'], ['opaque', '不透明'], ['transparent', '透明']] },
@@ -2045,7 +2045,7 @@ function drawSummary(d) {
   const parts = [];
   if (isGif) {
     const frames = Math.max(2, Math.min(16, Number(d.frames) || 8));
-    parts.push('GIF ' + frames + ' 帧', '每帧 ' + gifSizeForFrames(frames, d.size).replace('x', '×'));
+    parts.push('GIF ' + frames + ' 帧 → 每帧 ' + gifSizeForFrames(frames, d.size).replace('x', '×') + '（帧图集上限）');
   } else {
     parts.push('尺寸 ' + (d.size === 'custom' ? (d.custom || '待填') : d.size));
     if (d.quality && d.quality !== 'auto') parts.push('质量 ' + d.quality);
@@ -2057,6 +2057,12 @@ function drawSummary(d) {
 }
 
 function renderDrawPanel() {
+  // 面板打开时先收敛一次：修掉历史遗留的冲突组合（比如 透明 + GIF 同时亮着）
+  const fixed = normalizeDraw(LS.draw, 'open');
+  if (fixed.notes.length) {
+    LS.draw = fixed.s;
+    showToast(fixed.notes.join('<br>'));
+  }
   const d = LS.draw;
   const body = $('#drawPopBody');
   if (!body) return;
@@ -2082,6 +2088,28 @@ function renderDrawPanel() {
     }
     row.append(seg);
     body.append(row);
+  }
+
+  // 只有 GIF 才需要帧数，且它决定每帧分辨率，必须能和尺寸放一起看
+  if (LS.draw.format === 'gif') {
+    const fRow = el('div', 'seg-row');
+    fRow.append(el('span', 'seg-label', '帧数'));
+    const fSeg = el('div', 'seg');
+    for (const n of [2, 4, 8, 12, 16]) {
+      const cur = Number(LS.draw.frames) === n;
+      const b = el('button', 'seg-btn' + (cur ? ' on' : ''), String(n));
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        const nd = Object.assign({}, LS.draw, { frames: n });
+        const { s, notes } = normalizeDraw(nd, 'frames');
+        LS.draw = s;
+        if (notes.length) showToast(notes.join('<br>'));
+        renderDrawPanel();
+      });
+      fSeg.append(b);
+    }
+    fRow.append(fSeg);
+    body.append(fRow);
   }
 
   const note = el('div', 'seg-note');
