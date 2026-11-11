@@ -1015,3 +1015,11 @@ body.noside #sideToggle{display:grid!important}
 .code-resizer{position:absolute;left:-3px;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3}
 .code-resizer:hover{background:color-mix(in srgb,var(--accent) 25%,transparent)}
 
+
+/* 账户菜单（Claude 的 Settings/Language/... 结构） */
+.user-pop{min-width:240px;padding:6px}
+.up-head{padding:8px 10px 6px;font-size:12px;color:var(--faint)}
+.up-row{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:400}
+.up-row:hover{background:var(--panel2)}
+.up-ico{width:16px;text-align:center;opacity:.75;font-size:13px}
+

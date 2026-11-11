@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:37';
+const APP_BUILD = '2026-11-11 19:38';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -281,6 +281,8 @@ function renderIdentity() {
   const r = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
   $('#meRole').textContent = r; $('#meRole').hidden = !r;
   $('#meHint').textContent = '· Free';
+  const up = $('#upHead');
+  if (up) up.textContent = (LS.name || '未登录') + ' · Free' + (r ? ' · ' + r : '');
 }
 
 /* ---------------- 主题（跟随系统 / 浅色 / 深色） ---------------- */
@@ -3971,6 +3973,11 @@ $('#renameSelfBtn').addEventListener('click', async () => {
   if (!r.ok) { alert(errText(r.status, j)); return; }
   LS.token = j.token; LS.name = j.name; renderIdentity();
 });
+
+for (const sel of ['#setOpenBtn']) {
+  const b = document.querySelector(sel);
+  if (b) b.addEventListener('click', () => { closePops(); openSettings('appearance'); });
+}
 
 $('#renameBtn').addEventListener('click', async () => {
   closePops();

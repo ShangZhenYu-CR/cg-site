@@ -231,13 +231,15 @@
   <button class="opt" id="newProjectBtn">新建项目</button>
 </div>
 
-<div class="pop" id="userPop" hidden>
-  <button class="opt" id="insBtn">自定义指令</button>
-  <button class="opt" id="usersBtn">成员管理</button>
-  <button class="opt" id="cfgBtn">接口设置</button>
+<div class="pop user-pop" id="userPop" hidden>
+  <div class="up-head" id="upHead">未登录</div>
+  <button class="opt up-row" id="insBtn"><span class="up-ico">✎</span>自定义指令</button>
+  <button class="opt up-row" id="usersBtn"><span class="up-ico">👥</span>成员管理</button>
+  <button class="opt up-row" id="cfgBtn"><span class="up-ico">⚙</span>接口设置</button>
+  <button class="opt up-row" id="setOpenBtn"><span class="up-ico">☰</span>全部设置</button>
   <div class="sep"></div>
-  <button class="opt" id="renameSelfBtn">改我的昵称</button>
-  <button class="opt" id="logoutBtn" style="color:var(--danger)">退出登录</button>
+  <button class="opt up-row" id="renameSelfBtn"><span class="up-ico">✐</span>改我的昵称</button>
+  <button class="opt up-row" id="logoutBtn" style="color:var(--danger)"><span class="up-ico">→</span>退出登录</button>
 </div>
 
 <!-- 登录 -->
