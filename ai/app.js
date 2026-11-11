@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:27';
+const APP_BUILD = '2026-11-11 22:30';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4618,20 +4618,15 @@ function scanEmpty() {
 }
 
 async function cleanEmpty() {
-  const { emptyConvs, fileClean, emptyFileCount } = scanEmpty();
+  const { emptyConvs, emptyFileCount } = scanEmpty();
   if (!emptyConvs.length && !emptyFileCount) { flashHint('没有需要清理的空内容'); return; }
-  const msg = '将删除 ' + emptyConvs.length + ' 个空对话、' + emptyFileCount + ' 个空文件。继续？';
-  if (!confirm(msg)) return;
-  for (const cv of emptyConvs) {
-    try { await api('/convs/' + encodeURIComponent(cv.id), { method: 'DELETE' }); } catch {}
-  }
-  for (const { cv, keep } of fileClean) {
-    cv.files = keep;
-    try { await saveConv(cv); } catch {}
-  }
+  if (!confirm('将删除 ' + emptyConvs.length + ' 个空对话、' + emptyFileCount + ' 个空文件。继续？')) return;
+  const r = await api('/clean-empty', { method: 'POST', body: {} });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { flashHint(j.error || '清理失败'); return; }
   await Promise.all([loadConvs(), loadProjects()]);
   renderAll();
-  flashHint('已清理 ' + emptyConvs.length + ' 个空对话、' + emptyFileCount + ' 个空文件');
+  flashHint('已清理 ' + (j.convs || 0) + ' 个空对话、' + (j.files || 0) + ' 个空文件');
 }
 /* ---------------- 插件库 ---------------- */
 let pluginItems = [];
