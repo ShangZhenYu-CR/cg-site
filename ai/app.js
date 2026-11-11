@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:01';
+const APP_BUILD = '2026-11-11 19:04';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -970,6 +970,23 @@ function mountPane(key) {
   }
 }
 
+/* ---------------- 焦点陷阱：弹窗里 Tab 不跑出去 ---------------- */
+function trapFocus(ov) {
+  if (!ov || ov.dataset.trap) return;
+  ov.dataset.trap = '1';
+  ov.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const items = [...ov.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+}
+document.querySelectorAll('.overlay').forEach(trapFocus);
+
 function openSettings(tab) {
   const ov = $('#dlgSet');
   ov.hidden = false;
@@ -977,6 +994,9 @@ function openSettings(tab) {
   renderSetNav(key);
   for (const p of document.querySelectorAll('.set-pane')) p.hidden = p.dataset.pane !== key;
   mountPane(key);
+  trapFocus(ov);
+  const firstNav = document.querySelector('.set-item');
+  if (firstNav) setTimeout(() => firstNav.focus(), 30);
 }
 
 $('#setClose').addEventListener('click', () => { $('#dlgSet').hidden = true; });
