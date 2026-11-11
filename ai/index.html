@@ -180,6 +180,7 @@
 
 <!-- 代码面板 -->
 <aside id="codepane" hidden>
+  <div class="code-resizer" id="codeResizer" title="拖动调整宽度"></div>
   <div class="code-head">
     <div class="tabs" id="codeTabs"></div>
     <div class="code-seg" id="codeSeg"></div>
@@ -313,6 +314,10 @@
     <p>一般不用改，只有后端换地址才需要动。</p>
     <label class="field">后端地址<input id="cfgBackend" placeholder="https://chat.example.com/ai-api"></label>
     <label class="field">模型（逗号分隔）<input id="cfgModels" placeholder="gpt-6.1-terra,gpt-6-luna"></label>
+    <div class="set-row" style="margin:0 0 12px">
+      <button class="ghost" type="button" id="cfgTest">测试连接</button>
+      <span class="set-hint" id="cfgTestOut" style="margin:0;align-self:center"></span>
+    </div>
     <div class="btn-row">
       <button class="ghost" style="flex:1" id="cfgCancel">取消</button>
       <button class="primary" style="flex:1" id="cfgSave">保存</button>

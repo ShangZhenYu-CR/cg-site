@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:35 ';
+const APP_BUILD = '2026-11-11 19:37';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2507,6 +2507,28 @@ function applyFiles(cv, incoming) {
   }
 }
 
+/* 代码面板：拖宽 + Esc 关闭 */
+(function initCodeResize() {
+  const handle = document.getElementById('codeResizer');
+  if (!handle) return;
+  const pane = $('#codepane');
+  const saved = Number(localStorage.getItem('ai.codeW') || 0);
+  if (saved > 280) pane.style.width = saved + 'px';
+  let dragging = false;
+  handle.addEventListener('mousedown', (e) => { dragging = true; e.preventDefault(); document.body.style.userSelect = 'none'; });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const w = Math.max(300, Math.min(window.innerWidth - 480, window.innerWidth - e.clientX));
+    pane.style.width = w + 'px';
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = '';
+    const w = parseInt(pane.style.width, 10);
+    if (w) localStorage.setItem('ai.codeW', String(w));
+  });
+})();
 function openCodePane() {
   document.body.classList.add('coding');
   $('#codepane').hidden = false;
@@ -2934,6 +2956,20 @@ $('#cfgBtn').addEventListener('click', () => {
   $('#cfgBackend').value = LS.backend;
   $('#cfgModels').value = LS.models.join(',');
   $('#dlgCfg').hidden = false;
+});
+$('#cfgTest').addEventListener('click', async () => {
+  const out = $('#cfgTestOut');
+  if (out) out.textContent = '测试中…';
+  const base = ($('#cfgBackend').value || LS.backend).replace(/\/$/, '');
+  const t0 = performance.now();
+  try {
+    const r = await fetch(base + '/health', { headers: { 'x-token': LS.token } });
+    const ms = Math.round(performance.now() - t0);
+    if (r.ok) { if (out) out.textContent = '通了 · ' + ms + 'ms'; }
+    else if (out) out.textContent = 'HTTP ' + r.status + ' · ' + ms + 'ms';
+  } catch (e) {
+    if (out) out.textContent = '连不上（跨域或地址错）';
+  }
 });
 $('#cfgCancel').addEventListener('click', () => { $('#dlgCfg').hidden = true; });
 $('#cfgSave').addEventListener('click', () => {
@@ -3860,6 +3896,7 @@ document.addEventListener('keydown', (e) => {
     if (!$('#dlgPal').hidden) { closePalette(); return; }
     const openDlg = [...document.querySelectorAll('.overlay')].find((o) => !o.hidden && o.id !== 'dlgLogin');
     if (openDlg) { openDlg.hidden = true; return; }
+    if (document.body.classList.contains('coding') && !$('#codepane').hidden) { setCap('code', false); return; }
     closePops();
   }
 });

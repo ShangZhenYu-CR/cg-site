@@ -1009,3 +1009,9 @@ body.noside #sideToggle{display:grid!important}
 .composer textarea{font-size:var(--ui-font)!important;line-height:21px!important;padding:2px 4px!important}
 .composer textarea::placeholder{color:var(--faint);opacity:1}
 
+
+/* 代码面板拖宽手柄 */
+#codepane{position:relative;min-width:300px}
+.code-resizer{position:absolute;left:-3px;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3}
+.code-resizer:hover{background:color-mix(in srgb,var(--accent) 25%,transparent)}
+
