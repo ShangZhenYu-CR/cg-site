@@ -172,6 +172,11 @@ button{cursor:pointer;background:none;border:0}
   opacity:.85;transition:.12s;
 }
 .attach .chip button:hover{background:var(--danger);color:#1a0d0d;opacity:1}
+.attach .chip .mode-tag{
+  position:absolute;bottom:8px;left:8px;padding:1px 6px;border-radius:6px;
+  background:rgba(40,110,90,.9);color:#eafff6;font-size:11px;line-height:1.5;
+  border:1px solid rgba(120,230,190,.45);
+}
 .attach .chip .idx{
   position:absolute;top:8px;left:8px;padding:1px 6px;border-radius:6px;
   background:rgba(10,12,16,.78);color:#fff;font-size:11px;line-height:1.5;

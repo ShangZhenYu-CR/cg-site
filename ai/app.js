@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 14:44';
+const APP_BUILD = '2026-11-11 15:07';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -65,6 +65,8 @@ const LS = {
   set convCache(list) {
     try { localStorage.setItem('ai.convs.cache', JSON.stringify(list)); } catch {}
   },
+  get fidelity() { return localStorage.getItem('ai.fidelity') === '1'; },
+  set fidelity(v) { v ? localStorage.setItem('ai.fidelity', '1') : localStorage.removeItem('ai.fidelity'); },
   get draw() {
     const def = {
       model: 'gpt-image-2.6-sunburst', size: '1024x1024', quality: 'auto', bg: '',
@@ -90,6 +92,7 @@ const state = {
   gifMode: false,
   search: false,
   rawUpload: false,
+  fidelity: false,        // 保真优先：高频纹理图不二次压糊
   attachments: [],
   uploading: [],
   codeMode: false,
@@ -98,6 +101,7 @@ const state = {
   touched: false,    // 用户是否已经动过界面（初始化不再覆盖其选择）
   controller: null,
 };
+state.fidelity = LS.fidelity;
 
 let applyingSettings = false;
 
@@ -1136,6 +1140,11 @@ function renderAttach() {
     chip.append(img, x);
     // 多图时必须能分清谁是谁：模型按「图1/图2」理解，用户也得看到同一个编号
     if (state.attachments.length > 1) chip.append(el('span', 'idx', '图' + (i + 1)));
+    if (a.mode === 'fidelity') {
+      const tag = el('span', 'mode-tag', '保真');
+      tag.title = '高频细节 ' + (a.detail || 0) + '：这张图没有走强压缩';
+      chip.append(tag);
+    }
     box.append(chip);
   });
 
@@ -1149,22 +1158,69 @@ function renderAttach() {
 }
 
 const MAX_IMAGE_MB = 50;
+/** 普通图上限：够清楚、又不至于拖慢跨境上传 */
+const NORMAL_CAP = 1024 * 1024;
+/** 保真图上限：高频纹理宁可大一点 */
+const FIDELITY_CAP = 3 * 1024 * 1024;
+/** 拉普拉斯均值超过这个值就当"高频纹理"（实测校准：花纹图 ~30+，插画 ~3） */
+const DETAIL_THRESHOLD = 8;
 
-/** 上传前压缩：按体积分级降分辨率，目标 ≤400KB（跨境链路下行很慢） */
+/**
+ * 高频细节打分：在「原图分辨率」上裁 256×256 块算拉普拉斯绝对均值。
+ * 不能先缩到 256 再算——那正好把要检测的高频抹掉了。
+ */
+function detailScore(bmp) {
+  const S = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = S; canvas.height = S;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return 0;
+  let best = 0;
+  for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.3], [0.75, 0.7]]) {
+    const sw = Math.min(S, bmp.width);
+    const sh = Math.min(S, bmp.height);
+    const sx = Math.max(0, Math.min(bmp.width - sw, Math.round(bmp.width * fx - sw / 2)));
+    const sy = Math.max(0, Math.min(bmp.height - sh, Math.round(bmp.height * fy - sh / 2)));
+    ctx.clearRect(0, 0, S, S);
+    ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, S, S);
+    const d = ctx.getImageData(0, 0, S, S).data;
+    const g = new Float32Array(S * S);
+    for (let i = 0; i < S * S; i++) g[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114;
+    let sum = 0, n = 0;
+    for (let y = 1; y < S - 1; y++) {
+      for (let x = 1; x < S - 1; x++) {
+        const i = y * S + x;
+        sum += Math.abs(4 * g[i] - g[i - 1] - g[i + 1] - g[i - S] - g[i + S]);
+        n++;
+      }
+    }
+    if (n) best = Math.max(best, sum / n);
+  }
+  return best;
+}
+
+/**
+ * 上传前压缩。返回 { file, mode, detail }
+ * - 普通：长边 ≤2048、JPEG q0.9，超 1MB 就逐级降到 1600/q0.85、1280/q0.8
+ * - 保真：高频纹理或手动开「保真」时，优先 PNG，退到 q0.95 JPEG，宁可变大也不二次压糊
+ */
 async function shrinkImage(file) {
   try {
-    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return file;
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return { file, mode: 'raw', detail: 0 };
+    const bmp = await createImageBitmap(file);
+    const detail = detailScore(bmp);
+    const fidelity = state.fidelity || detail >= DETAIL_THRESHOLD;
 
     const encode = async (maxEdge, quality, keepPngOk) => {
-      const bmp = await createImageBitmap(file);
       const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(bmp.width * scale));
       canvas.height = Math.max(1, Math.round(bmp.height * scale));
       const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-
-      const keepPng = keepPngOk && /png/i.test(file.type) && file.size < 1024 * 1024;
+      // 只在源图本来就不大时保留 PNG（大 PNG 重编码又慢又大，纯浪费）
+      const keepPng = keepPngOk && /png/i.test(file.type) && file.size < NORMAL_CAP;
       const type = keepPng ? 'image/png' : 'image/jpeg';
       const blob = await new Promise(r => canvas.toBlob(r, type, quality));
       if (!blob) return null;
@@ -1172,21 +1228,31 @@ async function shrinkImage(file) {
       return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + ext, { type });
     };
 
-    let out = await encode(2048, 0.9, true);
-    if (!out || out.size >= file.size) out = file;
-
-    const tiers = [
-      [1600, 0.85, 1.2 * 1024 * 1024],
-      [1280, 0.8, 800 * 1024],
-    ];
-    for (const [edge, q, ceiling] of tiers) {
-      if (out.size <= ceiling) break;
-      const next = await encode(edge, q, false);
-      if (next && next.size < out.size) out = next;
+    let out = null;
+    if (fidelity) {
+      out = await encode(2048, 0.95, true);
+      if (out && out.size > FIDELITY_CAP) {
+        const j = await encode(2048, 0.95, false);
+        if (j && j.size < out.size) out = j;
+      }
+      if (out && out.size > FIDELITY_CAP) {
+        const j2 = await encode(1800, 0.92, false);
+        if (j2 && j2.size < out.size) out = j2;
+      }
+    } else {
+      out = await encode(2048, 0.9, true);
+      for (const [edge, q] of [[1600, 0.85], [1280, 0.8]]) {
+        if (out && out.size <= NORMAL_CAP) break;
+        const next = await encode(edge, q, false);
+        if (next && next.size < out.size) out = next;
+      }
     }
-    return out;
+
+    // 压完反而更大就别压了（原图本来就不大时常见）
+    if (!out || out.size >= file.size) out = file;
+    return { file: out, mode: fidelity ? 'fidelity' : 'normal', detail };
   } catch {
-    return file;
+    return { file, mode: 'raw', detail: 0 };
   }
 }
 
@@ -1308,8 +1374,12 @@ async function doUploadFile(file) {
   renderAttach();
 
   try {
-    const small = state.rawUpload ? file : await shrinkImage(file);
+    const shrunk = state.rawUpload ? { file, mode: 'raw', detail: 0 } : await shrinkImage(file);
+    const small = shrunk.file;
     if (small.size > MAX_IMAGE_MB * 1024 * 1024) { alert('压缩后仍超过 ' + MAX_IMAGE_MB + 'MB'); return; }
+    if (shrunk.mode === 'fidelity' && !state.fidelity) {
+      flashHint('检测到高频纹理，已按保真上传（' + Math.round(small.size / 1024) + 'KB，细节优先）');
+    }
 
     rec.kb = Math.max(1, Math.round(small.size / 1024));
     const prog = (p) => { rec.pct = Math.round(p * 100); renderAttach(); };
@@ -1318,7 +1388,7 @@ async function doUploadFile(file) {
     // 1) 优先走 OSS 直传
     const oss = await uploadViaOss(small, prog);
     if (oss.url) {
-      state.attachments.push({ url: oss.url, name: small.name, oss: true });
+      state.attachments.push({ url: oss.url, name: small.name, oss: true, mode: shrunk.mode, detail: Math.round(shrunk.detail) });
       return;
     }
     if (oss.error) { rec.label = '改走服务器'; renderAttach(); }
@@ -1333,7 +1403,7 @@ async function doUploadFile(file) {
 
     const { status, ok, j } = await uploadChunked(dataUrl, small.type, prog);
     if (!ok) { alert(errText(status, j)); return; }
-    state.attachments.push({ url: j.url, name: small.name });
+    state.attachments.push({ url: j.url, name: small.name, mode: shrunk.mode, detail: Math.round(shrunk.detail) });
   } catch (err) {
     alert('上传失败：' + ((err && err.message) || err));
   } finally {
@@ -1788,6 +1858,7 @@ const CAP_DEFS = [
   { k: 'gif', icon: '🎞️', label: '动图' },
   { k: 'code', icon: '🧑‍💻', label: '编程模式' },
   { k: 'search', icon: '🌐', label: '联网搜索' },
+  { k: 'fidelity', icon: '🔍', label: '保真' },
   { k: 'raw', icon: '📷', label: '原图' },
 ];
 
@@ -1796,6 +1867,7 @@ function capOn(k) {
   if (k === 'gif') return state.gifMode;
   if (k === 'code') return state.codeMode;
   if (k === 'search') return state.search;
+  if (k === 'fidelity') return state.fidelity;
   if (k === 'raw') return state.rawUpload;
   return false;
 }
@@ -1830,6 +1902,10 @@ function setCap(kind, on) {
     input.placeholder = on ? '描述动作（挂着图就是让这张图动起来）…' : DEFAULT_PH;
   } else if (kind === 'search') {
     state.search = on;
+  } else if (kind === 'fidelity') {
+    state.fidelity = on;
+    LS.fidelity = on;
+    input.placeholder = on ? '保真：高频纹理/小字不上强压缩（上传会更慢）…' : DEFAULT_PH;
   } else if (kind === 'raw') {
     state.rawUpload = on;
   } else if (kind === 'code') {
