@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:25';
+const APP_BUILD = '2026-11-11 21:28';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -178,6 +178,26 @@ function inline(s) {
   return s;
 }
 
+/* ---------------- 长期记忆（前端收集） ---------------- */
+const MEM_RE = /\[\[memory:\s*([^\]]+?)\s*\]\]/gi;
+
+/** 抽出并移除 [[memory: ...]] 标记，顺手提交给服务端 */
+function collectMemories(text) {
+  const items = [];
+  const cleaned = String(text || '').replace(MEM_RE, (m, t) => {
+    const v = String(t || '').trim();
+    if (v) items.push(v);
+    return '';
+  }).replace(/\n{3,}/g, '\n\n').trim();
+  for (const one of items.slice(0, 3)) {
+    api('/memory', { method: 'POST', body: { text: one } }).catch(() => {});
+  }
+  return cleaned;
+}
+
+function stripMemoryMarkers(text) {
+  return String(text || '').replace(MEM_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+}
 /* ---------------- 计算沙箱（Web Worker） ---------------- */
 let calcWorker = null;
 let calcSeq = 0;
@@ -1231,6 +1251,7 @@ const SET_TABS = [
   ['cfg', '接口'],
   ['usage', '用量'],
   ['account', '账号'],
+  ['memory', '记忆'],
   ['keys', '快捷键'],
   ['data', '数据'],
 ];
@@ -1366,6 +1387,35 @@ function mountPane(key) {
     pane.append(h, row, row2, row3, acts, about);
     return;
   }
+  if (key === 'memory') {
+    pane.textContent = '';
+    pane.append(el('h3', null, '记忆'));
+    pane.append(el('p', 'set-hint', '我在对话里自己记下的事，会带到以后的对话里。可以随时删。'));
+    const box = el('div', 'mem-list');
+    pane.append(box);
+    box.append(el('div', 'set-hint', '读取中…'));
+    (async () => {
+      const r = await api('/memory');
+      const j = await r.json().catch(() => ({ items: [] }));
+      box.textContent = '';
+      const items = j.items || [];
+      if (!items.length) { box.append(el('div', 'set-hint', '还没有记忆。多聊几次它就会自己记住。')); return; }
+      items.forEach((it, idx) => {
+        const row = el('div', 'mem-row');
+        row.append(el('div', 'mem-text', it.text));
+        const del = el('button', 'mem-del', '删除');
+        del.type = 'button';
+        del.addEventListener('click', async () => {
+          await api('/memory?idx=' + idx, { method: 'DELETE' });
+          row.remove();
+          flashHint('已删除');
+        });
+        row.append(del);
+        box.append(row);
+      });
+    })();
+    return;
+  }
   if (key === 'keys') {
     if (!pane.dataset.built) {
       pane.dataset.built = '1';
@@ -1462,7 +1512,7 @@ function bubble(m, idx) {
     const d = el('div', 'doc');
     d.append(el('span', 'lab', '交接文档'));
     const body = el('div');
-    body.innerHTML = md(m.text); hydrateCalcs(body);
+    body.innerHTML = md(stripMemoryMarkers(m.text)); hydrateCalcs(body);
     d.append(body);
     return d;
   }
@@ -2453,6 +2503,7 @@ function hideThinking() {
       if (e && e.status === 401) logout();
     }
   } finally {
+    if (reply && typeof reply.text === 'string') reply.text = collectMemories(reply.text);
     hideThinking();
     state.controller = null;
     await saveConv(cv);

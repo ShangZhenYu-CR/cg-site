@@ -1225,3 +1225,11 @@ body.in-project .top .title::after{content:'⌄';font-size:11px;color:var(--fain
 .calc-json{font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;overflow:auto;max-height:320px;color:var(--text)}
 .calc-err{font-size:12px;color:var(--danger);border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
 
+
+/* 记忆列表 */
+.mem-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.mem-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px}
+.mem-text{flex:1;line-height:1.5}
+.mem-del{font-size:12px;color:var(--dim);padding:3px 8px;border-radius:6px}
+.mem-del:hover{background:var(--panel2);color:var(--danger)}
+
