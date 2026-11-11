@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:43';
+const APP_BUILD = '2026-11-11 23:43 ';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -927,7 +927,15 @@ function convRow(cv) {
     pop.style.left = Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8) + 'px';
     pop.style.top = Math.min(Math.max(8, r.bottom + 6), window.innerHeight - h - 8) + 'px';
   });
-  row.append(t, time, act);
+  // 有产物的对话，在行尾给一个文件小标（对齐 Claude 的 artifact 提示）
+  if ((cv.files || []).length) {
+    const mark = el('span', 'row-art');
+    mark.title = '这个对话有产物（' + cv.files.length + ' 个）';
+    mark.innerHTML = ic('file', 13);
+    row.append(t, mark, time, act);
+  } else {
+    row.append(t, time, act);
+  }
 
   if (isAdmin() && cv.private && cv.owner) {
     const own = el('span', 'lock', cv.owner);

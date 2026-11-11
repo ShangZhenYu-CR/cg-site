@@ -1428,3 +1428,8 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 .side-foot{flex:none!important;position:relative;z-index:2;background:var(--side-bg,var(--panel))}
 @media (max-width:900px){#app,#side{height:100dvh!important}}
 
+
+/* 产物标记 */
+.row-art{display:inline-flex;align-items:center;color:var(--faint);flex:none;margin-left:2px;opacity:.8}
+.kid:hover .row-art{opacity:1}
+
