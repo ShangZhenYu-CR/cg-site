@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:41';
+const APP_BUILD = '2026-11-11 19:44';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -947,8 +947,27 @@ function closePalette() {
   if (ov) ov.hidden = true;
 }
 
+document.addEventListener('keydown', (e) => {
+  if ($('#dlgPal').hidden) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); palMove(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); palMove(-1); }
+}, true);
+
 $('#palInput').addEventListener('input', (e) => renderPalette(e.target.value));
+/** 命令面板：↑↓ 选择，Enter 执行 */
+function palMove(step) {
+  const items = [...document.querySelectorAll('#palList .pal-item')];
+  if (!items.length) return;
+  let idx = items.findIndex((x) => x.classList.contains('on'));
+  if (idx < 0) idx = 0; else idx = (idx + step + items.length) % items.length;
+  items.forEach((x) => x.classList.remove('on'));
+  items[idx].classList.add('on');
+  items[idx].scrollIntoView({ block: 'nearest' });
+}
+
 $('#palInput').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); palMove(1); return; }
+  if (e.key === 'ArrowUp') { e.preventDefault(); palMove(-1); return; }
   if (e.key === 'Enter') {
     pushRecentSearch($('#palInput').value);
     const first = $('#palList .pal-item');
@@ -1193,7 +1212,7 @@ function bubble(m, idx) {
   wrap.append(el('div', 'av', isUser ? (m.who || LS.name || '我').slice(0, 1) : 'AI'));
 
   const bd = el('div', 'bd');
-  if (isUser) bd.append(el('div', 'name', m.who || LS.name || '我'));
+  if (isUser && m.who && m.who !== LS.name) bd.append(el('div', 'name', m.who));
   if (isUser) {
     const edit = el('button', 'msg-edit', '编辑');
     edit.type = 'button';
@@ -1295,7 +1314,12 @@ function bubble(m, idx) {
     const acts = el('div', 'acts');
     const cp = el('button', null, '复制');
     cp.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(m.text || ''); cp.textContent = '已复制'; setTimeout(() => cp.textContent = '复制', 1200); } catch {}
+      try {
+        await navigator.clipboard.writeText(m.text || '');
+        cp.textContent = '已复制';
+        flashHint('已复制到剪贴板');
+        setTimeout(() => cp.textContent = '复制', 1200);
+      } catch {}
     });
     acts.append(cp);
     const regen = el('button', null, '重新生成');
@@ -1535,6 +1559,8 @@ function renderThread() {
   layoutHomeComposer();
   msgs.forEach((m, i) => thread.append(bubble(m, i)));
   $('#titleBtn').textContent = cv ? cv.title : '新对话';
+  const chev = $('#titleBtn').querySelector('.tchev');
+  if (!chev) { const i = el('i', 'tchev', '⌄'); $('#titleBtn').append(i); }
   syncDraftSwitch();
   updateToLatest();
   updateCtx();
@@ -3719,6 +3745,28 @@ $('#uSaveBalance').addEventListener('click', async () => {
     renderUsageDialog();
     flashHint('余额已校准为 $' + bal.toFixed(2));
   } catch { flashHint('校准失败，检查网络'); }
+});
+
+/* 顶栏标题：点击开会话菜单，双击改名 */
+$('#titleBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const r = e.currentTarget.getBoundingClientRect();
+  const pop = $('#menuPop');
+  const open = !pop.hidden;
+  closePops();
+  if (open) return;
+  pop.hidden = false;
+  pop.style.left = Math.min(Math.max(8, r.left), window.innerWidth - 228) + 'px';
+  pop.style.top = (r.bottom + 6) + 'px';
+});
+$('#titleBtn').addEventListener('dblclick', async () => {
+  const cv = current();
+  if (!cv) return;
+  const next = prompt('重命名对话', cv.title || '新对话');
+  if (!next) return;
+  cv.title = next.slice(0, 60);
+  await saveConv(cv);
+  renderAll();
 });
 
 $('#newChat').addEventListener('click', async () => {
