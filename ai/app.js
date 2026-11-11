@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 02:23';
+const APP_BUILD = '2026-11-12 02:25';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4685,7 +4685,9 @@ function buildArtMenu() {
     if (!c) return;
     togglePin(c.id);
   });
-  item(ART_ICONS.install, '安装为插件', () => {}, { disabled: true });
+  // 设计类产物可以真的发布成插件；其它类型保持灰态（和 Claude 的 Install artifact 一致）
+  if (artKind === 'design') item(ART_ICONS.install, '发布为插件', () => publishDesignArtifact());
+  else item(ART_ICONS.install, '安装为插件', () => {}, { disabled: true });
   item(ART_ICONS.pen, '重命名', renameArtifact);
   item(ART_ICONS.copy, '创建副本', async () => {
     const c = current();
