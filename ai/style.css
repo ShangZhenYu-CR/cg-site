@@ -1548,3 +1548,11 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
 #projDetail .pd-side{display:block!important}
 @media (max-width:1100px){ #projDetail .pd-side{display:none!important} }
 
+
+/* 插件页：内容宽度和顶部对齐，计数不要顶出屏幕 */
+#pluginsPage .pp-head,#pluginsPage .pp-sub,#pluginsPage .pp-grid{max-width:920px}
+#pluginsPage .pp-head .pp-count{margin-left:auto}
+/* 命令面板：去掉浏览器默认蓝色焦点环 */
+.pal-input:focus,.pal-input:focus-visible,#palList button:focus,.pal-tabs button:focus{outline:none!important;box-shadow:none!important}
+.pal-input{border-color:var(--line)!important}
+
