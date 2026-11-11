@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:07';
+const APP_BUILD = '2026-11-11 15:13';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -2045,7 +2045,8 @@ function updateDrawHints() {
   const parts = [];
   if (custom) {
     const ok = parseSize(box.value);
-    parts.push(ok ? '自定义 ' + ok.w + '×' + ok.h : '写成 宽x高（如 1536x864）：需为 16 的倍数、比例 1:3–3:1、≤3840×2160');
+    parts.push(ok ? '自定义 ' + ok.w + '×' + ok.h + '（' + (ok.w * ok.h).toLocaleString() + ' 像素）'
+      : '写成 宽x高（如 1536x864）：16 的倍数、单边 ≤3840、总像素 ≤8,294,400、比例 1:3–3:1');
   }
   if (n > 1) parts.push('要 ' + n + ' 张 → 出图 ' + n + ' 次，费用按张叠加');
   $('#drawCostHint').textContent = parts.join('　|　');
@@ -2101,7 +2102,7 @@ $('#drawSave').addEventListener('click', () => {
   const size = $('#drawSize').value;
   const custom = $('#drawCustomSize').value.trim();
   if (size === 'custom' && !parseSize(custom)) {
-    alert('自定义尺寸要写成 宽x高（如 1536x864），且必须是 16 的倍数、比例在 1:3–3:1 之间、不超过 3840×2160');
+    alert('自定义尺寸要写成 宽x高（如 1536x864）：16 的倍数、单边 ≤3840、总像素 ≤8,294,400（约合 3840×2160）、比例 1:3–3:1');
     $('#drawCustomSize').focus();
     return;
   }
@@ -2122,9 +2123,15 @@ $('#drawSave').addEventListener('click', () => {
   $('#dlgDraw').hidden = true;
 });
 
+/** 单张图像素预算：实测硬限（3840×2160 正好等于它，2880×2880 也能过） */
+const SIZE_PIXEL_BUDGET = 8294400;
+/** 单边上限 */
+const SIZE_MAX_EDGE = 3840;
+
 /**
- * 解析 "1536x864"：必须是 16 的倍数、宽 ≤3840、高 ≤2160、比例在 1:3–3:1 之间
- * 不合规返回 null（上游会 400，不如在本地拦下）
+ * 解析 "1536x864"。上游真正的限制是像素预算而不是固定 3840×2160：
+ * 实测 2880×2880、2160×3840 都能出图，3840×2176 被 "exceeds the current pixel budget" 拒掉。
+ * 规则：16 的倍数、单边 ≤3840、w*h ≤8,294,400、比例 1:3–3:1。不合规返回 null。
  */
 function parseSize(s) {
   const m = String(s || '').trim().match(/^(\d{2,4})x(\d{2,4})$/i);
@@ -2132,7 +2139,8 @@ function parseSize(s) {
   const w = Number(m[1]);
   const h = Number(m[2]);
   if (!w || !h || w % 16 || h % 16) return null;
-  if (w > 3840 || h > 2160) return null;
+  if (w > SIZE_MAX_EDGE || h > SIZE_MAX_EDGE) return null;
+  if (w * h > SIZE_PIXEL_BUDGET) return null;
   const ratio = w / h;
   if (ratio < 1 / 3 || ratio > 3) return null;
   return { w, h };
