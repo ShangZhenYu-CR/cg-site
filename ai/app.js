@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:17';
+const APP_BUILD = '2026-11-11 19:19';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -995,8 +995,12 @@ async function importAll(file) {
   try { data = JSON.parse(await file.text()); } catch { flashHint('不是有效的 JSON'); return; }
   const convs = Array.isArray(data && data.conversations) ? data.conversations : [];
   if (!convs.length) { flashHint('文件里没有对话'); return; }
+  const sig = (c) => (c.title || '') + '#' + ((c.messages || []).length);
+  const existing = new Set((state.convs || []).map((c) => sig(c)));
   let ok = 0;
+  let skipped = 0;
   for (const c of convs.slice(0, 200)) {
+    if (existing.has(sig(c))) { skipped += 1; continue; }
     const r = await api('/convs', { method: 'POST', body: { title: (c.title || '导入的对话').slice(0, 60) } });
     if (!r.ok) continue;
     const j = await r.json().catch(() => ({}));
@@ -1007,7 +1011,7 @@ async function importAll(file) {
   }
   await loadConvs();
   renderAll();
-  flashHint('已导入 ' + ok + ' 个对话');
+  flashHint('已导入 ' + ok + ' 个对话' + (skipped ? '，跳过重复 ' + skipped + ' 个' : ''));
 }
 function renderSetNav(active) {
   const nav = $('#setNav');
@@ -3654,7 +3658,16 @@ function renderProjectsPage() {
   if (!grid) return;
   grid.textContent = '';
   const convs = state.convs || [];
-  for (const p of state.projects || []) {
+  const kw = String(window.__projQuery || '').trim().toLowerCase();
+  const projs = (state.projects || [])
+    .filter((p) => !kw || String(p.name || '').toLowerCase().includes(kw))
+    .map((p) => ({
+      p,
+      last: Math.max(0, ...convs.filter((c) => c.projectId === p.id).map((c) => c.updatedAt || 0)),
+    }))
+    .sort((a, b) => b.last - a.last)
+    .map((x) => x.p);
+  for (const p of projs) {
     const n = convs.filter((c) => c.projectId === p.id).length;
     const card = el('div', 'pp-card');
     const name = el('div', 'n');
@@ -3688,6 +3701,13 @@ function showProjectsPage() {
   state.view = 'projects';
   renderAll();
 }
+
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'ppSearch') {
+    window.__projQuery = e.target.value;
+    renderProjectsPage();
+  }
+});
 
 /** 项目：列出全部项目，点一个只看它 */
 function showProjects() {
