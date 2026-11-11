@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:54';
+const APP_BUILD = '2026-11-11 16:20';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -65,6 +65,8 @@ const LS = {
   set convCache(list) {
     try { localStorage.setItem('ai.convs.cache', JSON.stringify(list)); } catch {}
   },
+  get theme() { return localStorage.getItem('ai.theme') || 'auto'; },
+  set theme(v) { localStorage.setItem('ai.theme', v); },
   get fidelity() { return localStorage.getItem('ai.fidelity') === '1'; },
   set fidelity(v) { v ? localStorage.setItem('ai.fidelity', '1') : localStorage.removeItem('ai.fidelity'); },
   get draw() {
@@ -248,6 +250,37 @@ function renderIdentity() {
   const r = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
   $('#meRole').textContent = r; $('#meRole').hidden = !r;
   $('#meHint').textContent = isAdmin() ? '点这里：自定义指令 / 成员' : '点这里：自定义指令';
+}
+
+/* ---------------- 主题（跟随系统 / 浅色 / 深色） ---------------- */
+const THEME_ORDER = ['auto', 'light', 'dark'];
+const THEME_LABEL = { auto: '跟随系统', light: '浅色', dark: '深色' };
+let themeMq = null;
+
+function resolvedTheme() {
+  const t = LS.theme;
+  if (t === 'light' || t === 'dark') return t;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+}
+
+function applyTheme() {
+  const mode = resolvedTheme();
+  document.documentElement.dataset.theme = mode;
+  document.documentElement.style.colorScheme = mode;
+  const btn = $('#themeBtn');
+  if (btn) {
+    btn.textContent = LS.theme === 'auto' ? '◐' : (mode === 'light' ? '☀' : '☾');
+    btn.title = '外观：' + THEME_LABEL[LS.theme] + '（点击切换）';
+  }
+}
+
+function initTheme() {
+  applyTheme();
+  if (themeMq) return;
+  try {
+    themeMq = window.matchMedia('(prefers-color-scheme: light)');
+    themeMq.addEventListener('change', () => { if (LS.theme === 'auto') applyTheme(); });
+  } catch { /* 老浏览器忽略 */ }
 }
 
 /* ---------------- 花费显示 ---------------- */
@@ -844,6 +877,21 @@ function visibleModels() {
   return canAstra() ? all : all.filter(m => !/astra/i.test(m));
 }
 
+/** 输入框下方那行：模型 · 努力度（点开就是模型菜单） */
+function updateComposerMeta() {
+  const m = $('#metaModel');
+  if (m) {
+    m.textContent = labelOf(LS.model) + ' · ' + (EFFORT_LABEL[LS.effort] || LS.effort);
+    m.title = '点这里切换模型 / 努力度';
+  }
+  const p = $('#metaProject');
+  if (p) {
+    const cv = current();
+    const proj = cv && cv.projectId ? (state.projects || []).find((x) => x.id === cv.projectId) : null;
+    p.textContent = proj ? proj.name : '未归档';
+  }
+}
+
 function renderModels() {
   const list = visibleModels();
   const box = $('#modelList');
@@ -865,6 +913,7 @@ function renderModels() {
 
   if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = rec[0] || list[0];
   $('#modelName').textContent = labelOf(LS.model);
+  updateComposerMeta();
   renderEffort();
 }
 
@@ -888,6 +937,7 @@ function renderEffort() {
   });
 
   $('#effName').textContent = EFFORT_LABEL[LS.effort] || LS.effort;
+  updateComposerMeta();
   $('#popEff').textContent = EFFORT_LABEL[LS.effort] || LS.effort;
   $('#effHint').textContent = '这个模型最高到「' + EFFORT_LABEL[list[list.length - 1]] + '」。档位越高越慢、越贵。';
 }
@@ -2554,6 +2604,16 @@ input.addEventListener('input', () => {
   sendBtn.disabled = !input.value.trim() && !state.attachments.length;
 });
 
+$('#metaModel').addEventListener('click', (e) => { e.stopPropagation(); $('#modelBtn').click(); });
+
+$('#themeBtn').addEventListener('click', () => {
+  const cur = LS.theme;
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(cur) + 1) % THEME_ORDER.length];
+  LS.theme = next;
+  applyTheme();
+  showToast('外观：<b>' + THEME_LABEL[next] + '</b>' + (next === 'auto' ? '（跟随系统，现在是' + (resolvedTheme() === 'light' ? '浅色' : '深色') + '）' : ''));
+});
+
 $('#usageBar').addEventListener('click', async () => {
   await refreshUsage();
   renderUsageDialog();
@@ -2716,6 +2776,7 @@ async function verify() {
 }
 
 async function boot() {
+  initTheme();
   renderIdentity();
   renderModels();
   renderCaps();
