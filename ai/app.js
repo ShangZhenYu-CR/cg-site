@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:04';
+const APP_BUILD = '2026-11-11 19:05';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1212,6 +1212,46 @@ $('#lbCopy').addEventListener('click', async () => {
   setTimeout(() => { b.textContent = '复制'; }, 1500);
 });
 
+/* ---------------- 草稿 / 回到最新 ---------------- */
+const DRAFT_KEY = 'ai.drafts';
+function loadDrafts() {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); } catch { return {}; }
+}
+function saveDraft(convId, text) {
+  if (!convId) return;
+  const all = loadDrafts();
+  if (text) all[convId] = text; else delete all[convId];
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(all)); } catch {}
+}
+function restoreDraft(convId) {
+  const all = loadDrafts();
+  const text = all[convId] || '';
+  input.value = text;
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+  const box = $('#composer');
+  if (box) box.classList.toggle('has-text', !!text.trim() || state.attachments.length > 0);
+}
+
+let lastDraftConv = null;
+function syncDraftSwitch() {
+  const cv = current();
+  const id = cv ? cv.id : null;
+  if (id === lastDraftConv) return;
+  if (lastDraftConv) saveDraft(lastDraftConv, input.value.trim() ? input.value : '');
+  lastDraftConv = id;
+  restoreDraft(id);
+}
+
+function updateToLatest() {
+  const btn = $('#toLatest');
+  if (!btn) return;
+  const gap = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight;
+  btn.hidden = gap < 240;
+}
+
+function openSettingsPlaceholder() {}
+
 function renderThread() {
   // 用「离底距离」而不是绝对位置：内容高度变化时也不会跳到历史
   const prevDist = scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.clientHeight;
@@ -1224,6 +1264,8 @@ function renderThread() {
   layoutHomeComposer();
   msgs.forEach((m, i) => thread.append(bubble(m, i)));
   $('#titleBtn').textContent = cv ? cv.title : '新对话';
+  syncDraftSwitch();
+  updateToLatest();
   updateCtx();
 
   const restore = () => {
@@ -3239,8 +3281,13 @@ input.addEventListener('input', () => {
   input.style.height = Math.min(input.scrollHeight, 170) + 'px';
   sendBtn.disabled = !input.value.trim() && !state.attachments.length;
   syncSendVisible();
+  const cv = current();
+  saveDraft(cv && cv.id, input.value);
 });
 syncSendVisible();
+
+scrollBox.addEventListener('scroll', updateToLatest);
+$('#toLatest').addEventListener('click', () => { scrollBox.scrollTop = scrollBox.scrollHeight; updateToLatest(); });
 
 for (const sel of ['#cmModel']) {
   const btn = document.querySelector(sel);
