@@ -983,3 +983,15 @@ body.noside #sideToggle{display:grid!important}
 .side-more{margin:2px 0 4px;padding:4px 10px;border-radius:6px;font-size:12px;color:var(--faint);text-align:left}
 .side-more:hover{background:var(--panel2);color:var(--text)}
 
+
+/* 对照实测：会话行字重 400（不是 435），段落间距放宽 */
+.kid{font-weight:400}
+.kid .t{font-weight:400}
+.msg .bd p{margin:0 0 14px}
+.msg .bd p:last-child{margin-bottom:0}
+.msg.ai .bd{padding-right:8px}
+
+.grp-toggle{cursor:pointer;user-select:none}
+.grp-toggle:hover{color:var(--text)}
+.grp-toggle .chev{font-style:normal;font-size:11px;color:var(--faint);margin-left:2px}
+

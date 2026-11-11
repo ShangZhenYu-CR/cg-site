@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:33';
+const APP_BUILD = '2026-11-11 19:34';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -725,10 +725,19 @@ function renderSide() {
       listBox.append(hint);
     }
   }
+  window.__sideCollapsed = window.__sideCollapsed || new Set();
   for (const [label, arr] of buckets) {
-    const h = el('div', 'grp');
-    h.innerHTML = '<span>' + label + '</span>';
+    const collapsed = window.__sideCollapsed.has(label);
+    const h = el('div', 'grp grp-toggle');
+    h.innerHTML = '<span>' + label + '</span><i class="chev">' + (collapsed ? '›' : '⌄') + '</i>';
+    h.title = collapsed ? '展开' : '折叠';
+    h.addEventListener('click', () => {
+      if (collapsed) window.__sideCollapsed.delete(label);
+      else window.__sideCollapsed.add(label);
+      renderSide();
+    });
     listBox.append(h);
+    if (collapsed) continue;
     const expanded = window.__sideExpand.has(label) || !!q;
     const shown = expanded ? arr : arr.slice(0, PER_GROUP);
     for (const cv of shown) listBox.append(convRow(cv));
