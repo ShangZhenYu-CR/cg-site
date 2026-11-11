@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 14:30';
+const APP_BUILD = '2026-11-11 14:44';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -69,6 +69,7 @@ const LS = {
     const def = {
       model: 'gpt-image-2.6-sunburst', size: '1024x1024', quality: 'auto', bg: '',
       format: 'png', compression: 100, n: 1, moderation: 'auto', frames: 8, dur: 150,
+      custom: '', complexity: '',
     };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('ai.draw') || '{}')); } catch { return def; }
   },
@@ -890,23 +891,31 @@ async function sendChat(text, opts = {}) {
   const gifDuration = Math.max(20, Math.min(2000, Number(LS.draw.dur) || 150));
   const gifOpts = (frames, size) => ({
     model: 'gpt-image-2.6-sunburst',
-    size: size || gifSizeForFrames(frames),
+    size: gifSizeForFrames(frames, size),
     output_format: 'gif',
     frame_count: Math.max(2, Math.min(16, Number(frames) || 8)),
     frame_duration_ms: gifDuration,
   });
+  // 自定义尺寸只有合规才发；不合规宁可本地不发，也别让上游 400
+  const drawSize = LS.draw.size === 'custom'
+    ? (parseSize(LS.draw.custom) ? LS.draw.custom : undefined)
+    : (LS.draw.size && LS.draw.size !== 'auto' ? LS.draw.size : undefined);
+  const drawN = Math.min(10, Math.max(1, Number(LS.draw.n) || 1));
   let imageOpts = drawMode
-    ? (gifAsk ? gifOpts(gifFrames) : {
+    ? (gifAsk ? gifOpts(gifFrames, drawSize) : {
         model: LS.draw.model || undefined,
-        size: LS.draw.size && LS.draw.size !== 'auto' ? LS.draw.size : undefined,
+        size: drawSize,
         quality: LS.draw.quality && LS.draw.quality !== 'auto' ? LS.draw.quality : undefined,
+        complexity: LS.draw.complexity || undefined,
         background: LS.draw.bg || undefined,
         output_format: (LS.draw.format && LS.draw.format !== 'gif') ? LS.draw.format : undefined,
       })
     : undefined;
 
+  const wantN = drawMode && !gifAsk ? drawN : 1;
   reply.meta = drawMode
-    ? ('画图 · ' + (imgs.length ? '参考 ' + imgs.length + ' 张图' : (refImages.length ? '参考上文图' : '无参考图')))
+    ? ('画图 · ' + (imgs.length ? '参考 ' + imgs.length + ' 张图' : (refImages.length ? '参考上文图' : '无参考图'))
+        + (wantN > 1 ? ' · 要 ' + wantN + ' 张' : ''))
     : labelOf(model) + ' · ' + (wantsImage ? '图像' : (EFFORT_LABEL[effort] || effort));
 
   const node = thread.lastElementChild;
@@ -936,7 +945,7 @@ async function sendChat(text, opts = {}) {
       body: {
         model, search: state.search, convId: cv.id, projectId: cv.projectId || null,
         ...(drawMode
-          ? { imageTool: true, imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io }
+          ? { imageTool: true, imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wantN > 1 ? wantN : undefined }
           : wantsImage ? { imageTool: true } : { effort }),
         codeMode: state.codeMode,
         fileNames: (cv.files || []).map(f => f.name),
@@ -1846,10 +1855,28 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
 const DRAW_GROUPS = [
   { key: 'size', label: '尺寸', opts: [['1024x1024', '1024²'], ['1536x1024', '1536×1024'], ['1024x1536', '1024×1536'], ['auto', 'auto']] },
   { key: 'quality', label: '质量', opts: [['auto', 'auto'], ['low', '低'], ['medium', '中'], ['high', '高']] },
+  { key: 'complexity', label: '复杂度', opts: [['', '默认'], ['low', '低'], ['medium', '中'], ['high', '高']] },
   { key: 'bg', label: '背景', opts: [['', 'auto'], ['opaque', '不透明'], ['transparent', '透明']] },
-  { key: 'n', label: '张数', opts: [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']] },
-  { key: 'format', label: '格式', opts: [['png', 'png'], ['webp', 'webp'], ['jpeg', 'jpeg'], ['gif', 'GIF']] },
+  { key: 'n', label: '张数', opts: [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['6', '6'], ['10', '10']] },
+  { key: 'format', label: '格式', opts: [['png', 'png'], ['webp', 'webp'], ['jpeg', 'jpeg'], ['gif', 'GIF'], ['svg', 'svg']] },
 ];
+
+/** 当前参数的一句话摘要 + 费用提示（面板底部显示） */
+function drawSummary(d) {
+  const isGif = d.format === 'gif';
+  const parts = [];
+  if (isGif) {
+    const frames = Math.max(2, Math.min(16, Number(d.frames) || 8));
+    parts.push('GIF ' + frames + ' 帧', '每帧 ' + gifSizeForFrames(frames, d.size).replace('x', '×'));
+  } else {
+    parts.push('尺寸 ' + (d.size === 'custom' ? (d.custom || '待填') : d.size));
+    if (d.quality && d.quality !== 'auto') parts.push('质量 ' + d.quality);
+    if (d.complexity) parts.push('复杂度 ' + d.complexity);
+  }
+  const n = Number(d.n) || 1;
+  if (n > 1) parts.push('要 ' + n + ' 张');
+  return parts.join(' · ');
+}
 
 function renderDrawPanel() {
   const d = LS.draw;
@@ -1875,6 +1902,16 @@ function renderDrawPanel() {
     }
     row.append(seg);
     body.append(row);
+  }
+
+  const note = el('div', 'seg-note');
+  note.textContent = drawSummary(LS.draw);
+  body.append(note);
+  const n = Number(LS.draw.n) || 1;
+  if (n > 1) {
+    const cost = el('div', 'seg-cost');
+    cost.textContent = '要 ' + n + ' 张 = 出图 ' + n + ' 次，费用按张叠加';
+    body.append(cost);
   }
 }
 
@@ -1911,15 +1948,43 @@ $('#barMore').addEventListener('click', () => {
   pop.addEventListener('mouseleave', hideDrawPanelSoon);
 })();
 
-/** 帧数 → 尺寸的联动提示，避免用户选了 16 帧才发现超预算 */
+/** 帧图集上限如实算给用户看，而不是写死一个数字 */
 function updateGifHint() {
   const h = $('#gifAutoHint');
   if (!h) return;
   const f = Number($('#gifFrames').value) || 8;
-  const sz = gifSizeForFrames(f).replace('x', '×');
-  h.textContent = f <= 8
-    ? f + ' 帧 → ' + sz + '（在工具像素预算内）'
-    : f + ' 帧会自动降到 ' + sz + '，否则一定超像素预算被拒';
+  const requested = $('#drawSize').value === 'custom' ? $('#drawCustomSize').value : $('#drawSize').value;
+  const sz = gifSizeForFrames(f, requested).replace('x', '×');
+  h.textContent = '帧图集上限：长边 ≤3840、总像素 ≤8,294,400 → ' + f + ' 帧每帧最大 ' + sz;
+}
+
+/** 自定义尺寸校验 + 张数费用提示 */
+function updateDrawHints() {
+  const custom = $('#drawSize').value === 'custom';
+  $('#drawCustomSizeWrap').hidden = !custom;
+  const box = $('#drawCustomSize');
+  const bad = custom && !!box.value.trim() && !parseSize(box.value);
+  box.classList.toggle('bad', bad);
+  const n = Math.min(10, Math.max(1, Number($('#drawN').value) || 1));
+  const parts = [];
+  if (custom) {
+    const ok = parseSize(box.value);
+    parts.push(ok ? '自定义 ' + ok.w + '×' + ok.h : '写成 宽x高（如 1536x864）：需为 16 的倍数、比例 1:3–3:1、≤3840×2160');
+  }
+  if (n > 1) parts.push('要 ' + n + ' 张 → 出图 ' + n + ' 次，费用按张叠加');
+  $('#drawCostHint').textContent = parts.join('　|　');
+  updateGifHint();
+}
+
+/** xhigh / max 只有 2.5 系支持，其它模型灰掉并回退 */
+function syncQualityOptions(model, cur) {
+  const sel = $('#drawQuality');
+  const advanced = /^gpt-image-2\.5/.test(model || '');
+  for (const opt of sel.options) {
+    if (opt.value !== 'xhigh' && opt.value !== 'max') continue;
+    opt.disabled = !advanced;
+  }
+  sel.value = (!advanced && (cur === 'xhigh' || cur === 'max')) ? 'high' : cur;
 }
 
 /* 画图设置 */
@@ -1927,33 +1992,53 @@ function openDrawDialog() {
   const d = LS.draw;
   $('#drawModel').value = d.model;
   $('#drawSize').value = d.size;
-  $('#drawQuality').value = d.quality;
   $('#drawBg').value = d.bg || '';
   $('#drawModeration').value = d.moderation || 'auto';
   $('#drawFormat').value = d.format || 'png';
-  $('#drawN').value = String(d.n || 1);
+  $('#drawComplexity').value = d.complexity || '';
+  $('#drawCustomSize').value = d.custom || '';
+  const nSel = $('#drawN');
+  if (!nSel.options.length) {
+    for (let i = 1; i <= 10; i++) { const o = el('option', null, String(i)); o.value = String(i); nSel.append(o); }
+  }
+  nSel.value = String(Math.min(10, Math.max(1, Number(d.n) || 1)));
   $('#drawCompression').value = String(d.compression != null ? d.compression : 100);
   const f = $('#gifFrames');
   if (!f.options.length) {
     for (let i = 2; i <= 16; i++) { const o = el('option', null, String(i)); o.value = String(i); f.append(o); }
   }
   f.value = String(d.frames);
-  updateGifHint();
   $('#gifDur').value = String(d.dur);
+  syncQualityOptions(d.model, d.quality);
+  updateDrawHints();
   $('#dlgDraw').hidden = false;
 }
 
-$('#gifFrames').addEventListener('change', updateGifHint);
+['#gifFrames', '#gifDur'].forEach((s) => $(s).addEventListener('change', updateDrawHints));
+['#drawSize', '#drawCustomSize', '#drawN'].forEach((s) => {
+  $(s).addEventListener('change', updateDrawHints);
+  $(s).addEventListener('input', updateDrawHints);
+});
+$('#drawModel').addEventListener('change', () => syncQualityOptions($('#drawModel').value, $('#drawQuality').value));
 $('#drawCancel').addEventListener('click', () => { $('#dlgDraw').hidden = true; });
 $('#drawSave').addEventListener('click', () => {
+  const size = $('#drawSize').value;
+  const custom = $('#drawCustomSize').value.trim();
+  if (size === 'custom' && !parseSize(custom)) {
+    alert('自定义尺寸要写成 宽x高（如 1536x864），且必须是 16 的倍数、比例在 1:3–3:1 之间、不超过 3840×2160');
+    $('#drawCustomSize').focus();
+    return;
+  }
   LS.draw = {
     model: $('#drawModel').value,
-    size: $('#drawSize').value,
+    size,
+    custom,
     quality: $('#drawQuality').value,
+    complexity: $('#drawComplexity').value,
     bg: $('#drawBg').value,
     moderation: $('#drawModeration').value,
     format: $('#drawFormat').value,
-    n: Number($('#drawN').value) || 1,
+    n: Math.min(10, Math.max(1, Number($('#drawN').value) || 1)),
     compression: Number($('#drawCompression').value),
     frames: Number($('#gifFrames').value) || 8,
     dur: Number($('#gifDur').value) || 150,
@@ -1962,18 +2047,43 @@ $('#drawSave').addEventListener('click', () => {
 });
 
 /**
+ * 解析 "1536x864"：必须是 16 的倍数、宽 ≤3840、高 ≤2160、比例在 1:3–3:1 之间
+ * 不合规返回 null（上游会 400，不如在本地拦下）
+ */
+function parseSize(s) {
+  const m = String(s || '').trim().match(/^(\d{2,4})x(\d{2,4})$/i);
+  if (!m) return null;
+  const w = Number(m[1]);
+  const h = Number(m[2]);
+  if (!w || !h || w % 16 || h % 16) return null;
+  if (w > 3840 || h > 2160) return null;
+  const ratio = w / h;
+  if (ratio < 1 / 3 || ratio > 3) return null;
+  return { w, h };
+}
+
+/**
  * GIF 尺寸跟着帧数走：上游把帧拼成一张 sheet（4 列排布），
  * sheet 长边 ≤3840、总像素 ≤8.29M，所以帧越多每帧必须越小。
  * 实测：8 帧 @768² = 3072×1536 可以；16 帧 @768² = 3072×3072 超预算被拒。
  * → ≤8 帧用 768²，9–16 帧用 512²（4×4 = 2048² 仍在预算内）
  */
-function gifSizeForFrames(n) {
+function gifSizeForFrames(n, want) {
   const f = Math.max(2, Math.min(16, Number(n) || 8));
-  return f <= 8 ? '768x768' : '512x512';
+  // 帧数向上取 2 的幂再排网格：长边 ≤3840、总像素 ≤8,294,400
+  let cells = 1;
+  while (cells < f) cells *= 2;
+  const layout = (cols) => [cols, Math.ceil(cells / cols)];
+  const grids = [layout(4), layout(Math.ceil(Math.sqrt(cells)))];
+  const cell = Math.min(...grids.map(([c, r]) => Math.min(3840 / Math.max(c, r), Math.sqrt(8294400 / cells))));
+  const maxCell = Math.max(256, Math.floor(cell / 16) * 16);   // size 必须是 16 的倍数
+  const wantMax = parseSize(want) ? Math.max(parseSize(want).w, parseSize(want).h) : 0;
+  const side = wantMax ? Math.min(wantMax, maxCell) : maxCell;
+  return side + 'x' + side;
 }
 
-/** 单条消息最多带几张参考图（服务端每消息上限 6，这里留余量） */
-const MAX_REF_IMAGES = 4;
+/** 单条消息最多带几张参考图（上游允许 1500 张/512MB，这里只做交互上的合理上限） */
+const MAX_REF_IMAGES = 10;
 
 /**
  * 决定这条消息走哪条路（纯函数，便于测试）
@@ -1982,7 +2092,7 @@ const MAX_REF_IMAGES = 4;
  */
 function decideRoute({ text, hasAttach, attachUrl, attachUrls, gifMode, imageMode }) {
   const list = Array.isArray(attachUrls) && attachUrls.length
-    ? attachUrls.filter(Boolean).slice(0, 4)
+    ? attachUrls.filter(Boolean).slice(0, 10)
     : (attachUrl ? [attachUrl] : []);
   const ref = list.length ? list : null;
   const gifByWord = /(gif|动图|动画|动起来|会动的图)/i.test(text || '');

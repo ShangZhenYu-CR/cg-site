@@ -333,12 +333,13 @@
     </label>
 
     <div class="two">
-      <label class="field">尺寸
+      <label class="field">尺寸（16 的倍数，最大 3840×2160）
         <select id="drawSize">
           <option value="1024x1024">1024 × 1024</option>
           <option value="1536x1024">1536 × 1024（横）</option>
           <option value="1024x1536">1024 × 1536（竖）</option>
           <option value="auto">auto</option>
+          <option value="custom">自定义…</option>
         </select>
       </label>
       <label class="field">质量
@@ -347,6 +348,22 @@
           <option value="low">low（快、省）</option>
           <option value="medium">medium</option>
           <option value="high">high</option>
+          <option value="xhigh">xhigh（仅 2.5 系）</option>
+          <option value="max">max（仅 2.5 系）</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="two">
+      <label class="field" id="drawCustomSizeWrap" hidden>自定义尺寸（宽×高）
+        <input id="drawCustomSize" placeholder="例如 1536x864" inputmode="text" spellcheck="false">
+      </label>
+      <label class="field">复杂度 complexity（2.6 起）
+        <select id="drawComplexity">
+          <option value="">默认（high）</option>
+          <option value="low">low（改动最小）</option>
+          <option value="medium">medium</option>
+          <option value="high">high（复杂排版）</option>
         </select>
       </label>
     </div>
@@ -371,20 +388,17 @@
       <label class="field">格式
         <select id="drawFormat">
           <option value="png">png</option>
-            <option value="gif">gif（动图）</option>
+          <option value="gif">gif（动图）</option>
           <option value="webp">webp</option>
           <option value="jpeg">jpeg</option>
+          <option value="svg">svg（矢量，仅文生图）</option>
         </select>
       </label>
-      <label class="field">张数（1–4）
-        <select id="drawN">
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-        </select>
+      <label class="field">张数（1–10）
+        <select id="drawN"></select>
       </label>
     </div>
+    <div class="field-hint" id="drawCostHint"></div>
 
     <label class="field">压缩率（0–100，仅 webp / jpeg 生效）
       <input id="drawCompression" type="number" min="0" max="100" step="5" value="100">
