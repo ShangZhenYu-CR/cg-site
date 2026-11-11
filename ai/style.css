@@ -1023,3 +1023,10 @@ body.noside #sideToggle{display:grid!important}
 .up-row:hover{background:var(--panel2)}
 .up-ico{width:16px;text-align:center;opacity:.75;font-size:13px}
 
+
+/* 对照 Claude 的 --cds-scroll-fade-size: 28px（我们之前 18px 偏小） */
+.scroll{
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image:linear-gradient(to bottom, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+
