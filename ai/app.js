@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:14';
+const APP_BUILD = '2026-11-11 19:15';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -620,6 +620,19 @@ function convRow(cv) {
     renderAll();
     closeNav();
   });
+  // 右键也能开会话菜单
+  row.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const r = act.getBoundingClientRect();
+    state.currentId = cv.id;
+    applyConvSettings(cv);
+    renderAll();
+    const pop = $('#menuPop');
+    closePops();
+    pop.hidden = false;
+    pop.style.left = Math.min(Math.max(8, e.clientX), window.innerWidth - 228) + 'px';
+    pop.style.top = Math.min(Math.max(8, e.clientY), window.innerHeight - 300) + 'px';
+  });
   row.addEventListener('dragstart', (e) => {
     e.dataTransfer.setData('text/plain', cv.id);
     e.dataTransfer.effectAllowed = 'move';
@@ -799,6 +812,17 @@ function palActions() {
 const PAL_TABS = [['all', '全部'], ['conv', '会话'], ['file', '文件'], ['act', '动作']];
 let palTab = 'all';
 
+const RECENT_SEARCH_KEY = 'ai.recentSearch';
+function loadRecentSearch() {
+  try { return JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY) || '[]'); } catch { return []; }
+}
+function pushRecentSearch(q) {
+  const term = String(q || '').trim();
+  if (!term) return;
+  const all = loadRecentSearch().filter((x) => x !== term);
+  all.unshift(term);
+  try { localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(all.slice(0, 6))); } catch {}
+}
 function renderPalTabs() {
   const box = $('#palTabs');
   if (!box) return;
@@ -822,6 +846,25 @@ function renderPalette(q) {
   box.textContent = '';
   const hit = (s) => !query || String(s).toLowerCase().includes(query);
   const want = (t) => palTab === 'all' || palTab === t;
+
+  if (!query && palTab === 'all') {
+    const recent = loadRecentSearch();
+    if (recent.length) {
+      palSect(box, '最近搜索');
+      for (const term of recent) {
+        const b = el('button', 'pal-item');
+        b.type = 'button';
+        b.append(el('span', null, term));
+        b.append(el('span', 'k', '↩'));
+        b.addEventListener('click', () => {
+          $('#palInput').value = term;
+          renderPalette(term);
+          $('#palInput').focus();
+        });
+        box.append(b);
+      }
+    }
+  }
 
   if (want('act')) {
     const acts = palActions().filter((a) => hit(a.label));
@@ -898,6 +941,7 @@ function closePalette() {
 $('#palInput').addEventListener('input', (e) => renderPalette(e.target.value));
 $('#palInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
+    pushRecentSearch($('#palInput').value);
     const first = $('#palList .pal-item');
     if (first) first.click();
   }
@@ -921,11 +965,22 @@ const SET_TABS = [
   ['users', '成员'],
   ['cfg', '接口'],
   ['usage', '用量'],
+  ['data', '数据'],
 ];
 
 /** 把已有的小弹窗内容搬进设置面板（保留原有事件） */
 const SET_SRC = { ins: 'dlgIns', users: 'dlgUsers', cfg: 'dlgCfg', usage: 'dlgUsage' };
 
+function exportAll() {
+  const payload = { exportedAt: Date.now(), version: 1, conversations: state.convs || [], projects: state.projects || [] };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'maodou-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  flashHint('已导出 ' + (state.convs || []).length + ' 个对话');
+}
 function renderSetNav(active) {
   const nav = $('#setNav');
   if (!nav) return;
@@ -973,6 +1028,20 @@ function mountPane(key) {
         row2.append(b);
       }
       pane.append(h, p, row, h2, row2);
+    }
+    return;
+  }
+  if (key === 'data') {
+    if (!pane.dataset.built) {
+      pane.dataset.built = '1';
+      const h = el('h3', null, '数据');
+      const p = el('p', 'set-hint', '把全部对话导出成一个 JSON 文件，随时备份。');
+      const row = el('div', 'set-row');
+      const exp = el('button', 'set-chip', '导出全部对话');
+      exp.type = 'button';
+      exp.addEventListener('click', exportAll);
+      row.append(exp);
+      pane.append(h, p, row);
     }
     return;
   }
