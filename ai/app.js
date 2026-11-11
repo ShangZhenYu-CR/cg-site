@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:08';
+const APP_BUILD = '2026-11-11 23:10';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -829,6 +829,7 @@ async function saveConv(conv, extra) {
     settings: conv.settings || {},
     archived: !!conv.archived,
     artifact: conv.artifact || null,
+    design: conv.design || null,
     ...(extra || {}),
   };
   try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {} finally { state.saving = false; }
