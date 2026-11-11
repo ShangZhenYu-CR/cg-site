@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:48';
+const APP_BUILD = '2026-11-11 22:50';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4336,6 +4336,23 @@ $('#artTitle').addEventListener('change', async () => {
   renderArtifact();
 });
 $('#artAsk').addEventListener('click', () => { input.focus(); flashHint('在左边说一句要我改什么'); });
+$('#cbDownload').addEventListener('click', () => $('#artExport').click());
+$('#cbPresent').addEventListener('click', togglePresent);
+$('#cbLayout').addEventListener('click', () => {
+  const opts = [
+    { label: '标准 16:9', run: () => { deckZoom = 100; applyDeckZoom(); } },
+    { label: '放大到 125%', run: () => { deckZoom = 125; applyDeckZoom(); } },
+    { label: '缩小到 75%', run: () => { deckZoom = 75; applyDeckZoom(); } },
+    { label: '适应窗口（100%，居中）', run: () => { deckZoom = 100; applyDeckZoom(); } },
+  ];
+  openListPanel('幻灯片版式', '缩放只影响右侧画布，不改内容', opts.map((o) => ({ label: o.label, onClick: () => { $('#dlgList').hidden = true; o.run(); } })));
+});
+$('#cbZoom').addEventListener('click', () => {
+  const steps = [50, 75, 100, 125, 150, 200];
+  const next = steps[(steps.indexOf(deckZoom) + 1) % steps.length] || 100;
+  deckZoom = next;
+  applyDeckZoom();
+});
 $('#artPublish').addEventListener('click', publishDesignArtifact);
 $('#artExport').addEventListener('click', () => {
   const f = currentArtifactFile();
@@ -4465,6 +4482,30 @@ function renderProjectDetail() {
     list.append(empty);
   }
 }
+/* 画布工具条：缩放 / 放映 / 下载（对齐 Claude 底部那排） */
+let deckZoom = 100;
+let deckPresent = false;
+
+function applyDeckZoom() {
+  const pane = $('#artPane');
+  if (pane) pane.style.setProperty('--slide-zoom', String(deckZoom / 100));
+  const z = $('#cbZoom');
+  if (z) z.textContent = deckZoom + '% ⌄';
+}
+
+function deckStep(delta) {
+  deckZoom = Math.max(50, Math.min(200, deckZoom + delta));
+  applyDeckZoom();
+}
+
+function togglePresent() {
+  deckPresent = !deckPresent;
+  const pane = $('#artPane');
+  if (pane) pane.classList.toggle('present', deckPresent);
+  if (deckPresent && pane && !pane.classList.contains('expanded')) toggleArtFull();
+  $('#cbPresent').textContent = deckPresent ? '■' : '▶';
+  $('#cbPresent').title = deckPresent ? '退出放映' : '放映';
+}
 /* ---------------- 产物面板：文档 / 幻灯片 / 设计 ---------------- */
 const ART_KINDS = {
   doc: { label: '文档', ext: '.md', tip: '把想法写下来，或者让我来写：直接在左边发一句「写一份……」，我会把内容放进这份文档。' },
@@ -4508,6 +4549,9 @@ function renderArtifact() {
   const file = currentArtifactFile();
   const hint = $('#artHint');
   if (hint) hint.textContent = file ? (ART_KINDS[artKind] || {}).label + ' · ' + artName : '';
+  const bar = $('#artBar');
+  if (bar) bar.hidden = !file || artKind === 'doc';
+  if (artKind === 'deck') applyDeckZoom();
   const empty = !file || !String(file.content || '').trim() || (artKind === 'deck' && parseDeck(file).slides.length === 0);
   if (empty) {
     body.append(emptyArtifactState(file));
