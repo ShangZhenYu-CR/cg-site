@@ -1662,3 +1662,14 @@ html[data-theme="dark"]{--text:#ececea}
 html[data-theme="light"],:root{--text:#1a1a1a}
 html[data-theme="dark"]{--text:#ececea}
 
+
+/* 侧栏对齐：品牌区按钮悬停才出现、分组标签字重、行内缩进 */
+#side .side-collapse,#side .brand-menu{background:transparent!important;border-color:transparent!important;box-shadow:none!important;opacity:0;transition:opacity .12s ease}
+#side .side-head:hover .side-collapse,#side .side-head:hover .brand-menu{opacity:1}
+#side .side-collapse:hover,#side .brand-menu:hover{background:rgba(0,0,0,.06)!important}
+html[data-theme="dark"] #side .side-collapse:hover,html[data-theme="dark"] #side .brand-menu:hover{background:rgba(255,255,255,.1)!important}
+#list .grp{font-weight:500!important;letter-spacing:.04em!important}
+#list .kid{padding:0 4px 0 8px!important}
+#list .pkids .kid{padding-left:10px!important}
+#side .brand{gap:8px}
+
