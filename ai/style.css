@@ -1114,3 +1114,33 @@ body.noside #sideToggle{display:grid!important}
 .mp-item .d{margin-top:3px;max-width:320px}
 .mp-item{padding-top:8px;padding-bottom:8px}
 
+
+/* 项目详情页：标题 + 新建会话 + 列表 + 右侧说明/文件/记忆 */
+.proj-detail{display:flex;gap:40px;max-width:1000px;margin:0 auto;padding:28px 24px 60px;align-items:flex-start}
+.pd-main{flex:1;min-width:0;max-width:672px}
+.pd-title{font-family:var(--font-serif);font-size:24px;font-weight:500;margin:0 0 18px;letter-spacing:-.01em}
+.pd-composer{display:flex;align-items:flex-end;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:10px 12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.pd-composer textarea{flex:1;border:0;background:transparent;outline:none;resize:none;font:inherit;font-size:15px;line-height:21px;color:var(--text);padding:4px 2px;max-height:160px}
+.pd-composer textarea::placeholder{color:var(--faint)}
+.pd-plus{width:28px;height:28px;border-radius:8px;color:var(--dim);font-size:16px}
+.pd-plus:hover{background:var(--panel2);color:var(--text)}
+.pd-send{width:28px;height:28px;border-radius:8px;background:var(--text);color:var(--bg);display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity .12s}
+.pd-composer:focus-within .pd-send,.pd-send.on{opacity:1;pointer-events:auto}
+.pd-meta{display:flex;justify-content:center;margin:8px 0 22px;font-size:13px;color:var(--faint)}
+.pd-sec{font-size:12px;font-weight:520;color:rgba(0,0,0,.6);margin:14px 0 6px}
+.dark .pd-sec{color:rgba(255,255,255,.55)}
+.pd-item{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;height:36px;padding:0 8px;border-radius:8px;font-size:14px;color:var(--text);text-align:left}
+.pd-item:hover{background:var(--panel2)}
+.pd-it{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-when{font-size:12px;color:var(--faint);flex:none}
+.pd-empty{font-size:13px;color:var(--faint);padding:10px 8px}
+.pd-side{width:260px;flex:none;padding-top:6px}
+.pd-row{display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:0 8px;border-radius:8px;font-size:14px;color:var(--text)}
+.pd-row:hover{background:var(--panel2)}
+.pd-ico{width:18px;text-align:center;color:var(--faint);font-size:13px}
+.pd-label{flex:1;text-align:left}
+.pd-act{font-size:13px;color:var(--dim);padding:0 6px;height:26px;border-radius:7px;display:flex;align-items:center}
+.pd-row:hover .pd-act{background:color-mix(in srgb,var(--text) 8%,transparent);color:var(--text)}
+.pd-private{margin-top:14px;padding-left:8px;font-size:12px;color:var(--faint)}
+@media (max-width:900px){.proj-detail{flex-direction:column;gap:20px}.pd-side{width:100%}}
+

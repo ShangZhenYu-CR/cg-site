@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:48';
+const APP_BUILD = '2026-11-11 20:50';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1661,6 +1661,12 @@ function renderAll() {
   const isProj = state.view === 'projects';
   const isFiles = state.view === 'files';
   const isImages = state.view === 'images';
+  const isProject = state.view === 'project';
+  const pd = $('#projDetail');
+  if (pd) {
+    pd.hidden = !isProject;
+    if (isProject) renderProjectDetail();
+  }
   const gp = $('#galleryPage');
   if (gp) {
     gp.hidden = !isImages;
@@ -1676,7 +1682,7 @@ function renderAll() {
     fp.hidden = !isFiles;
     if (isFiles) renderFilesPage();
   }
-  if (isProj || isFiles || isImages) {
+  if (isProj || isFiles || isImages || state.view === 'project') {
     $('#thread').textContent = '';
     $('#empty').hidden = true;
     layoutHomeComposer();
@@ -3929,7 +3935,7 @@ function renderProjectsPage() {
     });
     acts.append(edit, del);
     card.append(acts);
-    card.addEventListener('click', () => { state.view = 'chat'; state.projectFilter = p.id; renderAll(); });
+    card.addEventListener('click', () => openProject(p.id));
     grid.append(card);
   }
   if (!(state.projects || []).length) {
@@ -3985,6 +3991,103 @@ function showProjects() {
 }
 
 /* 图片加载失败时不再回退老桶 */
+/* ---------------- 项目详情（对齐 Claude） ---------------- */
+/* 项目详情页交互 */
+$('#pdComposer').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('#pdInput').value.trim();
+  if (!text) return;
+  const cv = await createConv({ projectId: state.projectId });
+  if (!cv) return;
+  $('#pdInput').value = '';
+  state.currentId = cv.id;
+  state.view = 'chat';
+  renderAll();
+  input.value = text;
+  send();
+});
+$('#pdInput').addEventListener('input', (e) => {
+  const t = e.target;
+  t.style.height = 'auto';
+  t.style.height = Math.min(160, t.scrollHeight) + 'px';
+});
+$('#pdIns').addEventListener('click', () => openProjectDialog((state.projects || []).find((x) => x.id === state.projectId)));
+$('#pdFiles').addEventListener('click', () => openProjectDialog((state.projects || []).find((x) => x.id === state.projectId)));
+$('#pdMemory').addEventListener('click', () => {
+  const p = (state.projects || []).find((x) => x.id === state.projectId);
+  if (!p) return;
+  const rows = (p.knowledge || []).map((k) => ({ label: k.name || '片段', sub: String(k.text || '').slice(0, 80) }));
+  openListPanel('记忆 · ' + p.name, rows.length ? '项目知识库里的内容' : '还没有内容，点「文件 → 添加」加一段', rows);
+});
+
+function openProject(id) {
+  const p = (state.projects || []).find((x) => x.id === id);
+  if (!p) return;
+  state.projectId = id;
+  state.view = 'project';
+  renderAll();
+}
+
+/* 项目详情：+ 附件、标题改名、时间用相对量 */
+$('#pdPlus').addEventListener('click', () => {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.addEventListener('change', async () => {
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    const cv = await createConv({ projectId: state.projectId });
+    if (!cv) return;
+    state.currentId = cv.id; state.view = 'chat'; renderAll();
+    uploadFile(file);
+  });
+  inp.click();
+});
+$('#pdTitle').addEventListener('dblclick', () => {
+  const p = (state.projects || []).find((x) => x.id === state.projectId);
+  if (p) openProjectDialog(p);
+});
+function renderProjectDetail() {
+  const p = (state.projects || []).find((x) => x.id === state.projectId);
+  if (!p) { state.view = 'projects'; renderAll(); return; }
+  $('#pdTitle').textContent = p.name;
+  $('#titleBtn').textContent = '项目 / ' + p.name;
+  $('#pdInput').placeholder = '在 ' + p.name + ' 里新建会话';
+  $('#pdInsAct').textContent = p.instructions ? '编辑' : '添加';
+  $('#pdFilesAct').textContent = (p.knowledge || []).length ? String((p.knowledge || []).length) : '添加';
+  $('#pdModel').textContent = labelOf(LS.model) + ' · ' + (EFFORT_LABEL[LS.effort] || '中等');
+  $('#pdPrivate').textContent = p.private === false ? '团队可见' : '私人';
+
+  const list = $('#pdList');
+  list.textContent = '';
+  const kids = (state.convs || []).filter((c) => c.projectId === p.id && !c.archived)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const pinned = kids.filter((c) => isPinned(c.id));
+  const rest = kids.filter((c) => !isPinned(c.id));
+  const section = (label, arr) => {
+    if (!arr.length) return;
+    list.append(el('div', 'pd-sec', label));
+    for (const cv of arr) {
+      const row = el('button', 'pd-item');
+      row.type = 'button';
+      const t = el('span', 'pd-it', cv.title || '未命名');
+      row.append(t);
+      const ago = Date.now() - (cv.updatedAt || 0);
+      const label = ago < 3600e3 ? Math.max(1, Math.round(ago / 60000)) + ' 分钟前'
+        : ago < 86400e3 ? Math.round(ago / 3600e3) + ' 小时前'
+        : ago < 7 * 86400e3 ? Math.round(ago / 86400e3) + ' 天前' : when(cv.updatedAt);
+      row.append(el('span', 'pd-when', label));
+      row.addEventListener('click', () => { state.currentId = cv.id; state.view = 'chat'; applyConvSettings(cv); renderAll(); });
+      list.append(row);
+    }
+  };
+  section('已置顶', pinned);
+  section('最近', rest);
+  if (!kids.length) {
+    const empty = el('div', 'pd-empty', '这个项目还没有会话');
+    list.append(empty);
+  }
+}
 /* ---------------- 图库 ---------------- */
 /** 汇总所有对话里的图片（用户贴的 + 模型生成的），最近的在前 */
 function allImages(limit) {
