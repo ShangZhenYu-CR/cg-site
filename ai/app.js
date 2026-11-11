@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:36';
+const APP_BUILD = '2026-11-11 18:38';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1382,6 +1382,8 @@ function renderEffort() {
 function setBusy(b) {
   state.streaming = b;
   sendBtn.classList.toggle('stop', b);
+  const box = $('#composer');
+  if (box) box.classList.toggle('is-busy', b);
   sendBtn.title = b ? '停止' : '发送';
   sendBtn.innerHTML = b
     ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'

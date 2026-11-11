@@ -774,3 +774,14 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .empty > p{display:none}
 .empty.with-composer #composerBlock{margin-top:20px}
 .chips{margin:14px 0 0}
+/* ---------- 第 8 轮：附件条 / 停止按钮 / 滚动渐隐 ---------- */
+.attach{width:min(672px,100%);gap:8px}
+.attach .chip{border-radius:10px}.composer.is-busy .send{display:grid}
+.attach{width:min(672px,100%);gap:8px}
+.attach .chip{border-radius:10px}
+.attach .chip img{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.attach .chip button{top:-4px;right:-4px;width:18px;height:18px;border-radius:999px}
+.composer.stop,.send.stop{background:var(--text);color:var(--bg)}
+.composer.is-busy{border-color:color-mix(in srgb, var(--text) 18%, transparent)}
+.composer.is-busy .send{display:grid}
+.scroll{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%)}
