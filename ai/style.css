@@ -940,3 +940,14 @@ body.noside #side{display:flex!important;width:64px!important}
 body.noside #main{grid-column:2}
 body.noside #sideToggle{display:grid!important}
 
+
+/* 消息里的引用与表格 */
+.msg .bd blockquote{margin:10px 0;padding:8px 0 8px 12px;border-left:2px solid var(--line);color:var(--dim)}
+.msg .bd table{border-collapse:collapse;margin:10px 0;font-size:13px;width:100%;display:block;overflow-x:auto}
+.msg .bd th,.msg .bd td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+.msg .bd th{background:var(--panel2);font-weight:600}
+.msg .bd hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+/* 项目卡片操作条 */
+.pp-card .acts button{transition:background var(--dur-fast) var(--ease-out)}
+.pp-card .acts button:hover{background:var(--panel2)}
+

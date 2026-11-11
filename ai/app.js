@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:23';
+const APP_BUILD = '2026-11-11 19:25';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3679,7 +3679,17 @@ function renderProjectsPage() {
     const edit = el('button', null, '项目指令');
     edit.type = 'button';
     edit.addEventListener('click', (e) => { e.stopPropagation(); openProjectDialog(p); });
-    acts.append(edit);
+    const del = el('button', null, '删除');
+    del.type = 'button';
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('删除项目「' + p.name + '」？里面的对话会变成未分类，不会删。')) return;
+      const r = await api('/projects/' + p.id, { method: 'DELETE' });
+      if (!r.ok) { alert('删除失败'); return; }
+      await Promise.all([loadProjects(), loadConvs()]);
+      renderAll();
+    });
+    acts.append(edit, del);
     card.append(acts);
     card.addEventListener('click', () => { state.view = 'chat'; state.projectFilter = p.id; renderAll(); });
     grid.append(card);
@@ -3912,6 +3922,19 @@ function labelNavRows() {
   const nb = document.querySelector('#newChat');
   if (nb) nb.title = '新建对话（Ctrl+Shift+O）';
 }
+/* 移动端：在侧栏上左滑关闭抽屉 */
+let swipeStartX = null;
+const sideEl = $('#side');
+sideEl.addEventListener('touchstart', (e) => {
+  if (!document.body.classList.contains('nav')) return;
+  swipeStartX = e.touches[0].clientX;
+}, { passive: true });
+sideEl.addEventListener('touchmove', (e) => {
+  if (swipeStartX === null) return;
+  const dx = e.touches[0].clientX - swipeStartX;
+  if (dx < -60) { closeNav(); swipeStartX = null; }
+}, { passive: true });
+sideEl.addEventListener('touchend', () => { swipeStartX = null; }, { passive: true });
 function closeNav() { document.body.classList.remove('nav'); }
 
 /* 侧栏收起 / 展开（桌面端，状态记在本机） */
