@@ -1389,3 +1389,8 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 .design-frame{flex:1;min-height:0}
 .design-src{flex:1;min-height:0;width:100%;border:0;padding:16px;background:var(--code-bg);color:var(--text);font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;resize:none;outline:none}
 
+
+.art-foot{gap:8px}
+.art-chip{height:24px;padding:0 8px;border-radius:6px;font-size:12px;color:var(--dim)}
+.art-chip:hover{background:var(--panel2);color:var(--text)}
+

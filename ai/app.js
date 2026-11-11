@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:03';
+const APP_BUILD = '2026-11-11 23:08';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2442,6 +2442,7 @@ function hideThinking() {
         codeMode: state.codeMode || !!cv.artifact,
         fileNames: (cv.files || []).map(f => f.name),
         artifact: cv.artifact || undefined,
+        design: cv.artifact && cv.artifact.kind === 'design' ? (cv.design || undefined) : undefined,
         messages: sentMessages(cv).map(m => ({
           role: m.role,
           text: m.text,
@@ -4355,6 +4356,8 @@ $('#cbZoom').addEventListener('click', () => {
   deckZoom = next;
   applyDeckZoom();
 });
+$('#artOutputs').addEventListener('click', openOutputs);
+$('#artDesignSystem').addEventListener('click', openDesignSystem);
 $('#artPublish').addEventListener('click', publishDesignArtifact);
 $('#artExport').addEventListener('click', () => {
   const f = currentArtifactFile();
@@ -4508,6 +4511,50 @@ function togglePresent() {
   $('#cbPresent').textContent = deckPresent ? '■' : '▶';
   $('#cbPresent').title = deckPresent ? '退出放映' : '放映';
 }
+/* 设计系统：配色 / 字体，写进会话，生成时带上 */
+const DESIGN_PALETTES = [
+  { id: 'warm', name: '暖色（默认）', hint: '#FCFCFB 底 / #c6613f 主色' },
+  { id: 'cool', name: '冷色', hint: '浅灰底 / #184f95 主色' },
+  { id: 'mono', name: '黑白', hint: '纯白底 / 近黑文字，极简' },
+];
+const DESIGN_FONTS = [
+  { id: 'serif', name: '衬线标题（默认）' },
+  { id: 'sans', name: '无衬线' },
+];
+
+function openDesignSystem() {
+  const cv = current();
+  if (!cv) return;
+  const ds = cv.design || {};
+  const rows = DESIGN_PALETTES.map((p) => ({
+    label: (ds.palette === p.id ? '✓ ' : '') + p.name,
+    sub: p.hint,
+    onClick: async () => { cv.design = { ...(cv.design || {}), palette: p.id }; await saveConv(cv); $('#dlgList').hidden = true; flashHint('配色已设为' + p.name); },
+  }));
+  rows.push({ label: '— 字体 —', sub: '', onClick: () => {} });
+  for (const ft of DESIGN_FONTS) {
+    rows.push({ label: (ds.font === ft.id ? '✓ ' : '') + ft.name, sub: '', onClick: async () => { cv.design = { ...(cv.design || {}), font: ft.id }; await saveConv(cv); $('#dlgList').hidden = true; flashHint('字体已设为' + ft.name); } });
+  }
+  openListPanel('设计系统', '选好后重生成，产物会按这套规范输出', rows);
+}
+
+/** 产物面板底部：列出本对话所有产物 */
+function openOutputs() {
+  const cv = current();
+  if (!cv) return;
+  const files = cv.files || [];
+  if (!files.length) { flashHint('这个对话还没有产物'); return; }
+  openListPanel('产物 · ' + (cv.title || '未命名'), '点一个打开右侧面板', files.map((f) => ({
+    label: f.name || '未命名',
+    sub: (String(f.content || '').length + ' 字符'),
+    onClick: () => {
+      $('#dlgList').hidden = true;
+      const ext = (f.name || '').split('.').pop();
+      const kind = /deck\.json$/i.test(f.name || '') ? 'deck' : /\.html?$/i.test(f.name || '') ? 'design' : 'doc';
+      openArtifactPane(kind, f.name);
+    },
+  })));
+}
 /* ---------------- 产物面板：文档 / 幻灯片 / 设计 ---------------- */
 const ART_KINDS = {
   doc: { label: '文档', ext: '.md', tip: '把想法写下来，或者让我来写：直接在左边发一句「写一份……」，我会把内容放进这份文档。' },
@@ -4538,6 +4585,8 @@ function openArtifactPane(kind, name) {
   document.body.classList.add('artopen');
   $('#artKind').textContent = ART_KINDS[kind] ? ART_KINDS[kind].label : '产物';
   $('#artPublish').hidden = kind !== 'design';
+  const dsBtn = $('#artDesignSystem');
+  if (dsBtn) dsBtn.hidden = kind !== 'design';
   $('#artTitle').value = artName;
   renderArtifact();
 }
