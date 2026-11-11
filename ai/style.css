@@ -1183,3 +1183,9 @@ body.noside #sideToggle{display:grid!important}
 .viewall:hover{background:var(--panel2);color:var(--text)}
 #list .grp{padding-left:10px}
 
+
+/* 项目视图顶栏：面包屑 + 右侧搜索/收藏 */
+.top-only-proj{display:none}
+body.in-project .top-only-proj{display:grid!important}
+body.in-project .top .title::after{content:'⌄';font-size:11px;color:var(--faint);margin-left:6px}
+

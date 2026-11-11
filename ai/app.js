@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:54';
+const APP_BUILD = '2026-11-11 20:55';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1660,6 +1660,7 @@ function renderAll() {
   const isImages = state.view === 'images';
   const isProject = state.view === 'project';
   const pd = $('#projDetail');
+  document.body.classList.toggle('in-project', isProject);
   if (pd) {
     pd.hidden = !isProject;
     if (isProject) renderProjectDetail();
@@ -3989,6 +3990,17 @@ function showProjects() {
 
 /* 图片加载失败时不再回退老桶 */
 /* ---------------- 项目详情（对齐 Claude） ---------------- */
+/* 顶栏：项目视图才显示的搜索/收藏 */
+$('#topSearch').addEventListener('click', () => { $('#q').focus(); $('#q').select && $('#q').select(); });
+$('#topStar').addEventListener('click', async () => {
+  const p = (state.projects || []).find((x) => x.id === state.projectId);
+  if (!p) return;
+  p.pinned = !p.pinned;
+  const r = await api('/projects/' + p.id, { method: 'PUT', body: { pinned: !!p.pinned } });
+  $('#topStar').textContent = p.pinned ? '★' : '☆';
+  flashHint(p.pinned ? '已置顶项目' : '取消置顶');
+  renderAll();
+});
 /* 项目详情页交互 */
 $('#pdComposer').addEventListener('submit', async (e) => {
   e.preventDefault();
