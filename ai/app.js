@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:34';
+const APP_BUILD = '2026-11-11 17:35';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1111,13 +1111,14 @@ function renderModels() {
   const active = activeModels();
   const current = active.length ? active : list;
 
-  // 主菜单只显示当前模型，避免和「更多模型」重复
+  // 主菜单不再列模型：模型全在「更多模型」面板里，这里只显示当前是哪个
   if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = current[0] || list[0];
-  if (LS.model) box.append(modelRow(LS.model, !isActiveModel(LS.model)));
 
   $('#modelName').textContent = labelOf(LS.model);
   const mm = $('#moreModels');
-  if (mm) mm.firstElementChild.textContent = '更多模型';
+  if (mm) {
+    mm.innerHTML = '<span>更多模型</span><span class="mp-right"><b>' + esc(labelOf(LS.model)) + '</b><i class="chev">›</i></span>';
+  }
   const note = $('#mpNote');
   if (note) note.textContent = canAstra() ? '模型越高越慢越贵；带图请求会自动省略推理档位。' : '高级模型需要高级口令。';
   renderAllModels();
