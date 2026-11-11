@@ -239,10 +239,13 @@
 <div class="plug-view" id="plugView" hidden>
   <div class="plug-bar">
     <span class="plug-name" id="plugName"></span>
+    <span class="plug-warn">第三方插件 · 沙箱运行 · 读不到你的登录信息</span>
     <a class="plug-link" id="plugOpen" target="_blank" rel="noopener">在新窗口打开</a>
     <button class="icon" id="plugClose" title="关闭">✕</button>
   </div>
-  <iframe class="plug-frame" id="plugFrame" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>
+  <iframe class="plug-frame" id="plugFrame" sandbox="allow-scripts"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; fullscreen 'none'"
+          referrerpolicy="no-referrer"></iframe>
 </div>
 
 <!-- 产物面板（文档 / 幻灯片 / 设计） -->
