@@ -479,7 +479,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .ra-card .n{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ra-card .m{font-size:11px;color:var(--faint);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* ---------- 模型菜单（Claude 结构） ---------- */
-.model-pop{width:340px;padding:6px;border-radius:var(--radius-panel)}
+.model-pop{width:340px;padding:6px;border-radius:var(--radius-panel);max-height:min(72vh,660px);overflow-y:auto;overscroll-behavior:contain}
 .mp-list{display:grid;gap:1px}
 .mp-item{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:var(--radius-control)}
 .mp-item:hover{background:var(--panel2)}
@@ -551,3 +551,8 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .pf-note{font-size:12px;color:var(--faint);padding:2px 10px 6px}
 .grp button{font-size:12px;color:var(--faint);padding:2px 6px;border-radius:6px}
 .grp button:hover{color:var(--text);background:var(--panel2)}
+/* 模型分组 / 已淘汰 */
+.mp-sect{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:8px 10px 4px}
+.mp-item.retired .t{color:var(--dim)}
+.mp-item.retired .d{opacity:.75}
+.mp-item .badge.legacy{color:var(--faint);border-color:var(--line);background:transparent}

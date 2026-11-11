@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:18';
+const APP_BUILD = '2026-11-11 17:19';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1012,40 +1012,68 @@ function modelMeta(id) {
 
 let showAllModels = false;
 
+/** 在售模型：只保留 5.6 的 Terra / Luna，其余归入已淘汰 */
+function isActiveModel(id) {
+  const m = String(id || '');
+  return /5\.6/i.test(m) && /(terra|luna)/i.test(m);
+}
+
+function modelRow(id, retired) {
+  const meta = modelMeta(id);
+  const b = el('button', 'mp-item' + (retired ? ' retired' : ''));
+  b.type = 'button';
+  const t = el('div', 't');
+  t.append(el('span', null, labelOf(id)));
+  if (meta.badge) t.append(el('span', 'badge', meta.badge));
+  if (retired) t.append(el('span', 'badge legacy', '已淘汰'));
+  if (id === LS.model) t.append(el('span', 'ck', '✓'));
+  b.append(t);
+  if (meta.desc) b.append(el('div', 'd', meta.desc));
+  b.addEventListener('click', () => {
+    modelPinned = false;
+    LS.model = id;
+    renderModels();
+    renderEffort();
+    updateCtx();
+    persistSettings();
+  });
+  return b;
+}
+
 function renderModels() {
   const list = visibleModels();
   const box = $('#modelList');
   box.textContent = '';
-  const rec = RECOMMENDED.filter((m) => list.includes(m));
-  const rows = showAllModels ? list : (rec.length ? rec : list);
 
-  for (const id of rows) {
-    const meta = modelMeta(id);
-    const b = el('button', 'mp-item');
-    b.type = 'button';
-    const t = el('div', 't');
-    t.append(el('span', null, labelOf(id)));
-    if (meta.badge) t.append(el('span', 'badge', meta.badge));
-    if (id === LS.model) t.append(el('span', 'ck', '✓'));
-    b.append(t);
-    if (meta.desc) b.append(el('div', 'd', meta.desc));
-    b.addEventListener('click', () => {
-      modelPinned = false;
-      LS.model = id;
-      renderModels();
-      renderEffort();
-      updateCtx();
-      persistSettings();
-    });
-    box.append(b);
+  const active = list.filter(isActiveModel)
+    .sort((a, b) => (/terra/i.test(b) ? 1 : 0) - (/terra/i.test(a) ? 1 : 0));
+  const retired = list.filter((m) => !isActiveModel(m));
+  const rec = RECOMMENDED.filter((m) => active.includes(m));
+  const current = active.length ? active : list;
+
+  if (!showAllModels) {
+    for (const id of (rec.length ? rec : current)) box.append(modelRow(id, false));
+  } else {
+    const headA = el('div', 'mp-sect', '全部模型');
+    box.append(headA);
+    for (const id of active) box.append(modelRow(id, false));
+    if (retired.length) {
+      box.append(el('div', 'mp-sect', '已淘汰模型'));
+      for (const id of retired) box.append(modelRow(id, true));
+    }
   }
 
-  if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = rec[0] || list[0];
+  // 当前模型被淘汰时，自动落到在售模型
+  if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = rec[0] || current[0] || list[0];
+  if (!modelPinned && retired.includes(LS.model) && !showAllModels) LS.model = rec[0] || current[0] || LS.model;
+
   $('#modelName').textContent = labelOf(LS.model);
   const mm = $('#moreModels');
   if (mm) mm.firstElementChild.textContent = showAllModels ? '收起模型' : '更多模型';
   const note = $('#mpNote');
-  if (note) note.textContent = canAstra() ? '模型越高越慢越贵；带图请求会自动省略推理档位。' : '高级模型需要高级口令。';
+  if (note) note.textContent = showAllModels
+    ? '「已淘汰」仍可用，但不再作为默认；新会话默认选全部模型里的项。'
+    : (canAstra() ? '模型越高越慢越贵；带图请求会自动省略推理档位。' : '高级模型需要高级口令。');
   updateComposerMeta();
   renderEffort();
 }
@@ -2801,6 +2829,11 @@ $('#uSaveBalance').addEventListener('click', async () => {
 });
 
 $('#newChat').addEventListener('click', async () => {
+  if (!isActiveModel(LS.model)) {
+    const act = visibleModels().filter(isActiveModel);
+    const terra = act.find((m) => /terra/i.test(m));
+    if (act.length) { LS.model = terra || act[0]; modelPinned = false; persistSettings(); }
+  }
   await createConv({ projectId: state.projectFilter || null });
   renderAll();
   closeNav();
