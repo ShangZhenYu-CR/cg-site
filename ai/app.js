@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:29';
+const APP_BUILD = '2026-11-11 17:34';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -588,15 +588,18 @@ function convRow(cv) {
   act.innerHTML = ic('ellipsis', 15);
   act.addEventListener('click', (e) => {
     e.stopPropagation();
+    // 先记下位置：下面会重渲染，这个按钮会被替换掉
+    const r = act.getBoundingClientRect();
     state.currentId = cv.id;
     applyConvSettings(cv);
     renderAll();
     const pop = $('#menuPop');
-    const r = act.getBoundingClientRect();
     closePops();
     pop.hidden = false;
-    pop.style.left = Math.max(8, r.left - 200) + 'px';
-    pop.style.top = (r.bottom + 6) + 'px';
+    const w = 220;
+    const h = pop.offsetHeight || 300;
+    pop.style.left = Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8) + 'px';
+    pop.style.top = Math.min(Math.max(8, r.bottom + 6), window.innerHeight - h - 8) + 'px';
   });
   row.append(t, time, act);
 
@@ -1065,28 +1068,38 @@ function activeModels() {
 }
 
 /** 「更多模型」的飞出面板：全部模型 + 已淘汰（折叠） */
+const is56 = (id) => /5\.6/i.test(String(id));
+const is6x = (id) => /^gpt-6/i.test(String(id));
+
 function renderAllModels() {
   const box = $('#allModelList');
   if (!box) return;
   box.textContent = '';
   const list = visibleModels();
-  const active = activeModels();
-  const retired = list.filter((m) => !isActiveModel(m));
+  const five6 = list.filter((m) => is56(m) && /(sol|terra|luna)/i.test(m)).sort((a, b) => modelRank(a) - modelRank(b));
+  const six = list.filter((m) => is6x(m) && !is56(m));
+  const legacy = list.filter((m) => !five6.includes(m) && !six.includes(m));
 
-  box.append(el('div', 'mp-sect', '全部模型'));
-  for (const id of active) box.append(modelRow(id, false));
-
-  if (retired.length) {
+  box.append(el('div', 'mp-sect', '更多模型'));
+  if (six.length) {
+    box.append(el('div', 'mp-sect sub', 'GPT-6 / 6.1 系列'));
+    for (const id of six) box.append(modelRow(id, false));
+  }
+  if (five6.length) {
+    box.append(el('div', 'mp-sect sub', 'GPT-5.6 系列'));
+    for (const id of five6) box.append(modelRow(id, false));
+  }
+  if (legacy.length) {
     const fold = el('button', 'mp-row mp-fold');
     fold.type = 'button';
-    fold.innerHTML = '<span>已淘汰模型</span><span class="mp-right"><b>' + retired.length + '</b><i class="chev">' + (showRetired ? '⌄' : '›') + '</i></span>';
+    fold.innerHTML = '<span>更早的模型</span><span class="mp-right"><b>' + legacy.length + '</b><i class="chev">' + (showRetired ? '⌄' : '›') + '</i></span>';
     fold.addEventListener('click', (e) => {
       e.stopPropagation();
       showRetired = !showRetired;
       renderAllModels();
     });
     box.append(fold);
-    if (showRetired) for (const id of retired) box.append(modelRow(id, true));
+    if (showRetired) for (const id of legacy) box.append(modelRow(id, true));
   }
 }
 
@@ -1096,14 +1109,11 @@ function renderModels() {
   box.textContent = '';
 
   const active = activeModels();
-  const retired = list.filter((m) => !isActiveModel(m));
   const current = active.length ? active : list;
 
-  for (const id of current) box.append(modelRow(id, false));
-
-  // 当前模型被淘汰时，自动落到在售模型
+  // 主菜单只显示当前模型，避免和「更多模型」重复
   if (!modelPinned && !list.includes(LS.model) && list.length) LS.model = current[0] || list[0];
-  if (!modelPinned && retired.includes(LS.model)) LS.model = current[0] || LS.model;
+  if (LS.model) box.append(modelRow(LS.model, !isActiveModel(LS.model)));
 
   $('#modelName').textContent = labelOf(LS.model);
   const mm = $('#moreModels');
@@ -2222,9 +2232,11 @@ $('#moreModels').addEventListener('click', (e) => {
   const open = fly.hidden;
   renderAllModels();
   if (open) {
-    const r = $('#modelPop').getBoundingClientRect();
-    fly.style.left = Math.max(8, r.left - 288) + 'px';
-    fly.style.top = Math.max(8, r.top) + 'px';
+    const popR = $('#modelPop').getBoundingClientRect();
+    const rowR = e.currentTarget.getBoundingClientRect();
+    const w = 288;
+    fly.style.left = Math.max(8, popR.left - w - 8) + 'px';
+    fly.style.top = Math.max(8, Math.min(rowR.top - 46, window.innerHeight - fly.offsetHeight - 8)) + 'px';
   }
   fly.hidden = !open;
 });
