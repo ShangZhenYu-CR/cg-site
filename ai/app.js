@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:20';
+const APP_BUILD = '2026-11-11 23:22';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5484,6 +5484,37 @@ async function boot() {
 
 boot();
 
+/* 输入框下方的「项目」标签：点开选项目 */
+$('#metaProject').addEventListener('click', () => {
+  const cv = current();
+  if (!cv) return;
+  const rows = [{
+    label: (cv.projectId ? '' : '✓ ') + '未归档',
+    sub: '不属于任何项目',
+    onClick: async () => {
+      cv.projectId = null;
+      await saveConv(cv);
+      $('#dlgList').hidden = true;
+      renderAll();
+      flashHint('已移出项目');
+    },
+  }];
+  for (const p of (state.projects || [])) {
+    rows.push({
+      label: (cv.projectId === p.id ? '✓ ' : '') + p.name,
+      sub: p.instructions ? '带项目指令' : '',
+      onClick: async () => {
+        cv.projectId = p.id;
+        await saveConv(cv);
+        $('#dlgList').hidden = true;
+        renderAll();
+        flashHint('已归到「' + p.name + '」');
+      },
+    });
+  }
+  rows.push({ label: '＋ 新建项目…', sub: '', onClick: () => { $('#dlgList').hidden = true; openProjectDialog(null); } });
+  openListPanel('归到哪个项目', '项目会带上它自己的指令和知识', rows);
+});
 /* 代码块复制（事件委托，流式重绘也能用） */
 document.addEventListener('click', async (e) => {
   const btn = e.target && e.target.closest && e.target.closest('.pre-copy');
@@ -5498,5 +5529,38 @@ document.addEventListener('click', async (e) => {
   } catch (err) {
     flashHint('复制失败');
   }
+});
+
+
+/* 输入框下方的「项目」标签：点开选项目 */
+$('#metaProject').addEventListener('click', () => {
+  const cv = current();
+  if (!cv) return;
+  const rows = [{
+    label: (cv.projectId ? '' : '✓ ') + '未归档',
+    sub: '不属于任何项目',
+    onClick: async () => {
+      cv.projectId = null;
+      await saveConv(cv);
+      $('#dlgList').hidden = true;
+      renderAll();
+      flashHint('已移出项目');
+    },
+  }];
+  for (const p of (state.projects || [])) {
+    rows.push({
+      label: (cv.projectId === p.id ? '✓ ' : '') + p.name,
+      sub: p.instructions ? '带项目指令' : '',
+      onClick: async () => {
+        cv.projectId = p.id;
+        await saveConv(cv);
+        $('#dlgList').hidden = true;
+        renderAll();
+        flashHint('已归到「' + p.name + '」');
+      },
+    });
+  }
+  rows.push({ label: '＋ 新建项目…', sub: '', onClick: () => { $('#dlgList').hidden = true; openProjectDialog(null); } });
+  openListPanel('归到哪个项目', '项目会带上它自己的指令和知识', rows);
 });
 
