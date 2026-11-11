@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:41';
+const APP_BUILD = '2026-11-12 00:45';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -782,7 +782,9 @@ function renderUsageDialog() {
   if (!d.convs || !d.convs.length) convs.append(el('div', 'u-row', '还没有记录'));
   else for (const c of d.convs) {
     const row = el('div', 'u-row');
-    row.append(el('span', 'k', c.title || c.id));
+    // 服务端只回 id，这里翻成对话名；找不到说明已删
+    const known = (state.convs || []).find((x) => x.id === c.id);
+    row.append(el('span', 'k', c.title || (known && known.title) || '已删除的对话'));
     row.append(el('b', null, formatUsd(c.usd)));
     convs.append(row);
   }
@@ -1639,6 +1641,52 @@ function trapFocus(ov) {
 }
 document.querySelectorAll('.overlay').forEach(trapFocus);
 
+/* ---------------- 成员（设置内） ---------------- */
+let usersPaneBuilt = false;
+async function mountUsersPane(pane) {
+  if (!pane) return;
+  if (!usersPaneBuilt) {
+    usersPaneBuilt = true;
+    pane.innerHTML = '<h3>成员</h3><p class="set-hint">进来过的人都在这里；认不出的直接拉黑。私人对话只有创建者和管理员能看到。</p><div class="members" id="usersPaneList"></div>';
+  }
+  const box = pane.querySelector('#usersPaneList');
+  if (!box) return;
+  box.textContent = '加载中…';
+  const r = await api('/users');
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { box.textContent = errText(r.status, j); return; }
+  box.textContent = '';
+  const users = (j.users || []).slice().sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  if (!users.length) { box.append(el('div', 'set-hint', '还没有人来过')); return; }
+  for (const u of users) {
+    const row = el('div', 'mrow' + (u.blocked ? ' blocked' : ''));
+    row.append(el('div', 'avatar', String(u.name).slice(0, 1)));
+    const mi = el('div', 'mi');
+    mi.append(el('div', 'mn', u.name));
+    const role = { astra: 'Astra', admin: '管理员' }[u.role] || '普通';
+    mi.append(el('div', 'mm', role + ' · 进过 ' + (u.logins || 0) + ' 次' + (u.lastSeen ? ' · ' + when(u.lastSeen) : '')));
+    row.append(mi);
+    const rn = el('button', 'mb', '改名');
+    rn.addEventListener('click', async () => {
+      const to = prompt('把「' + u.name + '」改成？', u.name);
+      if (!to || to.trim() === u.name) return;
+      const rr = await api('/users/rename', { method: 'POST', body: { from: u.name, to: to.trim() } });
+      const jj = await rr.json().catch(() => ({}));
+      if (!rr.ok) { alert(errText(rr.status, jj)); return; }
+      if (jj.token) { LS.token = jj.token; LS.name = jj.to; renderIdentity(); }
+      mountUsersPane(pane);
+    });
+    const blk = el('button', 'mb' + (u.blocked ? '' : ' red'), u.blocked ? '解封' : '拉黑');
+    blk.addEventListener('click', async () => {
+      if (!u.blocked && !confirm('拉黑「' + u.name + '」？他之后进不来。')) return;
+      const rr = await api('/users/block', { method: 'POST', body: { name: u.name, blocked: !u.blocked } });
+      if (!rr.ok) { alert('操作失败'); return; }
+      mountUsersPane(pane);
+    });
+    row.append(rn, blk);
+    box.append(row);
+  }
+}
 function openSettings(tab) {
   const ov = $('#dlgSet');
   ov.hidden = false;
@@ -1646,6 +1694,7 @@ function openSettings(tab) {
   renderSetNav(key);
   for (const p of document.querySelectorAll('.set-pane')) p.hidden = p.dataset.pane !== key;
   mountPane(key);
+  if (key === 'users') mountUsersPane(document.querySelector('.set-pane[data-pane="users"]'));
   trapFocus(ov);
   const firstNav = document.querySelector('.set-item');
   if (firstNav) setTimeout(() => firstNav.focus(), 30);

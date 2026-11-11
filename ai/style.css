@@ -1560,3 +1560,10 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
 /* 插件计数：从绝对定位改回流内，别顶到窗口外 */
 .pp-count{position:static!important;transform:none!important;top:auto!important;right:auto!important;margin-left:auto!important;white-space:nowrap}
 
+
+/* 主按钮统一成近黑（和登录「进去」一致），不再用蓝色 */
+.overlay .primary{background:var(--text)!important;color:var(--bg)!important}
+/* 全站焦点环：用品牌色细描边，替换浏览器蓝色默认环 */
+:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent)!important;outline-offset:2px}
+input:focus,input:focus-visible,textarea:focus,textarea:focus-visible,select:focus{outline:none!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)!important;border-color:color-mix(in srgb,var(--accent) 35%,var(--line))!important}
+
