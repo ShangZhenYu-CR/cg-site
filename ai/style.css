@@ -961,3 +961,16 @@ body.noside #sideToggle{display:grid!important}
 .set-kv{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;color:var(--text)}
 .set-kv kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
 
+
+/* 桌面标题栏（补回，之前被整文件回写冲掉） */
+@media (min-width:900px){
+  .top{display:flex!important;height:45px;min-height:45px;max-height:45px;padding:0 12px;background:var(--bg);border-bottom:0;align-items:center;gap:8px}
+  .top .side-toggle,.top .burger,.top .model-pill{display:none!important}
+  .top .title{font-size:14px!important;font-weight:435;height:28px;padding:0 8px;border-radius:8px;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+  .top .title:hover{background:var(--panel2)}
+  .top .icon{width:28px;height:28px;border-radius:8px}
+}
+/* 消息列与输入框同宽（之前 720 vs 672 错位） */
+.thread{width:min(672px,100%)}
+.attach{width:min(672px,100%)}
+
