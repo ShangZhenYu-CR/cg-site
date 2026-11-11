@@ -1646,3 +1646,14 @@ html[data-theme="dark"]{--text:#ececea}
 /* 对话正文强制 16px（有更具体的 15px 规则在抢） */
 #thread .msg .bd,#thread .msg .bd p,#thread .msg .bd li,#thread .msg .bd td,#thread .msg .bd th{font-size:var(--ui-font)!important;line-height:var(--ui-line)!important}
 
+
+/* 输入区永远留出两侧空白，并在主区很窄时收住控件 */
+.composer{width:min(672px,calc(100% - 32px))!important;margin:0 auto!important;box-sizing:border-box}
+#caps{width:min(672px,calc(100% - 32px))!important;margin:0 auto 6px!important;box-sizing:border-box}
+.composer .cm-model{flex:0 1 auto;min-width:0;max-width:46%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.composer .send,.composer #plusBtn{flex:none}
+@media (max-width:460px){
+  .composer{padding:8px 8px 6px!important}
+  .composer .cm-model{font-size:11px!important;padding:0 6px!important}
+}
+
