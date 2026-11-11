@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:35';
+const APP_BUILD = '2026-11-11 17:40';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -610,6 +610,7 @@ function convRow(cv) {
 
   row.addEventListener('click', () => {
     if (state.streaming) return;
+    state.view = 'chat';
     state.currentId = cv.id;
     applyConvSettings(cv);
     renderAll();
@@ -946,7 +947,23 @@ function renderThread() {
 
 function renderAll() {
   renderSide();
-  renderThread();
+  const isProj = state.view === 'projects';
+  const page = $('#projPage');
+  if (page) {
+    page.hidden = !isProj;
+    if (isProj) renderProjectsPage();
+  }
+  if (isProj) {
+    $('#thread').textContent = '';
+    $('#empty').hidden = true;
+    layoutHomeComposer();
+    const cb = $('#composerBlock');
+    if (cb) cb.hidden = true;
+  } else {
+    const cb = $('#composerBlock');
+    if (cb) cb.hidden = false;
+    renderThread();
+  }
   renderCode();
 }
 
@@ -2918,6 +2935,37 @@ function openListPanel(title, sub, rows) {
   $('#dlgList').hidden = false;
 }
 
+/** 项目页（Claude 的 claude.ai/projects） */
+function renderProjectsPage() {
+  const grid = $('#ppGrid');
+  if (!grid) return;
+  grid.textContent = '';
+  const convs = state.convs || [];
+  for (const p of state.projects || []) {
+    const n = convs.filter((c) => c.projectId === p.id).length;
+    const card = el('div', 'pp-card');
+    const name = el('div', 'n');
+    name.append(el('span', 'ico', '📁'), el('span', null, p.name));
+    card.append(name);
+    card.append(el('div', 'm', n + ' 个对话'));
+    if (p.instructions) card.append(el('div', 'ins', String(p.instructions).slice(0, 120)));
+    const acts = el('div', 'acts');
+    const edit = el('button', null, '项目指令');
+    edit.type = 'button';
+    edit.addEventListener('click', (e) => { e.stopPropagation(); openProjectDialog(p); });
+    acts.append(edit);
+    card.append(acts);
+    card.addEventListener('click', () => { state.view = 'chat'; state.projectFilter = p.id; renderAll(); });
+    grid.append(card);
+  }
+  if (!(state.projects || []).length) grid.append(el('div', 'pp-sub', '还没有项目，点右上角新建一个。'));
+}
+
+function showProjectsPage() {
+  state.view = 'projects';
+  renderAll();
+}
+
 /** 项目：列出全部项目，点一个只看它 */
 function showProjects() {
   const convs = state.convs || [];
@@ -2956,7 +3004,8 @@ function showFiles() {
   openListPanel('文件', '编程模式产生的文件，按最近排序', rows);
 }
 
-$('#navProjects').addEventListener('click', showProjects);
+$('#navProjects').addEventListener('click', showProjectsPage);
+$('#ppNew').addEventListener('click', () => openProjectDialog(null));
 $('#navFiles').addEventListener('click', showFiles);
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });
 $('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; });
