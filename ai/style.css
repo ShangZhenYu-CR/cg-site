@@ -1055,3 +1055,10 @@ body.noside #sideToggle{display:grid!important}
 /* 拖拽落点提示（输入框内显示文字提示） */
 .composer{position:relative}
 
+
+/* 键盘可达：会话行、消息操作 */
+.kid:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:8px}
+.msg:focus-within .acts{opacity:1}
+.msg .acts button:focus-visible{opacity:1;outline:2px solid var(--accent);outline-offset:1px;border-radius:6px}
+.pal-item:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+

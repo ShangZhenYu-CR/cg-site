@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:44';
+const APP_BUILD = '2026-11-11 19:45';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -595,6 +595,8 @@ function applyConvSettings(cv) {
 /* ---------------- 侧栏 ---------------- */
 function convRow(cv) {
   const row = el('div', 'kid' + (cv.id === state.currentId ? ' on' : '') + (cv.archived ? ' archived' : ''));
+  row.tabIndex = 0;
+  row.setAttribute('role', 'button');
   row.draggable = true;
   row.dataset.id = cv.id;
   const t = el('span', 't', (cv.private ? '🔒 ' : '') + (cv.title || '新对话'));
@@ -634,6 +636,17 @@ function convRow(cv) {
     closeNav();
   });
   // 右键也能开会话菜单
+  row.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      state.view = 'chat';
+      state.currentId = cv.id;
+      applyConvSettings(cv);
+      renderAll();
+      closeNav();
+    }
+  });
+
   row.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const r = act.getBoundingClientRect();
