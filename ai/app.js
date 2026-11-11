@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:24';
+const APP_BUILD = '2026-11-11 22:27';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1515,6 +1515,18 @@ function mountPane(key) {
       row.append(exp, imp);
       pane.append(fileInput);
       pane.append(h, p, row);
+      const p2 = el('p', 'set-hint', '空对话、空文件（比如新建了但从没写过东西的文档）可以一键清掉。');
+      const row2 = el('div', 'set-row');
+      const clean = el('button', 'set-chip', '清理空内容');
+      clean.type = 'button';
+      clean.addEventListener('click', async () => {
+              const { emptyConvs, emptyFileCount } = scanEmpty();
+              clean.textContent = '清理空内容（' + (emptyConvs.length + emptyFileCount) + '）';
+              await cleanEmpty();
+              clean.textContent = '清理空内容';
+            });
+            row2.append(clean);
+            pane.append(p2, row2);
     }
     return;
   }
@@ -4588,6 +4600,38 @@ function emptyArtifactState() {
   box.append(el('div', 'art-empty-t', titles[artKind] || '还没内容'));
   box.append(el('div', 'art-empty-d', subs[artKind] || ''));
   return box;
+}
+/* ---------------- 清理空内容 ---------------- */
+function scanEmpty() {
+  const emptyConvs = [];
+  const fileClean = [];
+  let emptyFileCount = 0;
+  for (const cv of state.convs || []) {
+    const files = cv.files || [];
+    const emptyFiles = files.filter((x) => !String((x && x.content) || '').trim());
+    const noMsgs = !(cv.messages || []).length;
+    const noRealFiles = files.length === emptyFiles.length;
+    if (noMsgs && noRealFiles) { emptyConvs.push(cv); continue; }
+    if (emptyFiles.length) { fileClean.push({ cv, keep: files.filter((x) => String((x && x.content) || '').trim()) }); emptyFileCount += emptyFiles.length; }
+  }
+  return { emptyConvs, fileClean, emptyFileCount };
+}
+
+async function cleanEmpty() {
+  const { emptyConvs, fileClean, emptyFileCount } = scanEmpty();
+  if (!emptyConvs.length && !emptyFileCount) { flashHint('没有需要清理的空内容'); return; }
+  const msg = '将删除 ' + emptyConvs.length + ' 个空对话、' + emptyFileCount + ' 个空文件。继续？';
+  if (!confirm(msg)) return;
+  for (const cv of emptyConvs) {
+    try { await api('/convs/' + encodeURIComponent(cv.id), { method: 'DELETE' }); } catch {}
+  }
+  for (const { cv, keep } of fileClean) {
+    cv.files = keep;
+    try { await saveConv(cv); } catch {}
+  }
+  await Promise.all([loadConvs(), loadProjects()]);
+  renderAll();
+  flashHint('已清理 ' + emptyConvs.length + ' 个空对话、' + emptyFileCount + ' 个空文件');
 }
 /* ---------------- 插件库 ---------------- */
 let pluginItems = [];
