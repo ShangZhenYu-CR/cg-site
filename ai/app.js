@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:41';
+const APP_BUILD = '2026-11-11 18:43';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -352,7 +352,7 @@ function recentArtifacts(limit) {
   const out = [];
   for (const c of state.convs || []) {
     for (const f of (c.files || [])) {
-      out.push({ name: f.name, at: f.updatedAt || 0, convId: c.id, convTitle: c.title || '未命名' });
+      out.push({ name: f.name, at: f.updatedAt || 0, convId: c.id, convTitle: c.title || '未命名', head: String(f.content || '').slice(0, 160) });
     }
   }
   out.sort((a, b) => b.at - a.at);
@@ -3291,6 +3291,9 @@ function renderFilesPage() {
   for (const it of items) {
     const card = el('button', 'pp-card');
     card.type = 'button';
+    const prev = el('div', 'prev');
+    prev.textContent = (it.head || '').replace(/\s+/g, ' ').slice(0, 90) || '（空文件）';
+    card.append(prev);
     const n = el('div', 'n');
     n.append(el('span', 'ftype', /\.html?$/i.test(it.name) ? '</>' : /.(png|jpe?g|gif|svg)$/i.test(it.name) ? 'IMG' : 'FILE'));
     n.append(el('span', null, it.name));
