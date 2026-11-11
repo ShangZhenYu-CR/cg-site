@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 16:29';
+const APP_BUILD = '2026-11-11 16:34';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -249,7 +249,7 @@ function renderIdentity() {
   $('#meAvatar').textContent = (LS.name || '?').slice(0, 1);
   const r = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
   $('#meRole').textContent = r; $('#meRole').hidden = !r;
-  $('#meHint').textContent = isAdmin() ? '点这里：自定义指令 / 成员' : '点这里：自定义指令';
+  $('#meHint').textContent = 'Free · 自建站' + (isAdmin() ? ' · 管理员' : '');
 }
 
 /* ---------------- 主题（跟随系统 / 浅色 / 深色） ---------------- */
@@ -806,6 +806,7 @@ function renderThread() {
   const cv = current();
   const msgs = cv ? cv.messages : [];
   $('#empty').hidden = !!msgs.length;
+  layoutHomeComposer();
   for (const m of msgs) thread.append(bubble(m));
   $('#titleBtn').textContent = cv ? cv.title : '新对话';
   updateCtx();
@@ -2637,6 +2638,22 @@ $('#uSaveBalance').addEventListener('click', async () => {
 
 $('#newChat').addEventListener('click', async () => { await createConv(); renderAll(); closeNav(); input.focus(); });
 
+$('#brandBtn').addEventListener('click', () => { $('#newChat').click(); });
+$('#navProjects').addEventListener('click', () => {
+  for (const p of state.projects || []) state.open[p.id] = true;
+  renderAll();
+  $('#list').scrollTop = 0;
+});
+$('#navFiles').addEventListener('click', () => { openCodePane(); });
+$('#navPrefs').addEventListener('click', () => { openInstructions(); });
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    $('#q').focus();
+    $('#q').select();
+  }
+});
+
 $('#newMore').addEventListener('click', (e) => {
   e.stopPropagation();
   const p = $('#newPop');
@@ -2775,8 +2792,34 @@ async function verify() {
   } catch { dot.className = 'dot bad'; }
 }
 
+/** Claude 式欢迎语：又开工了，{名字} */
+function renderGreeting() {
+  const el = $('#greetText');
+  if (!el) return;
+  el.textContent = LS.name ? '又开工了，' + LS.name : '今天想聊点什么？';
+}
+
+/** 空态时把输入框移进欢迎语块（Claude 首页是居中一体，不是钉在底部） */
+const composerBlockEl = document.querySelector('#composerBlock');
+function layoutHomeComposer() {
+  const emptyBox = $('#empty');
+  const mainBox = $('#main');
+  if (!composerBlockEl || !emptyBox || !mainBox) return;
+  const cv = current();
+  const isEmpty = !cv || !(cv.messages || []).length;
+  const inEmpty = composerBlockEl.parentElement === emptyBox;
+  if (isEmpty && !inEmpty) {
+    emptyBox.append(composerBlockEl);
+    emptyBox.classList.add('with-composer');
+  } else if (!isEmpty && inEmpty) {
+    mainBox.insertBefore(composerBlockEl, document.querySelector('.meter'));
+    emptyBox.classList.remove('with-composer');
+  }
+}
+
 async function boot() {
   initTheme();
+  renderGreeting();
   renderIdentity();
   renderModels();
   renderCaps();
@@ -2786,6 +2829,7 @@ async function boot() {
   if (!me || !me.ok) { LS.token = ''; showLogin(''); return; }
   const who = await me.json();
   LS.name = who.name; LS.role = who.role;
+  renderGreeting();
   renderIdentity(); renderModels();
   await bootData();
   input.focus();

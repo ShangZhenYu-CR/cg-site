@@ -12,8 +12,17 @@
 <div id="app">
   <aside id="side">
     <div class="side-head">
+      <div class="brand-row">
+        <button class="brand" id="brandBtn" title="回到新对话">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <path d="M4 7V5h16v2"/><path d="M9 5v14"/><path d="M5 19h14"/>
+          </svg>
+          <span>AI 工作台</span>
+        </button>
+        <button class="side-collapse" id="sideCollapse" title="收起侧栏">«</button>
+      </div>
       <div class="new-split">
-        <button class="new-btn" id="newChat">＋ 新对话</button>
+        <button class="new-btn" id="newChat"><span class="plus">＋</span>新建</button>
         <button class="new-caret" id="newMore" title="更多新建方式" aria-label="更多新建方式">▾</button>
         <div class="pop" id="newPop" hidden>
           <button class="opt" id="newPrivate2">🔒　私人对话</button>
@@ -23,10 +32,15 @@
       <div class="search-row">
         <div class="search">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
-          <input id="q" placeholder="搜索对话">
+          <input id="q" placeholder="搜索">
         </div>
-        <button class="side-collapse" id="sideCollapse" title="收起侧栏">«</button>
+        <kbd class="kbd-hint">Ctrl K</kbd>
       </div>
+      <nav class="side-nav">
+        <button class="nav-row" id="navProjects"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 7h5l2 2h11v10H3z"/></svg>项目</button>
+        <button class="nav-row" id="navFiles"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4h7l9 9-7 7-9-9z"/></svg>文件</button>
+        <button class="nav-row" id="navPrefs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c1.2-3.4 3.7-5 7-5s5.8 1.6 7 5"/></svg>自定义</button>
+      </nav>
     </div>
     <div class="list" id="list"></div>
     <div class="side-foot">
@@ -39,7 +53,7 @@
         <div class="avatar" id="meAvatar">?</div>
         <div class="who">
           <div class="name"><span id="meName">未登录</span><span class="tag" id="meRole" hidden></span></div>
-          <div class="role" id="meHint">点这里：自定义指令 / 成员</div>
+          <div class="role" id="meHint">Free · 自建站</div>
         </div>
       </button>
       </div>
@@ -63,7 +77,7 @@
 
     <div class="scroll" id="scroll">
       <div class="empty" id="empty">
-        <h1>今天想聊点什么？</h1>
+        <h1 class="greet"><span class="mark">✳</span><span id="greetText">今天想聊点什么？</span></h1>
         <p>问问题、写东西、看代码；也能发图问图、联网查资料。</p>
         <div class="chips">
           <button data-p="帮我把这段需求拆成可执行的任务清单">拆解需求</button>
@@ -75,6 +89,7 @@
       <div class="thread" id="thread"></div>
     </div>
 
+    <div id="composerBlock">
     <div class="composer-wrap">
       <div class="attach" id="attach"></div>
       <div class="up-hint" id="flashHint" hidden></div>
@@ -113,6 +128,7 @@
           <button type="button" id="metaModel">—</button>
         </div>
       </div>
+    </div>
       <div class="meter">
         <span class="ring" id="ring" title="上下文占用">
           <svg width="20" height="20" viewBox="0 0 20 20">

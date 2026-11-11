@@ -433,3 +433,22 @@ body:not(.noside) #sideToggle{display:none}
 .chip.up .up-txt{font-size:12px;color:var(--faint)}
 .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* ---------- Claude 骨架：品牌行 / 导航行 / 欢迎语 ---------- */
+.brand-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.brand{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:4px 6px;border-radius:8px;font-family:"Tiempos Text",Georgia,"Songti SC",serif;font-size:18px;font-weight:500;letter-spacing:-.01em;color:var(--text)}
+.brand:hover{background:var(--panel2)}
+.brand svg{color:var(--dim);flex:0 0 auto}
+.new-btn{justify-content:flex-start;padding-left:10px;gap:6px}
+.new-btn .plus{font-size:15px;color:var(--dim)}
+.side-nav{display:grid;gap:1px;margin-top:2px}
+.nav-row{display:flex;align-items:center;gap:10px;height:30px;padding:0 8px;border-radius:8px;font-size:14px;color:var(--text);text-align:left}
+.nav-row svg{color:var(--dim);flex:0 0 auto}
+.nav-row:hover{background:var(--panel2)}
+.kbd-hint{font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:1px 5px;background:transparent}
+.greet{display:flex;align-items:center;justify-content:center;gap:12px}
+.greet .mark{color:var(--accent);font-size:30px;line-height:1;transform:translateY(-2px)}
+/* ---------- 首页：欢迎语 + 输入框一体居中 ---------- */
+.empty.with-composer{margin:0 auto;min-height:calc(100vh - 170px);display:flex;flex-direction:column;justify-content:center;padding:0 24px 20px}
+.empty.with-composer #composerBlock{width:100%;margin-top:28px}
+.empty.with-composer .composer{width:100%}
+.empty.with-composer .composer-meta{width:100%}
