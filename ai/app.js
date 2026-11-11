@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:58';
+const APP_BUILD = '2026-11-11 23:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4332,6 +4332,8 @@ $('#artTitle').addEventListener('change', async () => {
   const next = $('#artTitle').value.trim() || artName;
   f.name = next;
   artName = next;
+  // 会话里记的产物名也要跟着改，否则下次打开找不到文件
+  cv.artifact = { kind: artKind, name: next };
   await saveConv(cv);
   renderArtifact();
 });
@@ -4519,7 +4521,12 @@ let artName = '';
 function currentArtifactFile() {
   const cv = current();
   if (!cv) return null;
-  return (cv.files || []).find((f) => f && (f.name || '').startsWith(artName)) || null;
+  const files = cv.files || [];
+  const byName = files.find((f) => f && (f.name || '') === artName);
+  if (byName) return byName;
+  // 名字对不上（改过名 / 旧数据）：按产物类型挑一个
+  const ext = (ART_KINDS[artKind] || {}).ext || '.md';
+  return files.find((f) => (f.name || '').endsWith(ext)) || files[0] || null;
 }
 
 function openArtifactPane(kind, name) {
