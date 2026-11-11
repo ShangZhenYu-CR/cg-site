@@ -778,10 +778,11 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .attach{width:min(672px,100%);gap:8px}
 .attach .chip{border-radius:10px}.composer.is-busy .send{display:grid}
 .attach{width:min(672px,100%);gap:8px}
-.attach .chip{border-radius:10px}
-.attach .chip img{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
-.attach .chip button{top:-4px;right:-4px;width:18px;height:18px;border-radius:999px}
-.composer.stop,.send.stop{background:var(--text);color:var(--bg)}
-.composer.is-busy{border-color:color-mix(in srgb, var(--text) 18%, transparent)}
-.composer.is-busy .send{display:grid}
-.scroll{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%)}
+/* 第 9 轮（重写）：宽屏显示会话标题栏 */
+@media (min-width:900px){
+  .top{display:flex!important;height:45px!important;min-height:45px;max-height:45px;padding:0 12px;background:var(--bg);border-bottom:0;align-items:center;gap:8px}
+  .top .side-toggle,.top .burger,.top .model-pill{display:none!important}
+  .top .title{font-size:14px!important;font-weight:435;height:28px;padding:0 8px;border-radius:8px;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+  .top .title:hover{background:var(--panel2)}
+  .top .icon{width:28px;height:28px;border-radius:8px}
+}
