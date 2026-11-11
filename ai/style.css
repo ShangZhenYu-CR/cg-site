@@ -1538,3 +1538,13 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
   #projDetail .pd-side{display:none!important}
 }
 
+
+/* 右栏在中等宽度也要显示（覆盖早期的隐藏规则） */
+@media (min-width:1101px){#projDetail .pd-side{display:block!important}}
+
+
+/* 项目页：新建按钮回到文档流；右栏在宽屏显示 */
+.pp-head #ppNew{position:static!important;transform:none!important;margin-left:auto!important}
+#projDetail .pd-side{display:block!important}
+@media (max-width:1100px){ #projDetail .pd-side{display:none!important} }
+
