@@ -621,3 +621,11 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .brand-menu{place-items:center;width:28px;height:28px;border-radius:8px;color:var(--faint);flex:0 0 auto}
 @media (min-width:900px){.brand-menu{display:grid}
 .brand-menu:hover{background:var(--panel2);color:var(--text)}}
+/* 项目知识库 */
+.kn-add{display:flex;gap:8px;margin:-4px 0 8px}
+.kn-add input{flex:1;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:0 10px;font-size:13px;color:var(--text);outline:0}
+.kn-add button{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);color:var(--dim);font-size:13px}
+.kn-list{display:grid;gap:6px;margin-bottom:10px}
+.kn-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--panel2);font-size:13px}
+.kn-row button{font-size:12px;color:var(--faint)}
+.kn-empty{font-size:12px;color:var(--faint);padding:2px 0 6px}

@@ -237,7 +237,16 @@
     <h2 id="projTitle">新建项目</h2>
     <p>项目是个文件夹，可以带背景指令；里面的对话都会自动带上它。</p>
     <label class="field">项目名称<input id="projName" placeholder="比如：网站 /ai/ 项目"></label>
+    <label class="field">项目描述（可选）<input id="projDesc" placeholder="一句话说明这个项目做什么"></label>
     <label class="field">项目指令（背景 / 要求）<textarea id="projIns" rows="4" placeholder="这个项目是什么、有哪些约定……"></textarea></label>
+    <label class="field">项目知识（可选，该项目每次对话都会带上）
+      <textarea id="projKnText" rows="3" placeholder="粘贴参考内容：接口说明、写作规范、术语表…"></textarea>
+    </label>
+    <div class="kn-add">
+      <input id="projKnName" placeholder="资料名称（比如：接口约定）">
+      <button type="button" class="ghost" id="projKnAdd">添加</button>
+    </div>
+    <div class="kn-list" id="projKnList"></div>
     <div class="btn-row">
       <button class="ghost" style="flex:1" id="projCancel">取消</button>
       <button class="primary" style="flex:1" id="projSave">保存</button>

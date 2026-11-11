@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:04';
+const APP_BUILD = '2026-11-11 18:06';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2256,23 +2256,58 @@ $('#handoffBtn').addEventListener('click', async () => {
 /* ---------------- 项目 ---------------- */
 let editingProject = null;
 
+let draftKnowledge = [];
+
+function renderKnList() {
+  const box = $('#projKnList');
+  if (!box) return;
+  box.textContent = '';
+  if (!draftKnowledge.length) { box.append(el('div', 'kn-empty', '还没有资料')); return; }
+  draftKnowledge.forEach((k, i) => {
+    const row = el('div', 'kn-row');
+    row.append(el('span', null, k.name));
+    const del = el('button', null, '移除');
+    del.type = 'button';
+    del.addEventListener('click', () => { draftKnowledge.splice(i, 1); renderKnList(); });
+    row.append(del);
+    box.append(row);
+  });
+}
+
 function openProjectDialog(p) {
   editingProject = p;
   $('#projTitle').textContent = p ? '项目指令' : '新建项目';
   $('#projName').value = p ? p.name : '';
+  $('#projDesc').value = p ? (p.description || '') : '';
   $('#projIns').value = p ? (p.instructions || '') : '';
+  draftKnowledge = (p && Array.isArray(p.knowledge)) ? p.knowledge.map((k) => ({ name: k.name, text: k.text })) : [];
+  renderKnList();
+  $('#projKnText').value = '';
+  $('#projKnName').value = '';
   $('#projDelete').hidden = !p;
   $('#dlgProject').hidden = false;
 }
+
+$('#projKnAdd').addEventListener('click', () => {
+  const text = $('#projKnText').value.trim();
+  if (!text) { flashHint('先粘贴资料内容'); return; }
+  const name = $('#projKnName').value.trim() || ('资料 ' + (draftKnowledge.length + 1));
+  draftKnowledge.push({ name, text: text.slice(0, 2000) });
+  $('#projKnText').value = '';
+  $('#projKnName').value = '';
+  renderKnList();
+});
 
 $('#projCancel').addEventListener('click', () => { $('#dlgProject').hidden = true; });
 
 $('#projSave').addEventListener('click', async () => {
   const name = $('#projName').value.trim() || '未命名项目';
   const instructions = $('#projIns').value;
+  const description = $('#projDesc').value.trim();
+  const payload = { name, instructions, description, knowledge: draftKnowledge };
   const r = editingProject
-    ? await api('/projects/' + editingProject.id, { method: 'PUT', body: { name, instructions } })
-    : await api('/projects', { method: 'POST', body: { name, instructions } });
+    ? await api('/projects/' + editingProject.id, { method: 'PUT', body: payload })
+    : await api('/projects', { method: 'POST', body: payload });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { alert(errText(r.status, j)); return; }
   $('#dlgProject').hidden = true;
@@ -3113,7 +3148,7 @@ function renderProjectsPage() {
     const name = el('div', 'n');
     name.append(el('span', 'ico', '📁'), el('span', null, p.name));
     card.append(name);
-    card.append(el('div', 'm', n + ' 个对话'));
+    card.append(el('div', 'm', n + ' 个对话' + (p.description ? ' · ' + p.description : '')));
     if (p.instructions) card.append(el('div', 'ins', String(p.instructions).slice(0, 120)));
     const acts = el('div', 'acts');
     const edit = el('button', null, '项目指令');
