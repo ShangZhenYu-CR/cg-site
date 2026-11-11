@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:32';
+const APP_BUILD = '2026-11-12 00:34';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2131,6 +2131,14 @@ const FEATURES = { voice: false };
 if (FEATURES.voice) { const mb = $('#micBtn'); if (mb) mb.hidden = false; }
 function renderAll() {
   renderSide();
+  // 顶栏标题：跟着当前视图走，别停在上一段对话的标题
+  const VIEW_TITLE = { projects: '项目', files: '文件', images: '图库', plugins: '插件' };
+  const tb = $('#titleBtn');
+  if (tb && VIEW_TITLE[state.view]) {
+    tb.textContent = VIEW_TITLE[state.view];
+    const i = el('i', 'tchev', '⌄');
+    tb.append(i);
+  }
   const isProj = state.view === 'projects';
   const isFiles = state.view === 'files';
   const isPlugins = state.view === 'plugins';

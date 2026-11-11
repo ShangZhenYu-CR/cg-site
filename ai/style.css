@@ -1518,3 +1518,11 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
   #projDetail .pd-side{display:none}
 }
 
+
+/* 项目页头部：标题左、搜索跟随、按钮靠右（原来是居中+绝对定位搜索，重叠了） */
+.pp-head{position:static!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:12px!important;flex-wrap:wrap!important}
+.pp-head h1{text-align:left!important;margin:0!important;flex:0 0 auto}
+.pp-search{position:static!important;transform:none!important;width:220px!important;height:32px!important}
+.pp-head .primary{margin-left:auto}
+.pp-sub{text-align:left!important;margin:0 0 16px!important}
+
