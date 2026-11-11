@@ -1603,3 +1603,9 @@ input:focus,input:focus-visible,textarea:focus,textarea:focus-visible,select:foc
 .composer:focus-within{border-color:color-mix(in srgb,var(--text) 22%,var(--line))!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--text) 6%,transparent)!important}
 input:focus,input:focus-visible,textarea:focus,textarea:focus-visible,select:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--text) 6%,transparent)!important;border-color:color-mix(in srgb,var(--text) 22%,var(--line))!important}
 
+
+/* 「新建」改成 Claude 那种透明行，只在 hover 时给底色 */
+.new-btn{background:transparent!important;border-color:transparent!important}
+.new-btn:hover{background:rgba(0,0,0,.06)!important}
+[data-theme="dark"] .new-btn:hover{background:rgba(255,255,255,.1)!important}
+
