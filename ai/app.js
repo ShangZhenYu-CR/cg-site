@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:49';
+const APP_BUILD = '2026-11-11 19:56';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1263,7 +1263,9 @@ function bubble(m, idx) {
     const img = el('img');
     img.src = fileUrl(u);
     img.alt = '图片';
-    img.loading = 'lazy';
+    img.loading = items.indexOf(it) < 12 ? 'eager' : 'lazy';
+    b.classList.add('loading');
+    img.addEventListener('load', () => b.classList.remove('loading'));
     img.title = '点击放大';
     img.addEventListener('click', () => openLightbox(u));
 
@@ -3925,6 +3927,16 @@ function showProjects() {
   openListPanel('项目', '点一个项目只看它；侧栏里 ⚙ 改指令，＋ 在项目里新建对话', rows);
 }
 
+/* 图片 404 时回退老桶（一次性重试） */
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!img || img.tagName !== 'IMG') return;
+  const src = img.getAttribute('src') || '';
+  if (!src.includes('/oss/') || src.includes('/oss/legacy/')) return;
+  if (img.dataset.fallback) return;
+  img.dataset.fallback = '1';
+  img.src = src.replace('/oss/', '/oss/legacy/');
+}, true);
 /* ---------------- 图库 ---------------- */
 /** 汇总所有对话里的图片（用户贴的 + 模型生成的），最近的在前 */
 function allImages(limit) {
