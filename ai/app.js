@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:28';
+const APP_BUILD = '2026-11-11 15:31';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -256,9 +256,11 @@ let usageTimer = null;
 
 function formatUsd(n) {
   const v = Number(n) || 0;
+  if (v === 0) return '$0';
   if (v >= 1) return '$' + v.toFixed(2);
   if (v >= 0.01) return '$' + v.toFixed(3);
-  return '$' + v.toFixed(4);
+  if (v >= 0.0001) return '$' + v.toFixed(4);
+  return '$' + v.toFixed(6);   // 极小金额别显示成 $0.0000
 }
 
 async function refreshUsage() {
@@ -300,7 +302,8 @@ function renderUsageDialog() {
   } else {
     for (const m of d.byModel) {
       const row = el('div', 'u-row');
-      row.append(el('span', 'k', m.model + '　' + (m.i + m.o).toLocaleString() + ' tokens'));
+      const tokens = (m.i || 0) + (m.o || 0);
+      row.append(el('span', 'k', m.model + '　' + (tokens ? tokens.toLocaleString() + ' tokens' : (m.n || 0) + ' 次')));
       row.append(el('b', null, formatUsd(m.usd)));
       models.append(row);
     }
