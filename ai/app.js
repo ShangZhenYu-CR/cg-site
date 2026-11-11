@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:15';
+const APP_BUILD = '2026-11-11 19:17';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -717,7 +717,15 @@ function renderSide() {
     }
   }
 
-  const loose = state.convs.filter(cv => !cv.projectId && !cv.archived && matches(cv));
+  const pinned = (state.convs || []).filter((cv) => !cv.archived && isPinned(cv.id) && matches(cv));
+  if (pinned.length) {
+    const hp = el('div', 'grp');
+    hp.innerHTML = '<span>置顶</span>';
+    listBox.append(hp);
+    for (const cv of pinned) listBox.append(convRow(cv));
+  }
+
+  const loose = state.convs.filter(cv => !cv.projectId && !cv.archived && matches(cv) && !isPinned(cv.id));
   const dayKey = (ts) => {
     if (!ts) return '更早';
     const d = new Date(ts);
@@ -981,6 +989,26 @@ function exportAll() {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   flashHint('已导出 ' + (state.convs || []).length + ' 个对话');
 }
+async function importAll(file) {
+  if (!file) return;
+  let data = null;
+  try { data = JSON.parse(await file.text()); } catch { flashHint('不是有效的 JSON'); return; }
+  const convs = Array.isArray(data && data.conversations) ? data.conversations : [];
+  if (!convs.length) { flashHint('文件里没有对话'); return; }
+  let ok = 0;
+  for (const c of convs.slice(0, 200)) {
+    const r = await api('/convs', { method: 'POST', body: { title: (c.title || '导入的对话').slice(0, 60) } });
+    if (!r.ok) continue;
+    const j = await r.json().catch(() => ({}));
+    const id = j.conversation && j.conversation.id;
+    if (!id) continue;
+    await api('/convs/' + id, { method: 'PUT', body: { title: c.title || '导入的对话', messages: c.messages || [], files: c.files || [], settings: c.settings || {} } });
+    ok += 1;
+  }
+  await loadConvs();
+  renderAll();
+  flashHint('已导入 ' + ok + ' 个对话');
+}
 function renderSetNav(active) {
   const nav = $('#setNav');
   if (!nav) return;
@@ -1040,7 +1068,16 @@ function mountPane(key) {
       const exp = el('button', 'set-chip', '导出全部对话');
       exp.type = 'button';
       exp.addEventListener('click', exportAll);
-      row.append(exp);
+      const imp = el('button', 'set-chip', '导入 JSON');
+      imp.type = 'button';
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'application/json';
+      fileInput.hidden = true;
+      fileInput.addEventListener('change', () => importAll(fileInput.files && fileInput.files[0]));
+      imp.addEventListener('click', () => fileInput.click());
+      row.append(exp, imp);
+      pane.append(fileInput);
       pane.append(h, p, row);
     }
     return;
@@ -1105,6 +1142,10 @@ function bubble(m, idx) {
 
   const isUser = m.role === 'user';
   const wrap = el('div', 'msg ' + (isUser ? 'user' : 'ai') + (m.streaming ? ' streaming' : ''));
+  if (m.ts) {
+    const d = new Date(m.ts);
+    wrap.title = d.toLocaleString('zh-CN', { hour12: false });
+  }
   wrap.append(el('div', 'av', isUser ? (m.who || LS.name || '我').slice(0, 1) : 'AI'));
 
   const bd = el('div', 'bd');
@@ -1385,6 +1426,14 @@ $('#findNext').addEventListener('click', () => stepFind(1));
 $('#findPrev').addEventListener('click', () => stepFind(-1));
 $('#findClose').addEventListener('click', closeFind);
 /* ---------------- 草稿 / 回到最新 ---------------- */
+const PIN_KEY = 'ai.pins';
+function loadPins() { try { return JSON.parse(localStorage.getItem(PIN_KEY) || '[]'); } catch { return []; } }
+function isPinned(id) { return loadPins().includes(id); }
+function togglePin(id) {
+  let all = loadPins();
+  all = all.includes(id) ? all.filter((x) => x !== id) : [id, ...all];
+  try { localStorage.setItem(PIN_KEY, JSON.stringify(all)); } catch {}
+}
 const DRAFT_KEY = 'ai.drafts';
 function loadDrafts() {
   try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); } catch { return {}; }
@@ -3762,6 +3811,14 @@ $('#newProject2').addEventListener('click', () => {
   openProjectDialog(null);
 });
 $('#newPrivateBtn').addEventListener('click', async () => { closePops(); await createConv({ private: true }); renderAll(); input.focus(); });
+$('#pinBtn').addEventListener('click', () => {
+  const cv = current();
+  closePops();
+  if (!cv) return;
+  togglePin(cv.id);
+  renderAll();
+});
+
 $('#archiveBtn').addEventListener('click', async () => {
   const cv = current();
   closePops();
