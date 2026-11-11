@@ -565,3 +565,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 #metaProject{display:inline-flex;align-items:center;gap:4px;color:var(--dim)}
 #metaProject .chev-s{font-size:11px;color:var(--faint)}
 .kid.archived .t{color:var(--faint)}
+/* 已淘汰折叠行 */
+.mp-fold{margin:2px 0;color:var(--dim);font-size:13px}
+.mp-fold:hover{background:var(--panel2)}
+.mp-fold .mp-right b{font-weight:400;color:var(--faint);margin-right:2px}

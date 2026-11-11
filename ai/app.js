@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:25';
+const APP_BUILD = '2026-11-11 17:26';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1024,6 +1024,7 @@ function modelMeta(id) {
 }
 
 let showAllModels = false;
+let showRetired = false;   // 已淘汰模型默认折叠
 
 /** 在售模型：只保留 5.6 的 Terra / Luna，其余归入已淘汰 */
 function isActiveModel(id) {
@@ -1071,8 +1072,18 @@ function renderModels() {
     box.append(headA);
     for (const id of active) box.append(modelRow(id, false));
     if (retired.length) {
-      box.append(el('div', 'mp-sect', '已淘汰模型'));
-      for (const id of retired) box.append(modelRow(id, true));
+      const fold = el('button', 'mp-row mp-fold');
+      fold.type = 'button';
+      fold.innerHTML = '<span>已淘汰模型</span><span class="mp-right"><b>' + retired.length + '</b><i class="chev">' + (showRetired ? '⌄' : '›') + '</i></span>';
+      fold.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showRetired = !showRetired;
+        renderModels();
+        const pop = $('#modelPop');
+        if (!pop.hidden) pop.scrollTop = pop.scrollHeight;
+      });
+      box.append(fold);
+      if (showRetired) for (const id of retired) box.append(modelRow(id, true));
     }
   }
 
