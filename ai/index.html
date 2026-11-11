@@ -433,7 +433,13 @@
     <div class="u-grid">
       <div class="u-cell"><span>今日</span><b id="uToday">—</b></div>
       <div class="u-cell"><span>本月</span><b id="uMonth">—</b></div>
+      <div class="u-cell"><span>剩余额度</span><b id="uLeft">—</b></div>
       <div class="u-cell"><span>累计</span><b id="uTotal">—</b></div>
+    </div>
+    <p class="u-sub" id="uResetLine">每月 <b id="uResetDay">9</b> 日重置为 <b id="uLimit">$100</b></p>
+    <div class="u-calib">
+      <input id="uBalance" placeholder="当前真实余额，如 92.62" inputmode="decimal">
+      <button class="ghost" id="uSaveBalance">校准余额</button>
     </div>
     <h3>按模型</h3>
     <div class="u-list" id="uModels"></div>

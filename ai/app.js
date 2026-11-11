@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:31';
+const APP_BUILD = '2026-11-11 15:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -283,8 +283,13 @@ function renderUsageBar() {
   const t = $('#usageText');
   if (!t || !usageData) return;
   const star = usageData.est ? '*' : '';
-  t.textContent = '今日 ' + formatUsd(usageData.today) + ' · 本月 ' + formatUsd(usageData.month) + star;
-  $('#usageBar').title = '点击看明细' + (usageData.est ? '（* 含按张估算的图）' : '');
+  const a = usageData.allowance;
+  const head = a ? '剩余 ' + formatUsd(a.remaining) : '今日 ' + formatUsd(usageData.today);
+  t.textContent = head + ' · 今日 ' + formatUsd(usageData.today) + star;
+  const parts = ['点击看明细'];
+  if (a) parts.push('每月 ' + a.resetDay + ' 日重置为 ' + formatUsd(a.limit));
+  if (usageData.est) parts.push('* 含按张估算的图');
+  $('#usageBar').title = parts.join(' · ');
 }
 
 function renderUsageDialog() {
@@ -294,6 +299,17 @@ function renderUsageDialog() {
   $('#uMonth').textContent = formatUsd(d.month);
   $('#uTotal').textContent = formatUsd(d.total);
   $('#uEst').textContent = String(d.imageEst != null ? d.imageEst : 0.04);
+  const a = d.allowance;
+  $('#uLeft').textContent = a ? formatUsd(a.remaining) : '—';
+  if (a) {
+    $('#uResetDay').textContent = String(a.resetDay);
+    $('#uLimit').textContent = formatUsd(a.limit);
+    const when = new Date(a.resetAt);
+    const pad = (n) => String(n).padStart(2, '0');
+    $('#uResetLine').innerHTML = '每月 <b>' + a.resetDay + '</b> 日 00:00 重置为 <b>' +
+      formatUsd(a.limit) + '</b>　下次 ' + (when.getMonth() + 1) + ' 月 ' + when.getDate() + ' 日'
+      + (a.baselineUsd != null ? '　（已按 $' + a.baselineUsd.toFixed(2) + ' 校准）' : '');
+  }
 
   const models = $('#uModels');
   models.textContent = '';
@@ -2463,6 +2479,20 @@ $('#usageBar').addEventListener('click', async () => {
   $('#dlgUsage').hidden = false;
 });
 $('#usageClose').addEventListener('click', () => { $('#dlgUsage').hidden = true; });
+
+$('#uSaveBalance').addEventListener('click', async () => {
+  const raw = $('#uBalance').value.trim();
+  const bal = Number(raw);
+  if (!raw || !Number.isFinite(bal) || bal < 0) { flashHint('填一个数字，例如 92.62'); return; }
+  try {
+    const r = await api('/usage/allowance', { method: 'POST', body: { balance: bal } });
+    if (!r.ok) { flashHint('校准失败（HTTP ' + r.status + '）'); return; }
+    $('#uBalance').value = '';
+    await refreshUsage();
+    renderUsageDialog();
+    flashHint('余额已校准为 $' + bal.toFixed(2));
+  } catch { flashHint('校准失败，检查网络'); }
+});
 
 $('#newChat').addEventListener('click', async () => { await createConv(); renderAll(); closeNav(); input.focus(); });
 
