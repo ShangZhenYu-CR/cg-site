@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:22';
+const APP_BUILD = '2026-11-11 15:28';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -248,6 +248,83 @@ function renderIdentity() {
   const r = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
   $('#meRole').textContent = r; $('#meRole').hidden = !r;
   $('#meHint').textContent = isAdmin() ? '点这里：自定义指令 / 成员' : '点这里：自定义指令';
+}
+
+/* ---------------- 花费显示 ---------------- */
+let usageData = null;
+let usageTimer = null;
+
+function formatUsd(n) {
+  const v = Number(n) || 0;
+  if (v >= 1) return '$' + v.toFixed(2);
+  if (v >= 0.01) return '$' + v.toFixed(3);
+  return '$' + v.toFixed(4);
+}
+
+async function refreshUsage() {
+  if (!LS.token) return;
+  try {
+    const r = await api('/usage');
+    if (!r.ok) return;
+    usageData = await r.json();
+    renderUsageBar();
+    if (!$('#dlgUsage').hidden) renderUsageDialog();
+  } catch { /* 统计失败不影响聊天 */ }
+}
+
+function scheduleUsage() {
+  clearTimeout(usageTimer);
+  usageTimer = setTimeout(refreshUsage, 1500);
+}
+
+function renderUsageBar() {
+  const t = $('#usageText');
+  if (!t || !usageData) return;
+  const star = usageData.est ? '*' : '';
+  t.textContent = '今日 ' + formatUsd(usageData.today) + ' · 本月 ' + formatUsd(usageData.month) + star;
+  $('#usageBar').title = '点击看明细' + (usageData.est ? '（* 含按张估算的图）' : '');
+}
+
+function renderUsageDialog() {
+  const d = usageData;
+  if (!d) return;
+  $('#uToday').textContent = formatUsd(d.today);
+  $('#uMonth').textContent = formatUsd(d.month);
+  $('#uTotal').textContent = formatUsd(d.total);
+  $('#uEst').textContent = String(d.imageEst != null ? d.imageEst : 0.04);
+
+  const models = $('#uModels');
+  models.textContent = '';
+  if (!d.byModel || !d.byModel.length) {
+    models.append(el('div', 'u-row', '还没有记录'));
+  } else {
+    for (const m of d.byModel) {
+      const row = el('div', 'u-row');
+      row.append(el('span', 'k', m.model + '　' + (m.i + m.o).toLocaleString() + ' tokens'));
+      row.append(el('b', null, formatUsd(m.usd)));
+      models.append(row);
+    }
+  }
+
+  const convs = $('#uConvs');
+  convs.textContent = '';
+  if (!d.convs || !d.convs.length) convs.append(el('div', 'u-row', '还没有记录'));
+  else for (const c of d.convs) {
+    const row = el('div', 'u-row');
+    row.append(el('span', 'k', c.title || c.id));
+    row.append(el('b', null, formatUsd(c.usd)));
+    convs.append(row);
+  }
+
+  const days = $('#uDays');
+  days.textContent = '';
+  if (!d.days || !d.days.length) days.append(el('div', 'u-row', '还没有记录'));
+  else for (const x of d.days) {
+    const row = el('div', 'u-row');
+    row.append(el('span', 'k', x.day));
+    row.append(el('b', null, formatUsd(x.usd)));
+    days.append(row);
+  }
 }
 
 /* ---------------- 数据 ---------------- */
@@ -1096,6 +1173,7 @@ async function sendChat(text, opts = {}) {
     await saveConv(cv);
     setBusy(false);
     renderAll();
+    scheduleUsage();
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   }
 }
@@ -2376,6 +2454,13 @@ input.addEventListener('input', () => {
   sendBtn.disabled = !input.value.trim() && !state.attachments.length;
 });
 
+$('#usageBar').addEventListener('click', async () => {
+  await refreshUsage();
+  renderUsageDialog();
+  $('#dlgUsage').hidden = false;
+});
+$('#usageClose').addEventListener('click', () => { $('#dlgUsage').hidden = true; });
+
 $('#newChat').addEventListener('click', async () => { await createConv(); renderAll(); closeNav(); input.focus(); });
 
 $('#newMore').addEventListener('click', (e) => {
@@ -2494,6 +2579,7 @@ async function bootData() {
   renderAll();
   scrollBottom(true);
   await verify();
+  refreshUsage();
 }
 
 async function verify() {

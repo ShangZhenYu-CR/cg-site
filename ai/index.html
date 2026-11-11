@@ -30,6 +30,9 @@
     </div>
     <div class="list" id="list"></div>
     <div class="side-foot">
+      <button class="usage-bar" id="usageBar" title="点击看花费明细">
+        <span id="usageText">花费统计中…</span>
+      </button>
       <button class="me" id="meBtn">
         <div class="avatar" id="meAvatar">?</div>
         <div class="who">
@@ -418,6 +421,28 @@
     <div class="btn-row">
       <button class="ghost" style="flex:1" id="drawCancel">取消</button>
       <button class="primary" style="flex:1" id="drawSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 花费明细 -->
+<div class="overlay" id="dlgUsage" hidden>
+  <div class="card wide">
+    <h2>API 花费</h2>
+    <p class="u-sub">按 OpenAI 官方价格表折算。「<b>*</b>」表示含对话工具出图的按张估算（每张 $<span id="uEst">0.04</span>），其余来自真实 usage。</p>
+    <div class="u-grid">
+      <div class="u-cell"><span>今日</span><b id="uToday">—</b></div>
+      <div class="u-cell"><span>本月</span><b id="uMonth">—</b></div>
+      <div class="u-cell"><span>累计</span><b id="uTotal">—</b></div>
+    </div>
+    <h3>按模型</h3>
+    <div class="u-list" id="uModels"></div>
+    <h3>花费最高的对话</h3>
+    <div class="u-list" id="uConvs"></div>
+    <h3>最近 14 天</h3>
+    <div class="u-list" id="uDays"></div>
+    <div class="btn-row">
+      <button class="ghost" style="flex:1" id="usageClose">关闭</button>
     </div>
   </div>
 </div>
