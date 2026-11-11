@@ -1630,3 +1630,12 @@ html[data-theme="dark"]{--text:#ececea}
 #caps{width:100%!important;max-width:672px!important;margin:0 auto 6px!important;padding:0!important;justify-content:flex-start!important}
 .caps .cap{height:26px;font-size:12px}
 
+
+/* 对话正文跟随 16px（.thread 里写死了 15px） */
+.thread{font-size:var(--ui-font)!important;line-height:var(--ui-line)!important}
+.msg .bd,.msg .bd p,.msg .bd li,.msg .bd td,.msg .bd th{font-size:inherit;line-height:inherit}
+/* 侧栏导航保持 14px（Claude 的 UI 字号），别被 16 带大 */
+.nav-row{font-size:14px!important}
+.kid .t,.kid .time{font-size:14px!important}
+.prow{font-size:14px!important}
+
