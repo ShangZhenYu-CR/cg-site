@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:26';
+const APP_BUILD = '2026-11-11 23:29';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -497,7 +497,10 @@ async function api(path, opts = {}) {
 }
 
 function errText(status, data) {
-  if (status === 401) return '登录过期了，重新进一下';
+  if (status === 401) {
+    const msg = data && (data.error || data.e);
+    return msg ? String(msg) : '登录过期了，重新进一下';
+  }
   if (status === 403) return (data && data.error) || '没有权限';
   if (status === 413) return (data && data.error) || '文件太大';
   if (data && (data.error || data.e)) return String(data.error || data.e);
@@ -3406,7 +3409,7 @@ $('#projSave').addEventListener('click', async () => {
   if (!r.ok) { alert(errText(r.status, j)); return; }
   $('#dlgProject').hidden = true;
   await loadProjects();
-  renderSide();
+  renderAll();     // 项目页/侧栏都要刷新，否则新建完看不到卡片
 });
 
 $('#projDelete').addEventListener('click', async () => {
