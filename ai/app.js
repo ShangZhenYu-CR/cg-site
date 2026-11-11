@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:59';
+const APP_BUILD = '2026-11-11 21:09';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -158,12 +158,93 @@ const sendBtn = $('#sendBtn');
 /* ---------------- Markdown ---------------- */
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+const hasKatex = () => typeof window !== 'undefined' && !!window.katex;
+
+function texHTML(tex, display) {
+  if (!hasKatex()) return esc(tex);
+  try {
+    return window.katex.renderToString(tex, { displayMode: !!display, throwOnError: false, output: 'html' });
+  } catch (e) {
+    return esc(tex);
+  }
+}
+
 function inline(s) {
   s = s.replace(/`([^`\n]+)`/g, (m, c) => '<code>' + c + '</code>');
+  s = s.replace(/\$([^$\n]+?)\$/g, (m, tex) => texHTML(tex, false));
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
   return s;
+}
+
+/** chart 块：{type,labels,series} → 内联 SVG（不依赖第三方库） */
+function chartSVG(specText) {
+  let spec = null;
+  try { spec = JSON.parse(specText); } catch (e) { return '<pre class="chart-err">图表数据不是合法 JSON</pre>'; }
+  const type = String(spec.type || 'line').toLowerCase();
+  const labels = Array.isArray(spec.labels) ? spec.labels.map(String) : [];
+  const series = Array.isArray(spec.series) ? spec.series.filter((s) => s && Array.isArray(s.data)) : [];
+  if (!labels.length || !series.length) return '<pre class="chart-err">图表缺少 labels 或 series</pre>';
+  const W = 640, H = 300, padL = 44, padR = 16, padT = 24, padB = 40;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const colors = ['#c6613f', '#184f95', '#3f8f6a', '#8a5cb8', '#b8873a'];
+  const max = Math.max(1, ...series.flatMap((s) => s.data.map((v) => Number(v) || 0)));
+  const min = Math.min(0, ...series.flatMap((s) => s.data.map((v) => Number(v) || 0)));
+  const span = max - min || 1;
+  const x = (i) => padL + (labels.length === 1 ? iw / 2 : (i / (labels.length - 1)) * iw);
+  const y = (v) => padT + ih - (((Number(v) || 0) - min) / span) * ih;
+  const parts = [];
+  parts.push('<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart-svg" role="img">');
+  for (let k = 0; k <= 4; k++) {
+    const gy = padT + (ih / 4) * k;
+    const val = max - (span / 4) * k;
+    parts.push('<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="rgba(0,0,0,.08)"/>');
+    parts.push('<text x="' + (padL - 8) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="11" fill="rgba(0,0,0,.5)">' + (Math.round(val * 100) / 100) + '</text>');
+  }
+  labels.forEach((lb, i) => {
+    parts.push('<text x="' + x(i) + '" y="' + (H - padB + 16) + '" text-anchor="middle" font-size="11" fill="rgba(0,0,0,.55)">' + esc(lb) + '</text>');
+  });
+  if (type === 'bar') {
+    const bw = Math.max(6, (iw / labels.length) * 0.6 / series.length);
+    series.forEach((s, si) => {
+      s.data.forEach((v, i) => {
+        const bx = padL + (iw / labels.length) * i + (iw / labels.length) * 0.2 + si * bw;
+        const by = y(v);
+        parts.push('<rect x="' + bx + '" y="' + by + '" width="' + (bw - 2) + '" height="' + Math.max(0, padT + ih - by) + '" rx="3" fill="' + colors[si % colors.length] + '"/>');
+      });
+    });
+  } else if (type === 'pie') {
+    const data = series[0].data.map((v) => Math.max(0, Number(v) || 0));
+    const total = data.reduce((a, b) => a + b, 0) || 1;
+    const cx = W / 2, cy = H / 2, R = Math.min(iw, ih) / 2 - 6;
+    let a0 = -Math.PI / 2;
+    data.forEach((v, i) => {
+      const a1 = a0 + (v / total) * Math.PI * 2;
+      const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+      const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      parts.push('<path d="M' + cx + ' ' + cy + ' L' + x0 + ' ' + y0 + ' A' + R + ' ' + R + ' 0 ' + large + ' 1 ' + x1 + ' ' + y1 + ' Z" fill="' + colors[i % colors.length] + '"/>');
+      a0 = a1;
+    });
+    labels.forEach((lb, i) => {
+      parts.push('<text x="8" y="' + (14 + i * 16) + '" font-size="11" fill="rgba(0,0,0,.6)">' + esc(lb) + ' · ' + (Math.round((data[i] / total) * 1000) / 10) + '%</text>');
+    });
+  } else {
+    series.forEach((s, si) => {
+      const pts = s.data.map((v, i) => x(i) + ',' + y(v)).join(' ');
+      parts.push('<polyline points="' + pts + '" fill="none" stroke="' + colors[si % colors.length] + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+      s.data.forEach((v, i) => parts.push('<circle cx="' + x(i) + '" cy="' + y(v) + '" r="3" fill="' + colors[si % colors.length] + '"/>'));
+    });
+  }
+  series.forEach((s, si) => {
+    if (!s.name) return;
+    parts.push('<rect x="' + (padL + si * 90) + '" y="4" width="8" height="8" rx="2" fill="' + colors[si % colors.length] + '"/>');
+    parts.push('<text x="' + (padL + si * 90 + 12) + '" y="11" font-size="11" fill="rgba(0,0,0,.65)">' + esc(String(s.name)) + '</text>');
+  });
+  parts.push('</svg>');
+  const title = spec.title ? '<div class="chart-title">' + esc(String(spec.title)) + '</div>' : '';
+  return '<figure class="chart">' + title + parts.join('') + '</figure>';
 }
 
 function md(src) {
@@ -177,17 +258,47 @@ function md(src) {
     const fence = /^```(\w*)\s*$/.exec(line);
     if (fence) {
       flush();
-      const lang = fence[1] || 'text';
+      const lang = (fence[1] || 'text').toLowerCase();
       const buf = [];
       i++;
       while (i < lines.length && !/^```\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
       i++;
-      out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
+      if (lang === 'chart') out.push(chartSVG(buf.join('\n')));
+      else out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
       continue;
     }
     if (!line.trim()) { flush(); i++; continue; }
     const h = /^(#{1,4})\s+(.*)$/.exec(line);
     if (h) { flush(); const lv = Math.min(h[1].length, 3); out.push('<h' + lv + '>' + inline(esc(h[2])) + '</h' + lv + '>'); i++; continue; }
+    if (/^\$\$/.test(line.trim())) {
+      flush();
+      const buf = [];
+      const oneLine = line.trim().replace(/^\$\$/, '');
+      i++;
+      if (/\$\$\s*$/.test(oneLine) || !oneLine.trim()) {
+        out.push('<div class="math-block">' + texHTML(oneLine.replace(/\$\$\s*$/, ''), true) + '</div>');
+        continue;
+      }
+      buf.push(oneLine);
+      while (i < lines.length && !/\$\$\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
+      const lastLine = (lines[i] || '').replace(/\$\$\s*$/, '');
+      if (lastLine.trim()) buf.push(lastLine);
+      i++;
+      out.push('<div class="math-block">' + texHTML(buf.join('\n'), true) + '</div>');
+      continue;
+    }
+    if (/^\s*\|/.test(line) && /\|\s*$/.test(line)) {
+      flush();
+      const rows = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+      const cells = (r) => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+      const head = cells(rows[0]);
+      const body = rows.slice(1).filter((r) => !/^[\s:|-]+$/.test(r.trim().replace(/^\|/, '').replace(/\|$/, '')));
+      out.push('<div class="tbl-wrap"><table><thead><tr>' + head.map((c) => '<th>' + inline(esc(c)) + '</th>').join('') + '</tr></thead><tbody>'
+        + body.map((r) => '<tr>' + cells(r).map((c) => '<td>' + inline(esc(c)) + '</td>').join('') + '</tr>').join('')
+        + '</tbody></table></div>');
+      continue;
+    }
     if (/^>\s?/.test(line)) {
       flush();
       const buf = [];
@@ -211,6 +322,7 @@ function md(src) {
   flush();
   return out.join('');
 }
+
 
 /* ---------------- 网络 ---------------- */
 const base = () => (LS.backend || DEFAULT_BACKEND).replace(/\/+$/, '');
@@ -2106,9 +2218,11 @@ function hideThinking() {
       method: 'POST', signal: state.controller.signal,
       body: {
         model, search: state.search, convId: cv.id, projectId: cv.projectId || null,
+        // 出图工具常开：模型自己判断要不要画
+        imageTool: true,
         ...(drawMode
-          ? { imageTool: true, imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wantN > 1 ? wantN : undefined }
-          : wantsImage ? { imageTool: true } : { effort }),
+          ? { imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wa }
+          : { effort }),
         codeMode: state.codeMode,
         fileNames: (cv.files || []).map(f => f.name),
         messages: sentMessages(cv).map(m => ({
