@@ -1004,3 +1004,8 @@ body.noside #sideToggle{display:grid!important}
 .ra-card .n span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ra-card .m{font-size:11px}
 
+
+/* 对照实测：输入框字号 15px / 行高 21px（之前 17px 偏大） */
+.composer textarea{font-size:var(--ui-font)!important;line-height:21px!important;padding:2px 4px!important}
+.composer textarea::placeholder{color:var(--faint);opacity:1}
+
