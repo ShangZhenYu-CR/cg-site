@@ -1673,3 +1673,14 @@ html[data-theme="dark"] #side .side-collapse:hover,html[data-theme="dark"] #side
 #list .pkids .kid{padding-left:10px!important}
 #side .brand{gap:8px}
 
+
+/* 导航行：和 Claude 一样 32 高 + 2px 间隔；中文按 15px 排版（Latin 14 视觉更大） */
+#side .side-nav{display:flex;flex-direction:column;gap:2px}
+#side .nav-row{height:32px;font-size:15px!important;font-weight:500!important;gap:10px!important;padding:0 8px!important}
+#side .nav-row svg{width:18px;height:18px;flex:none}
+#list .kid{height:32px}
+#list .kid .t{font-size:15px!important;font-weight:400}
+#list .prow{font-size:15px!important;height:32px}
+#list .pkids{gap:2px;display:flex;flex-direction:column}
+#list .grp{margin-top:12px}
+
