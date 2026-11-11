@@ -794,3 +794,21 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .login-art .big-mark{width:180px!important;height:180px!important;color:var(--brand);opacity:.18}
 @media (max-width:900px){.login-page{grid-template-columns:1fr}.login-right{display:none}.login-left{margin:0 auto;padding:32px 24px}}
 
+
+/* ---------- 第 14 轮：错误提示改成 notice 风格 ---------- */
+.msg .err, .err{
+  background:color-mix(in srgb, var(--danger) 8%, transparent);
+  border:1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  border-left:3px solid var(--danger);
+  border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--text);
+  font-family:var(--font-sans);white-space:pre-wrap;word-break:break-word;
+}
+.msg .err .err-h{display:block;font-weight:600;margin-bottom:4px;color:var(--danger)}
+.msg-err{font-size:13px;color:var(--danger);min-height:0}
+.msg-err:empty{display:none}
+
+
+/* 修复：hidden 必须能生效，否则登录页永远盖在上面 */
+.login-ov{display:flex!important;padding:0!important;background:var(--bg)!important}
+.login-ov[hidden]{display:none!important}
+

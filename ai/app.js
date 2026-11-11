@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:52';
+const APP_BUILD = '2026-11-11 18:55';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -759,7 +759,7 @@ async function regenerateFrom(idx) {
 /* ---------------- 命令面板 ---------------- */
 function palActions() {
   const acts = [
-    { label: '新建对话', key: 'N', run: () => { $('#newChat').click(); } },
+    { label: '新建对话', key: 'Ctrl+Shift+O', run: () => { $('#newChat').click(); } },
     { label: '打开项目页', key: '', run: () => showProjectsPage() },
     { label: '打开文件列表', key: '', run: () => showFiles() },
     { label: '切换模型…', key: '', run: () => openModelMenu() },
@@ -3399,6 +3399,11 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
     e.preventDefault();
     if ($('#dlgPal').hidden) openPalette(); else closePalette();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+    e.preventDefault();
+    $('#newChat').click();
+    return;
   }
   if (e.key === 'Escape') {
     if (!$('#dlgPal').hidden) { closePalette(); return; }
