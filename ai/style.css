@@ -1703,3 +1703,15 @@ body.side-resizing{cursor:col-resize;user-select:none}
 body.side-resizing #app{transition:none!important}
 #side{position:relative}
 
+
+/* 产物标题按钮（替代原来的长输入框） */
+.art-title-wrap{display:flex;align-items:center;gap:8px;min-width:0;flex:1 1 auto}
+.art-title-btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:8px;font-size:14px;font-weight:435;color:var(--text);max-width:min(420px,52vw);min-width:0}
+.art-title-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.art-title-btn .at-chev{font-style:normal;font-size:11px;color:var(--faint)}
+.art-title-btn:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
+#artTitle{display:inline-block}
+/* 设计面板的预览/源码开关挪到头部右侧，不再单独占一行 */
+.art-head .design-tabs{margin-left:auto;padding:0;border:0;flex:none}
+.art-body{display:flex;flex-direction:column}
+

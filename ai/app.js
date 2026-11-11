@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 02:13';
+const APP_BUILD = '2026-11-12 02:16';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4625,18 +4625,46 @@ function showProjects() {
 
 /* 图片加载失败时不再回退老桶 */
 $('#artClose').addEventListener('click', closeArtifactPane);
-$('#artTitle').addEventListener('change', async () => {
+/* 产物标题按钮：点开菜单（重命名/导出/复制链接/删除），对齐 Claude */
+async function renameArtifact() {
   const cv = current();
   if (!cv) return;
   const f = currentArtifactFile();
   if (!f) return;
-  const next = $('#artTitle').value.trim() || artName;
+  const next = (prompt('重命名产物', artName) || '').trim();
+  if (!next || next === artName) return;
   f.name = next;
   artName = next;
-  // 会话里记的产物名也要跟着改，否则下次打开找不到文件
   cv.artifact = { kind: artKind, name: next };
   await saveConv(cv);
   renderArtifact();
+  $('#artTitle').textContent = next;
+}
+$('#artTitleBtn').addEventListener('click', () => {
+  const rows = [
+    { label: '重命名', sub: artName, onClick: () => { $('#dlgList').hidden = true; renameArtifact(); } },
+    { label: '导出', sub: '下载到本地', onClick: () => { $('#dlgList').hidden = true; $('#artExport').click(); } },
+    { label: '复制链接', sub: '分享这个产物', onClick: async () => {
+        $('#dlgList').hidden = true;
+        try { await navigator.clipboard.writeText(location.origin + '/ai/?c=' + encodeURIComponent(state.currentId)); flashHint('链接已复制'); }
+        catch (e) { flashHint('复制失败'); }
+      } },
+  ];
+  if (artKind === 'design') {
+    rows.push({ label: '发布到插件库', sub: '生成独立网址', onClick: () => { $('#dlgList').hidden = true; publishDesignArtifact(); } });
+  }
+  rows.push({ label: '删除这个产物', sub: '文件和会话里的记录一起删', onClick: async () => {
+    $('#dlgList').hidden = true;
+    const cv = current();
+    if (!cv) return;
+    if (!confirm('删除产物「' + artName + '」？')) return;
+    cv.files = (cv.files || []).filter((x) => x.name !== artName);
+    cv.artifact = null;
+    await saveConv(cv);
+    closeArtifactPane();
+    renderAll();
+  } });
+  openListPanel('产物 · ' + artName, artKind === 'deck' ? '幻灯片' : artKind === 'design' ? '设计' : '文档', rows);
 });
 // ✦ 让 AI 改：Claude 头部没有这个按钮，能力改为点标题聚焦输入框
 $('#cbDownload').addEventListener('click', () => $('#artExport').click());
@@ -4977,7 +5005,7 @@ function openArtifactPane(kind, name) {
   $('#artPublish').hidden = kind !== 'design';
   const dsBtn = $('#artDesignSystem');
   if (dsBtn) dsBtn.hidden = kind !== 'design';
-  $('#artTitle').value = artName;
+  $('#artTitle').textContent = artName;
   renderArtifact();
 }
 
@@ -4992,6 +5020,11 @@ function renderArtifact() {
   const body = $('#artBody');
   if (!body) return;
   body.textContent = '';
+  // 头部只保留属于当前产物的控件
+  if (artKind !== 'design') {
+    const stale = document.querySelector('.art-acts .design-tabs');
+    if (stale) stale.remove();
+  }
   const file = currentArtifactFile();
   const hint = $('#artHint');
   if (hint) hint.textContent = file ? (ART_KINDS[artKind] || {}).label + ' · ' + artName : '';
@@ -5176,7 +5209,13 @@ function renderDesign(body, file) {
     frame.hidden = true; ta.hidden = false; ta.focus();
   });
 
-  wrap.append(tabs, frame, ta);
+  // 预览/源码开关放到头部右侧（Claude 的产物头部只有一行）
+  const acts = document.querySelector('.art-acts');
+  const stale = acts && acts.querySelector('.design-tabs');
+  if (stale) stale.remove();
+  if (acts) acts.insertBefore(tabs, acts.firstChild);
+
+  wrap.append(frame, ta);
   body.append(wrap);
 }
 
