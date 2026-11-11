@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:10';
+const APP_BUILD = '2026-11-11 19:12';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1037,6 +1037,18 @@ function bubble(m, idx) {
   else content.innerHTML = md(m.text || '');
   bd.append(content);
 
+  // 长消息折叠（默认只显示前半段，可展开）
+  if (!isUser && !m.err && String(m.text || '').length > 1400) {
+    content.classList.add('clamped');
+    const more = el('button', 'msg-more', '展开全部');
+    more.type = 'button';
+    more.addEventListener('click', () => {
+      const on = content.classList.toggle('clamped');
+      more.textContent = on ? '展开全部' : '收起';
+    });
+    bd.append(more);
+  }
+
   for (const u of (m.images || [])) {
     const box = el('div', 'imgbox');
     const img = el('img');
@@ -1229,6 +1241,64 @@ $('#lbCopy').addEventListener('click', async () => {
   setTimeout(() => { b.textContent = '复制'; }, 1500);
 });
 
+/* ---------------- 会话内查找（Ctrl+F） ---------------- */
+let findHits = [];
+let findIdx = -1;
+
+function runFind(q) {
+  const query = String(q || '').trim().toLowerCase();
+  findHits = [];
+  findIdx = -1;
+  for (const m of document.querySelectorAll('#thread .msg')) m.classList.remove('found', 'found-on');
+  const count = $('#findCount');
+  if (!query) { if (count) count.textContent = '0/0'; return; }
+  for (const m of document.querySelectorAll('#thread .msg')) {
+    if (String(m.textContent || '').toLowerCase().includes(query)) findHits.push(m);
+  }
+  if (count) count.textContent = (findHits.length ? 1 : 0) + '/' + findHits.length;
+  for (const m of findHits) m.classList.add('found');
+  if (findHits.length) { findIdx = 0; focusHit(); }
+}
+
+function focusHit() {
+  for (const m of findHits) m.classList.remove('found-on');
+  const m = findHits[findIdx];
+  if (!m) return;
+  m.classList.add('found-on');
+  m.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const count = $('#findCount');
+  if (count) count.textContent = (findIdx + 1) + '/' + findHits.length;
+}
+
+function stepFind(step) {
+  if (!findHits.length) return;
+  findIdx = (findIdx + step + findHits.length) % findHits.length;
+  focusHit();
+}
+
+function openFind() {
+  const bar = $('#findBar');
+  if (!bar) return;
+  bar.hidden = false;
+  $('#findInput').focus();
+  $('#findInput').select();
+}
+
+function closeFind() {
+  const bar = $('#findBar');
+  if (bar) bar.hidden = true;
+  for (const m of document.querySelectorAll('#thread .msg')) m.classList.remove('found', 'found-on');
+  findHits = [];
+}
+
+$('#findInput').addEventListener('input', (e) => runFind(e.target.value));
+$('#findInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); stepFind(e.shiftKey ? -1 : 1); }
+  if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
+});
+$('#findNext').addEventListener('click', () => stepFind(1));
+$('#findPrev').addEventListener('click', () => stepFind(-1));
+$('#findClose').addEventListener('click', closeFind);
 /* ---------------- 草稿 / 回到最新 ---------------- */
 const DRAFT_KEY = 'ai.drafts';
 function loadDrafts() {
@@ -3558,6 +3628,11 @@ $('#navFiles').addEventListener('click', showFilesPage);
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });
 $('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; });
 document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    openFind();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
     e.preventDefault();
     if ($('#dlgPal').hidden) openPalette(); else closePalette();
@@ -3568,6 +3643,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
+    if (!$('#findBar').hidden) { closeFind(); return; }
     if (!$('#dlgPal').hidden) { closePalette(); return; }
     const openDlg = [...document.querySelectorAll('.overlay')].find((o) => !o.hidden && o.id !== 'dlgLogin');
     if (openDlg) { openDlg.hidden = true; return; }
