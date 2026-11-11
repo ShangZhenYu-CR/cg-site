@@ -1567,3 +1567,11 @@ html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:r
 :focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent)!important;outline-offset:2px}
 input:focus,input:focus-visible,textarea:focus,textarea:focus-visible,select:focus{outline:none!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)!important;border-color:color-mix(in srgb,var(--accent) 35%,var(--line))!important}
 
+
+/* 图片预览按钮：别被挤成竖排 */
+.lb-actions{display:flex;gap:10px;margin-top:16px;align-items:center;justify-content:center}
+.lb-actions button{width:auto!important;min-width:76px;height:36px;padding:0 16px;white-space:nowrap;font-size:13px;border-radius:9px}
+.lb-actions .primary{background:var(--text)!important;color:var(--bg)!important}
+.lb-actions .ghost{color:#fff;border-color:rgba(255,255,255,.28)}
+.lb-actions .ghost:hover{background:rgba(255,255,255,.12)}
+
