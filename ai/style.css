@@ -1,22 +1,26 @@
 :root{
-  --r:12px; --side-w:287px;
-  /* 深色（默认，Claude 暖灰暗色） */
-  --bg:#262624; --panel:#30302e; --panel2:#3a3a37; --line:#45453f;
-  --text:#f5f4ef; --dim:#b8b5ad; --faint:#8f8c84;
-  --accent:#d97757; --accent-ink:#1a1a18; --danger:#ffa18f; --ok:#8fd0a0; --warn:#e6c07b;
-  --code-bg:#1f1f1d; --sel:#5a3826; --overlay:rgba(20,20,19,.72);
-  --shadow:0 18px 50px rgba(0,0,0,.45); --chipbg:rgba(20,20,19,.86);
+  /* 间距 / 圆角 / 侧栏 */
+  --r:12px; --side-w:280px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-7:32px;
+  /* 深色（Anthropic 暖灰体系） */
+  --bg:#1A1816; --panel:#242220; --panel2:#2E2C29; --line:#3A3634;
+  --text:#F5F3EF; --dim:#B5AFA5; --faint:#8A8279;
+  --accent:#DA7756; --accent-strong:#E88B6A; --accent-ink:#1F1915;
+  --danger:#E88B6A; --ok:#8FA37A; --warn:#D6A85D;
+  --code-bg:#1F1D1B; --sel:#4A2E24; --overlay:rgba(20,18,16,.72);
+  --shadow:0 18px 40px rgba(0,0,0,.5); --chipbg:#242220;
 }
 :root[data-theme="light"]{
-  --bg:#f9f9f7; --panel:#ffffff; --panel2:#f0eee9; --line:#e3e0d8;
-  --text:#1f1e1d; --dim:#6b6862; --faint:#93908a;
-  --accent:#d97757; --accent-ink:#ffffff; --danger:#b5372a; --ok:#3f8f5f; --warn:#a8792a;
-  --code-bg:#f4f2ec; --sel:#ffe3d3; --overlay:rgba(249,249,247,.8);
-  --shadow:0 12px 32px rgba(40,35,28,.12); --chipbg:rgba(255,255,255,.92);
+  --bg:#FAF9F5; --panel:#FFFFFE; --panel2:#F5F3ED; --line:#EBE8E2;
+  --text:#1F1915; --dim:#6B6359; --faint:#8A8279;
+  --accent:#D97757; --accent-strong:#C4553D; --accent-ink:#FFFFFF;
+  --danger:#C4553D; --ok:#788C5D; --warn:#B58A3C;
+  --code-bg:#F5F3EF; --sel:#F5DDD4; --overlay:rgba(250,249,245,.8);
+  --shadow:0 8px 24px rgba(31,25,21,.1); --chipbg:#FFFFFE;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);overflow:hidden;font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+body{margin:0;background:var(--bg);color:var(--text);overflow:hidden;font:15px/1.65 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0}
 ::selection{background:var(--sel)}
@@ -87,6 +91,7 @@ button{cursor:pointer;background:none;border:0}
 /* ---------- 主区 ---------- */
 #main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
 .top{height:54px;flex:0 0 54px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--bg)}
+@media (min-width:900px){ .top{display:none} }
 .burger{display:none;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2)}
 .title{font-size:14px;font-weight:600;max-width:40vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:4px 8px;border-radius:8px}
 .title:hover{background:var(--panel2)}
@@ -99,7 +104,7 @@ button{cursor:pointer;background:none;border:0}
 .model-pill .eff{color:var(--dim)}
 .model-pill .car{opacity:.5;font-size:10px}
 
-.pop{position:absolute;z-index:60;min-width:260px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.pop{position:absolute;z-index:60;min-width:260px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:var(--shadow)}
 .pop h4{margin:0 0 8px;font-size:11px;letter-spacing:.06em;color:var(--faint);font-weight:600}
 .pop .opt{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:9px;font-size:14px;text-align:left}
 .pop .opt:hover{background:var(--panel2)}
@@ -116,14 +121,14 @@ button{cursor:pointer;background:none;border:0}
 .pop .hint{font-size:11px;color:var(--faint);margin-top:8px;line-height:1.5}
 
 .scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;overflow-anchor:none}
-.thread{width:min(780px,100%);margin:0 auto;padding:26px 24px 10px;display:flex;flex-direction:column;gap:20px}
+.thread{width:min(720px,100%);margin:0 auto;padding:32px 24px 12px;display:flex;flex-direction:column;gap:24px;font-size:15px;line-height:1.7;letter-spacing:.005em}
 
 .msg{display:flex;gap:12px}
-.msg .av{flex:0 0 26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
-.msg.user .av{background:var(--panel2);border-color:var(--line);color:var(--accent)}
+.msg .av{flex:0 0 28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:600;background:var(--accent);border:0;color:var(--accent-ink)}
+.msg.user .av{background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
 .msg .bd{flex:1;min-width:0}
 .msg .name{font-size:11px;color:var(--faint);margin-bottom:3px}
-.msg.user .bd{background:color-mix(in srgb, var(--text) 6%, transparent);border:0;border-radius:12px;padding:12px 16px}
+.msg.user .bd{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 20px}
 .msg .bd p{margin:0 0 10px}
 .msg .bd p:last-child{margin-bottom:0}
 .msg .bd h2{font-size:18px;margin:14px 0 8px}
@@ -150,11 +155,11 @@ button{cursor:pointer;background:none;border:0}
 .doc ul{margin:0 0 8px;padding-left:18px;font-size:14px}
 
 .empty{width:min(780px,100%);margin:14vh auto 0;padding:0 24px;text-align:center}
-.empty h1{font-size:28px;margin:0 0 8px;font-weight:600}
-.empty p{color:var(--dim);margin:0 0 22px;font-size:14px}
+.empty h1{font-family:"Tiempos Text",Georgia,"Songti SC","SimSun",serif;font-size:34px;line-height:1.2;margin:0 0 10px;font-weight:500;letter-spacing:-.01em}
+.empty p{color:var(--dim);margin:0 0 24px;font-size:15px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.chips button{padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font-size:13px}
-.chips button:hover{color:var(--accent);border-color:var(--accent)}
+.chips button{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:14px;transition:background 150ms ease,border-color 150ms ease}
+.chips button:hover{background:var(--panel2);color:var(--text);border-color:var(--line)}
 
 /* 能力开关 */
 .caps{width:min(780px,100%);margin:0 auto 8px;display:flex;gap:6px;flex-wrap:wrap}
@@ -271,7 +276,7 @@ button{cursor:pointer;background:none;border:0}
 #userPop{left:12px;bottom:64px;width:230px}
 
 .overlay{position:fixed;inset:0;background:var(--overlay);backdrop-filter:blur(6px);display:grid;place-items:center;z-index:90}
-.card{width:min(420px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.card{width:min(420px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
 .card.wide{width:min(560px,calc(100vw - 32px))}
 .card h2{margin:0 0 6px;font-size:18px}
 .card p{margin:0 0 16px;color:var(--dim);font-size:13px}
@@ -383,7 +388,7 @@ body:not(.noside) #sideToggle{display:none}
 .bar-more:hover{color:var(--accent);border-color:var(--accent)}
 
 /* 画图悬停参数面板 */
-.draw-pop{position:fixed;z-index:70;width:286px;padding:10px;display:grid;gap:8px}
+.draw-pop{position:fixed;z-index:70;width:286px;padding:12px;display:grid;gap:8px;border-radius:16px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow)}
 .draw-pop[hidden]{display:none}
 .draw-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dim)}
 .draw-row select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 6px;font-size:12px;color:var(--text);outline:0;max-width:130px}
