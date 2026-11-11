@@ -1438,3 +1438,13 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 .brand .brand-mark{color:var(--brand);flex:none}
 body.noside .brand .brand-mark{width:20px;height:20px}
 
+
+/* 项目行箭头：去掉那个灰色小方框，只保留箭头本身 */
+.prow .pchev{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;padding:0;border-radius:0;background:transparent!important;font-size:12px;line-height:1;color:var(--faint)}
+.prow:hover .pchev{color:var(--dim)}
+.prow .pchev:hover{background:transparent!important;color:var(--text)}
+/* 分组标题折叠态 */
+.grp-toggle{cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px}
+.grp-toggle:hover{color:var(--text)}
+.grp-toggle .chev{font-style:normal;font-size:11px;color:var(--faint)}
+

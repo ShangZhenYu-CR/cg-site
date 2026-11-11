@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:58';
+const APP_BUILD = '2026-11-12 00:01';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1020,10 +1020,19 @@ function renderSide() {
     return;
   }
 
-  const sectionHead = (label, count, onClick, extra) => {
-    const h = el('div', 'grp grp-toggle');
-    h.innerHTML = '<span>' + label + '</span>' + (extra || '') + '<i class="chev">⌄</i>';
-    if (onClick) h.addEventListener('click', onClick);
+  // 分组标题：点一下折叠/展开（Claude 就是这样）
+  state.sideCollapsed = state.sideCollapsed || {};
+  const sectionCollapsed = (label) => !!state.sideCollapsed[label];
+  const toggleSection = (label) => {
+    state.sideCollapsed[label] = !state.sideCollapsed[label];
+    renderSide();
+  };
+  const sectionHead = (label) => {
+    const folded = sectionCollapsed(label);
+    const h = el('div', 'grp grp-toggle' + (folded ? ' folded' : ''));
+    h.innerHTML = '<span>' + label + '</span><i class="chev">' + (folded ? '›' : '⌄') + '</i>';
+    h.title = folded ? '展开' : '折叠';
+    h.addEventListener('click', () => toggleSection(label));
     return h;
   };
 
@@ -1032,8 +1041,10 @@ function renderSide() {
   const pinnedProjects = (state.projects || []).filter((p) => p.pinned);
   if (pinned.length || pinnedProjects.length) {
     listBox.append(sectionHead('已置顶'));
-    for (const p of pinnedProjects) appendProject(p);
-    for (const cv of pinned) listBox.append(convRow(cv));
+    if (!sectionCollapsed('已置顶')) {
+      for (const p of pinnedProjects) appendProject(p);
+      for (const cv of pinned) listBox.append(convRow(cv));
+    }
   }
 
   // 项目：可展开，子项缩进
@@ -1069,7 +1080,7 @@ function renderSide() {
   const projects = (state.projects || []).filter((p) => !p.pinned);
   if (projects.length) {
     listBox.append(sectionHead('项目'));
-    for (const p of projects) appendProject(p);
+    if (!sectionCollapsed('项目')) for (const p of projects) appendProject(p);
   }
 
   // 最近：平铺，不做按天分组（对齐 Claude）
@@ -1078,7 +1089,7 @@ function renderSide() {
   const LIMIT = 12;
   const shown = state.sideAll ? loose : loose.slice(0, LIMIT);
   listBox.append(sectionHead('最近'));
-  for (const cv of shown) listBox.append(convRow(cv));
+  if (!sectionCollapsed('最近')) for (const cv of shown) listBox.append(convRow(cv));
   if (!loose.length) {
     const hint = el('div', 'side-empty');
     hint.append(el('div', 'se-t', q ? '没有匹配' : '还没有会话'));
