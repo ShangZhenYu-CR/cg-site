@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 01:22';
+const APP_BUILD = '2026-11-12 01:50';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -579,7 +579,13 @@ function applyTheme() {
   document.documentElement.dataset.theme = mode;
   document.documentElement.style.colorScheme = mode;
   // 字号：写进 CSS 变量，body 与对话正文都跟着走
-  const fs = Number(LS.font) || 15;
+  // 默认 16px（对齐 Claude）；早期默认是 15，这里做一次迁移
+  if (!LS.fontMigrated) {
+    if (!LS.font || Number(LS.font) === 15) LS.font = 16;
+    LS.fontMigrated = true;
+    persistSettings();
+  }
+  const fs = Number(LS.font) || 16;
   document.documentElement.style.setProperty('--ui-font', fs + 'px');
   document.documentElement.style.setProperty('--ui-line', Math.round(fs * 1.4) + 'px');
   const btn = $('#themeBtn');
@@ -1516,7 +1522,7 @@ function mountPane(key) {
       h2.style.marginTop = '18px';
       const row2 = el('div', 'set-row wrap');
       for (const size of [14, 15, 16]) {
-        const b = el('button', 'set-chip' + ((LS.font || 15) === size ? ' on' : ''), size + 'px');
+        const b = el('button', 'set-chip' + ((LS.font || 16) === size ? ' on' : ''), size + 'px');
         b.type = 'button';
         b.addEventListener('click', () => {
           LS.font = size;

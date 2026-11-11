@@ -1609,3 +1609,24 @@ input:focus,input:focus-visible,textarea:focus,textarea:focus-visible,select:foc
 .new-btn:hover{background:rgba(0,0,0,.06)!important}
 [data-theme="dark"] .new-btn:hover{background:rgba(255,255,255,.1)!important}
 
+
+/* ===== 对齐 Claude：正文字号 16、文字 90% 黑、输入区更收敛 ===== */
+:root{--ui-font:16px;--ui-line:22px}
+body{font:var(--ui-font)/1.6 var(--font-sans)}
+.msg .bd,.msg.ai .bd{font-size:var(--ui-font);line-height:var(--ui-line)}
+
+/* 文字色改成 90% 黑（Claude 用 rgba(0,0,0,.9)） */
+:root{--text:#1a1a1a}
+html[data-theme="dark"]{--text:#ececea}
+
+/* 输入区：圆角 14、内边距 8/12、空态更矮 */
+.composer{border-radius:14px!important;padding:10px 12px 8px!important;min-height:0!important}
+.composer textarea{padding:2px 2px 0!important;min-height:26px!important;line-height:22px!important}
+.composer .cm-model{height:26px!important;font-size:12px!important}
+.composer .icon#plusBtn{width:26px!important;height:26px!important;font-size:16px!important}
+.composer .send{width:28px!important;height:28px!important}
+
+/* 能力芯片行和输入框同宽、贴紧，别再造出一段空白 */
+#caps{width:100%!important;max-width:672px!important;margin:0 auto 6px!important;padding:0!important;justify-content:flex-start!important}
+.caps .cap{height:26px;font-size:12px}
+
