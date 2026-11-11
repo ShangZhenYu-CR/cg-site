@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:21';
+const APP_BUILD = '2026-11-11 21:25';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -178,6 +178,87 @@ function inline(s) {
   return s;
 }
 
+/* ---------------- 计算沙箱（Web Worker） ---------------- */
+let calcWorker = null;
+let calcSeq = 0;
+const calcPending = new Map();
+
+function getCalcWorker() {
+  if (calcWorker) return calcWorker;
+  const src = [
+    'self.onmessage = async (e) => {',
+    '  const { id, code } = e.data;',
+    '  const block = () => { throw new Error("沙箱内不能联网"); };',
+    '  try {',
+    '    const fn = new Function("fetch","XMLHttpRequest","WebSocket","importScripts","self","window","document",',
+    '      "return (async () => {\\n" + code + "\\n})()");',
+    '    const out = await fn(block, block, block, block, undefined, undefined, undefined);',
+    '    let payload;',
+    '    try { payload = JSON.parse(JSON.stringify(out === undefined ? null : out)); } catch (err) { payload = String(out); }',
+    '    self.postMessage({ id, ok: true, value: payload });',
+    '  } catch (err) {',
+    '    self.postMessage({ id, ok: false, error: String((err && err.message) || err) });',
+    '  }',
+    '};',
+  ].join('\n');
+  calcWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  calcWorker.onmessage = (e) => {
+    const { id, ok, value, error } = e.data || {};
+    const p = calcPending.get(id);
+    if (!p) return;
+    calcPending.delete(id);
+    if (ok) p.resolve(value); else p.reject(new Error(error || '执行失败'));
+  };
+  return calcWorker;
+}
+
+function runCalc(code, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const id = ++calcSeq;
+    let done = false;
+    calcPending.set(id, {
+      resolve: (v) => { if (!done) { done = true; resolve(v); } },
+      reject: (e) => { if (!done) { done = true; reject(e); } },
+    });
+    const timer = setTimeout(() => {
+      if (done) return;
+      calcPending.delete(id);
+      try { calcWorker && calcWorker.terminate(); } catch {}
+      calcWorker = null;
+      reject(new Error('执行超时（超过 ' + Math.round((timeoutMs || 5000) / 1000) + ' 秒）'));
+    }, timeoutMs || 5000);
+    const wrap = calcPending.get(id);
+    const origResolve = wrap.resolve;
+    calcPending.set(id, { resolve: (v) => { clearTimeout(timer); origResolve(v); }, reject: wrap.reject });
+    getCalcWorker().postMessage({ id, code });
+  });
+}
+
+/** 把 md() 里生成的 .calc 占位逐个执行，结果画成图表或数值 */
+async function hydrateCalcs(root) {
+  const nodes = [...(root || document).querySelectorAll('.calc[data-code]:not([data-done])')];
+  for (const node of nodes) {
+    node.dataset.done = '1';
+    let codeText = '';
+    try { codeText = decodeURIComponent(escape(atob(node.dataset.code || ''))); } catch { node.textContent = '代码解码失败'; continue; }
+    try {
+      const value = await runCalc(codeText, 5000);
+      node.textContent = '';
+      if (value && Array.isArray(value.labels) && Array.isArray(value.series)) {
+        node.innerHTML = chartSVG(JSON.stringify(value));
+      } else if (value && typeof value === 'object' && !Array.isArray(value) && value.chart) {
+        node.innerHTML = chartSVG(JSON.stringify(value.chart));
+      } else if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+        node.innerHTML = '<div class="calc-out">' + esc(String(value)) + '</div>';
+      } else {
+        node.innerHTML = '<pre class="calc-json">' + esc(JSON.stringify(value, null, 2)) + '</pre>';
+      }
+    } catch (e) {
+      node.textContent = '';
+      node.innerHTML = '<div class="calc-err">计算失败：' + esc(String((e && e.message) || e)) + '</div>';
+    }
+  }
+}
 /** chart 块：{type,labels,series} → 内联 SVG（不依赖第三方库） */
 function chartSVG(specText) {
   let spec = null;
@@ -264,6 +345,12 @@ function md(src) {
       while (i < lines.length && !/^```\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
       i++;
       if (lang === 'chart') out.push(chartSVG(buf.join('\n')));
+      else if (lang === 'calc' || lang === 'compute') {
+        const codeTxt = buf.join('\n');
+        let b64 = '';
+        try { b64 = btoa(unescape(encodeURIComponent(codeTxt))); } catch (e) { b64 = ''; }
+        out.push('<div class="calc" data-code="' + b64 + '">计算中…</div>');
+      }
       else out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
       continue;
     }
@@ -1375,7 +1462,7 @@ function bubble(m, idx) {
     const d = el('div', 'doc');
     d.append(el('span', 'lab', '交接文档'));
     const body = el('div');
-    body.innerHTML = md(m.text);
+    body.innerHTML = md(m.text); hydrateCalcs(body);
     d.append(body);
     return d;
   }
@@ -1406,7 +1493,7 @@ function bubble(m, idx) {
     retry.addEventListener('click', () => regenerateFrom(idx));
     content.append(retry);
   }
-  else content.innerHTML = md(m.text || '');
+  else { content.innerHTML = md(m.text || ''); hydrateCalcs(content); }
   bd.append(content);
 
   // 长消息折叠（默认只显示前半段，可展开）
@@ -2339,7 +2426,7 @@ function hideThinking() {
       const sz = String((imageOpts && imageOpts.size) || gifSizeForFrames(fr)).replace('x', '×');
       reply.meta = 'GIF · ' + fr + ' 帧 · ' + sz + (reply.images.length > 1 ? ' · ' + reply.images.length + ' 张' : '');
     }
-    if (host) host.innerHTML = md(reply.text || '');
+    if (host) { host.innerHTML = md(reply.text || ''); hydrateCalcs(host); }
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
 
     const parsed = extractFiles(reply.text || '');
