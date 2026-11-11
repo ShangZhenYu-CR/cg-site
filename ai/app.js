@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:45';
+const APP_BUILD = '2026-11-12 00:47';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -784,7 +784,9 @@ function renderUsageDialog() {
     const row = el('div', 'u-row');
     // 服务端只回 id，这里翻成对话名；找不到说明已删
     const known = (state.convs || []).find((x) => x.id === c.id);
-    row.append(el('span', 'k', c.title || (known && known.title) || '已删除的对话'));
+    const looksLikeId = /^[a-z0-9]{6,}$/i.test(String(c.title || ''));
+    const label = known ? (known.title || '未命名') : (looksLikeId ? '已删除的对话' : (c.title || c.id));
+    row.append(el('span', 'k', label));
     row.append(el('b', null, formatUsd(c.usd)));
     convs.append(row);
   }
