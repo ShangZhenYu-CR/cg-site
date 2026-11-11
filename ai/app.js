@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:21';
+const APP_BUILD = '2026-11-11 17:25';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -528,6 +528,7 @@ async function saveConv(conv, extra) {
     private: !!conv.private,
     files: conv.files || [],
     settings: conv.settings || {},
+    archived: !!conv.archived,
     ...(extra || {}),
   };
   try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {} finally { state.saving = false; }
@@ -576,7 +577,7 @@ function applyConvSettings(cv) {
 
 /* ---------------- 侧栏 ---------------- */
 function convRow(cv) {
-  const row = el('div', 'kid' + (cv.id === state.currentId ? ' on' : ''));
+  const row = el('div', 'kid' + (cv.id === state.currentId ? ' on' : '') + (cv.archived ? ' archived' : ''));
   row.draggable = true;
   row.dataset.id = cv.id;
   const t = el('span', 't', (cv.private ? '🔒 ' : '') + (cv.title || '新对话'));
@@ -642,7 +643,7 @@ function renderSide() {
     headP.innerHTML = '<span>' + esc(pf.name) + '</span><button id="pfExit">← 全部</button>';
     listBox.append(headP);
     if (pf.instructions) listBox.append(el('div', 'pf-note', '该项目有指令，进入自动生效'));
-    const kidsP = state.convs.filter((cv) => cv.projectId === pf.id && matches(cv));
+    const kidsP = state.convs.filter((cv) => cv.projectId === pf.id && !cv.archived && matches(cv));
     if (!kidsP.length) listBox.append(el('div', 'kid', '这个项目还没有对话'));
     for (const cv of kidsP) listBox.append(convRow(cv));
     const exitBtn = document.getElementById('pfExit');
@@ -655,7 +656,7 @@ function renderSide() {
   listBox.append(head);
 
   for (const p of state.projects) {
-    const kids = state.convs.filter(cv => cv.projectId === p.id);
+    const kids = state.convs.filter(cv => cv.projectId === p.id && !cv.archived);
     if (q && !p.name.toLowerCase().includes(q) && !kids.some(matches)) continue;
 
     const row = el('div', 'proj' + (state.open[p.id] ? ' open' : ''));
@@ -698,9 +699,20 @@ function renderSide() {
   const head2 = el('div', 'grp');
   head2.innerHTML = '<span>最近</span>';
   listBox.append(head2);
-  const loose = state.convs.filter(cv => !cv.projectId && matches(cv));
+  const loose = state.convs.filter(cv => !cv.projectId && !cv.archived && matches(cv));
   if (!loose.length) listBox.append(el('div', 'kid', q ? '没有匹配' : '（还没有对话）'));
   for (const cv of loose) listBox.append(convRow(cv));
+
+  // 已归档：默认收起，点开才列出来
+  const arch = state.convs.filter((cv) => cv.archived && matches(cv));
+  if (arch.length) {
+    const headA = el('div', 'grp');
+    headA.innerHTML = '<span>已归档</span><button id="archToggle">' + (state.showArchived ? '隐藏' : '显示 ' + arch.length) + '</button>';
+    listBox.append(headA);
+    if (state.showArchived) for (const cv of arch) listBox.append(convRow(cv));
+    const tg = document.getElementById('archToggle');
+    if (tg) tg.addEventListener('click', () => { state.showArchived = !state.showArchived; renderSide(); });
+  }
 
   const np = document.getElementById('newProjInline');
   if (np) np.addEventListener('click', () => openProjectDialog(null));
@@ -2933,6 +2945,27 @@ $('#newProject2').addEventListener('click', () => {
   openProjectDialog(null);
 });
 $('#newPrivateBtn').addEventListener('click', async () => { closePops(); await createConv({ private: true }); renderAll(); input.focus(); });
+$('#archiveBtn').addEventListener('click', async () => {
+  const cv = current();
+  closePops();
+  if (!cv) return;
+  cv.archived = !cv.archived;
+  await saveConv(cv);
+  renderAll();
+});
+
+$('#deleteBtn').addEventListener('click', async () => {
+  const cv = current();
+  closePops();
+  if (!cv) return;
+  if (!confirm('删除对话「' + (cv.title || '新对话') + '」？删除后无法恢复。')) return;
+  const r = await api('/convs/' + cv.id, { method: 'DELETE' });
+  if (!r.ok) { alert('删除失败'); return; }
+  state.convs = state.convs.filter((x) => x.id !== cv.id);
+  state.currentId = (state.convs[0] || {}).id || null;
+  renderAll();
+});
+
 $('#newProjectBtn').addEventListener('click', () => { closePops(); openProjectDialog(null); });
 $('#insBtn').addEventListener('click', () => { closePops(); openInstructions(); });
 $('#usersBtn').addEventListener('click', () => { closePops(); openUsers(); });

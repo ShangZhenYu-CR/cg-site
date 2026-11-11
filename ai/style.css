@@ -564,3 +564,4 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 #metaModel .me{color:var(--faint)}
 #metaProject{display:inline-flex;align-items:center;gap:4px;color:var(--dim)}
 #metaProject .chev-s{font-size:11px;color:var(--faint)}
+.kid.archived .t{color:var(--faint)}
