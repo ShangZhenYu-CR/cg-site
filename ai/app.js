@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 21:54';
+const APP_BUILD = '2026-11-11 22:03';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1965,6 +1965,12 @@ function renderAll() {
   renderSide();
   const isProj = state.view === 'projects';
   const isFiles = state.view === 'files';
+  const isPlugins = state.view === 'plugins';
+  const pg = $('#pluginsPage');
+  if (pg) {
+    pg.hidden = !isPlugins;
+    if (isPlugins) renderPluginsPage();
+  }
   const isImages = state.view === 'images';
   const isProject = state.view === 'project';
   const pd = $('#projDetail');
@@ -1988,7 +1994,7 @@ function renderAll() {
     fp.hidden = !isFiles;
     if (isFiles) renderFilesPage();
   }
-  if (isProj || isFiles || isImages || state.view === 'project') {
+  if (isProj || isFiles || isImages || isPlugins || state.view === 'project') {
     $('#thread').textContent = '';
     $('#empty').hidden = true;
     layoutHomeComposer();
@@ -4315,6 +4321,7 @@ $('#artTitle').addEventListener('change', async () => {
   renderArtifact();
 });
 $('#artAsk').addEventListener('click', () => { input.focus(); flashHint('在左边说一句要我改什么'); });
+$('#artPublish').addEventListener('click', publishDesignArtifact);
 $('#artExport').addEventListener('click', () => {
   const f = currentArtifactFile();
   if (!f) { flashHint('还没有内容'); return; }
@@ -4462,6 +4469,7 @@ function openArtifactPane(kind, name) {
   pane.hidden = false;
   document.body.classList.add('artopen');
   $('#artKind').textContent = ART_KINDS[kind] ? ART_KINDS[kind].label : '产物';
+  $('#artPublish').hidden = kind !== 'design';
   $('#artTitle').value = artName;
   renderArtifact();
 }
@@ -4580,6 +4588,75 @@ function emptyArtifactState() {
   box.append(el('div', 'art-empty-t', titles[artKind] || '还没内容'));
   box.append(el('div', 'art-empty-d', subs[artKind] || ''));
   return box;
+}
+/* ---------------- 插件库 ---------------- */
+let pluginItems = [];
+
+async function loadPlugins() {
+  if (pluginItems.length) return pluginItems;
+  try {
+    const r = await api('/plugins');
+    const j = await r.json();
+    pluginItems = Array.isArray(j.items) ? j.items : [];
+  } catch { pluginItems = []; }
+  return pluginItems;
+}
+
+async function renderPluginsPage() {
+  const grid = $('#plugGrid');
+  if (!grid) return;
+  grid.textContent = '';
+  grid.append(el('div', 'pp-empty', '读取中…'));
+  const items = await loadPlugins();
+  grid.textContent = '';
+  const cnt = $('#plugCount');
+  if (cnt) cnt.textContent = items.length ? items.length + ' 个' : '';
+  if (!items.length) {
+    const e = el('div', 'pp-empty');
+    e.append(el('div', 't', '还没有插件'));
+    e.append(el('div', 'd', '在对话里让 AI 写一个页面，产物面板里点「发布到插件库」。'));
+    grid.append(e);
+    return;
+  }
+  for (const it of items) {
+    const card = el('button', 'plug-card');
+    card.type = 'button';
+    card.append(el('div', 'plug-n', it.name));
+    if (it.desc) card.append(el('div', 'plug-d', it.desc));
+    const meta = el('div', 'plug-m');
+    if (it.author) meta.append(el('span', null, it.author));
+    for (const t of (it.tags || [])) meta.append(el('span', 'plug-tag', t));
+    card.append(meta);
+    card.addEventListener('click', () => openPluginViewer(it));
+    grid.append(card);
+  }
+}
+
+function openPluginViewer(it) {
+  $('#plugName').textContent = it.name || it.slug;
+  $('#plugOpen').href = it.url;
+  $('#plugFrame').src = it.url;
+  $('#plugView').hidden = false;
+}
+
+async function publishDesignArtifact() {
+  const cv = current();
+  const file = cv && (cv.files || []).find((x) => /\.html?$/i.test(x.name || '') && String(x.content || '').trim());
+  if (!file) { flashHint('当前对话里没有可发布的 HTML'); return; }
+  const base = (file.name || 'plugin').replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || 'plugin';
+  const slug = (base.length >= 2 ? base : 'plugin') + '-' + Math.random().toString(36).slice(2, 6);
+  flashHint('发布中…');
+  const r = await api('/plugins/publish', { method: 'POST', body: {
+    slug,
+    name: (file.name || '未命名').replace(/\.[^.]+$/, ''),
+    desc: (cv.title || '').slice(0, 60),
+    html: file.content,
+  } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { flashHint(j.error || '发布失败'); return; }
+  pluginItems = [];
+  flashHint('已发布：' + j.url);
+  try { await navigator.clipboard.writeText(j.url); } catch {}
 }
 /* ---------------- 图库 ---------------- */
 /** 汇总所有对话里的图片（用户贴的 + 模型生成的），最近的在前 */
@@ -4780,6 +4857,8 @@ $('#navProjects').addEventListener('click', showProjectsPage);
 $('#ppNew').addEventListener('click', () => openProjectDialog(null));
 $('#navFiles').addEventListener('click', showFilesPage);
 $('#navGallery').addEventListener('click', showGalleryPage);
+$('#navPlugins').addEventListener('click', () => { state.view = 'plugins'; renderAll(); });
+$('#plugClose').addEventListener('click', () => { $('#plugView').hidden = true; $('#plugFrame').src = 'about:blank'; });
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });
 $('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; });
 document.addEventListener('keydown', (e) => {

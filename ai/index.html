@@ -43,6 +43,7 @@
         <button class="nav-row" id="navProjects"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 7h5l2 2h11v10H3z"/></svg>项目</button>
         <button class="nav-row" id="navFiles"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4h7l9 9-7 7-9-9z"/></svg>文件</button>
         <button class="nav-row" id="navGallery"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg>图库</button>
+        <button class="nav-row" id="navPlugins"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4M4 9h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9 14h6"/></svg>插件</button>
         <button class="nav-row" id="navPrefs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c1.2-3.4 3.7-5 7-5s5.8 1.6 7 5"/></svg>自定义</button>
       </nav>
     </div>
@@ -121,6 +122,11 @@
           </button>
           <div class="pd-private" id="pdPrivate">私人</div>
         </aside>
+      </div>
+      <div class="proj-page" id="pluginsPage" hidden>
+        <div class="pp-head"><h1>插件</h1><span class="pp-count" id="plugCount"></span></div>
+        <p class="pp-sub">每个人写的小页面都放这里，独立域名托管，用沙箱打开——它读不到你的登录信息。</p>
+        <div class="pp-grid" id="plugGrid"></div>
       </div>
       <div class="proj-page" id="galleryPage" hidden>
         <div class="pp-head"><h1>图库</h1>
@@ -229,6 +235,16 @@
   </main>
 </div>
 
+<!-- 插件预览（沙箱 iframe） -->
+<div class="plug-view" id="plugView" hidden>
+  <div class="plug-bar">
+    <span class="plug-name" id="plugName"></span>
+    <a class="plug-link" id="plugOpen" target="_blank" rel="noopener">在新窗口打开</a>
+    <button class="icon" id="plugClose" title="关闭">✕</button>
+  </div>
+  <iframe class="plug-frame" id="plugFrame" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>
+</div>
+
 <!-- 产物面板（文档 / 幻灯片 / 设计） -->
 <aside id="artPane" hidden>
   <div class="art-head">
@@ -238,6 +254,7 @@
     </div>
     <div class="art-acts">
       <button class="icon" id="artAsk" title="让 AI 改">✦</button>
+      <button class="icon" id="artPublish" title="发布到插件库" hidden>⇪</button>
       <button class="icon" id="artExport" title="导出">⇩</button>
       <button class="icon" id="artExpand" title="放大">⤢</button>
       <button class="icon" id="artClose" title="关闭">✕</button>
