@@ -50,7 +50,8 @@ button{cursor:pointer;background:none;border:0}
 #newPop{left:0;top:44px;width:210px}
 .new-btn:hover{border-color:var(--line);color:var(--accent)}
 .search{position:relative}
-.search input{width:100%;height:34px;padding:0 10px 0 30px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);outline:0;font-size:14px;transition:border-color 150ms ease,box-shadow 150ms ease}
+.search input{width:100%;height:34px;padding:0 10px 0 30px;border-radius:8px;border:1px solid transparent;background:transparent;outline:0;font-size:15px;transition:background var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out)}
+.search input:hover{background:var(--panel2)}
 .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent)}
 .search svg{position:absolute;left:9px;top:9px;opacity:.45}
 
@@ -76,7 +77,7 @@ button{cursor:pointer;background:none;border:0}
 .kid:hover{background:var(--panel2)}
 .kid.on{background:color-mix(in srgb, var(--accent) 14%, transparent);color:var(--accent)}
 .kid .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kid .time{font-size:10px;color:var(--faint)}
+.kid .time{display:none}
 .kid .lock{font-size:10px;color:var(--warn)}
 .kid.dragover{outline:1px dashed var(--accent)}
 
@@ -160,7 +161,7 @@ button{cursor:pointer;background:none;border:0}
 .doc ul{margin:0 0 8px;padding-left:18px;font-size:14px}
 
 .empty{width:min(780px,100%);margin:14vh auto 0;padding:0 24px;text-align:center}
-.empty h1{font-family:"Tiempos Text",Georgia,"Songti SC","SimSun",serif;font-size:34px;line-height:1.2;margin:0 0 10px;font-weight:500;letter-spacing:-.01em}
+.empty h1{font-family:"Tiempos Text",Georgia,"Songti SC","SimSun",serif;font-size:46px;line-height:1.15;margin:0 0 12px;font-weight:500;letter-spacing:-.02em}
 .empty p{color:var(--dim);margin:0 0 24px;font-size:15px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .chips button{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:14px;transition:background 150ms ease,border-color 150ms ease}
@@ -248,17 +249,17 @@ button{cursor:pointer;background:none;border:0}
   display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--faint);
   border:1px dashed var(--line);border-radius:10px;padding:8px 12px;background:var(--panel);
 }
-.composer{width:min(720px,100%);margin:0 auto;display:flex;align-items:flex-end;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-composer);padding:12px 12px 10px;position:relative;box-shadow:0 1px 3px rgba(16,16,16,.05);transition:border-color var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out)}
-.composer-meta{width:min(720px,100%);margin:8px auto 0;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--faint)}
+.composer{width:min(780px,100%);margin:0 auto;display:flex;align-items:flex-end;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-composer);padding:12px 12px 10px;position:relative;box-shadow:0 1px 3px rgba(16,16,16,.05);transition:border-color var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out)}
+.composer-meta{width:min(780px,100%);margin:8px auto 0;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--faint)}
 .composer-meta button{font-size:12px;color:var(--faint);padding:2px 6px;border-radius:6px}
 .composer-meta button:hover{background:var(--panel2);color:var(--text)}
 .composer-meta .left,.composer-meta .right{display:flex;align-items:center;gap:8px}
 .composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent)}
-.composer textarea{flex:1;resize:none;border:0;outline:0;background:none;padding:8px 4px;max-height:170px;min-height:24px;line-height:1.6}
+.composer textarea{flex:1;resize:none;border:0;outline:0;background:none;padding:10px 6px;max-height:200px;min-height:28px;line-height:1.55;font-size:17px}
 .icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--dim);border:1px solid transparent;font-size:18px;line-height:1}
 .icon:hover{background:var(--panel2);color:var(--text)}
 .icon.on{background:color-mix(in srgb, var(--accent) 16%, transparent);color:var(--accent);border-color:color-mix(in srgb, var(--accent) 40%, transparent)}
-.send{width:34px;height:34px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.send{width:34px;height:34px;border-radius:999px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
 .send:disabled{opacity:.45;cursor:default}
 .send.stop{background:var(--danger);color:#2a1010}
 .send svg{display:block}
@@ -499,3 +500,11 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .eff-item .rec{font-size:10px;padding:1px 6px;border-radius:999px;background:var(--panel2);color:var(--faint)}
 .eff-item .warn{font-size:11px;color:var(--warn)}
 .eff-item .ck{margin-left:auto;color:var(--accent)}
+/* 贴近 Claude 首页：新建整条、底部单行、导航字号 */
+.new-caret{display:none}
+.new-split{gap:0}
+.new-btn{width:100%}
+.usage-bar{display:none}
+.side-foot{margin-top:0}
+.nav-row{font-size:15px;height:32px}
+.kid{font-size:14.5px}
