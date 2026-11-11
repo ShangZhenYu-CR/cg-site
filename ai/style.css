@@ -508,3 +508,18 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .side-foot{margin-top:0}
 .nav-row{font-size:15px;height:32px}
 .kid{font-size:14.5px}
+/* ---------- 多行输入框（Claude：上方文本、下方工具栏） ---------- */
+.composer{
+  flex-wrap:wrap;align-items:center;align-content:space-between;
+  min-height:112px;padding:14px 16px 10px;gap:6px;
+}
+.composer textarea{
+  flex:1 1 100%;order:-1;min-height:52px;max-height:220px;
+  padding:0;font-size:17px;line-height:1.55;
+}
+.composer .plus-wrap{order:2}
+.composer .send{order:3;margin-left:auto}
+/* 列表弹窗里的行 */
+.lk-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;background:var(--panel2);cursor:pointer;font-size:14px}
+.lk-row:hover{background:color-mix(in srgb, var(--text) 8%, transparent)}
+.lk-row .sub{font-size:12px;color:var(--faint)}

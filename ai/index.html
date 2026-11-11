@@ -81,7 +81,7 @@
         <h1 class="greet"><span class="mark">✳</span><span id="greetText">今天想聊点什么？</span></h1>
         <p>问问题、写东西、看代码；也能发图问图、联网查资料。</p>
         <div class="recent-art" id="recentArt" hidden>
-          <div class="ra-head"><span>最近的产物</span><button type="button" id="raAll">查看全部</button></div>
+          <div class="ra-head"><span>最近的 Artifacts</span><button type="button" id="raAll">查看全部</button></div>
           <div class="ra-list" id="raList"></div>
         </div>
         <div class="chips">
@@ -493,6 +493,16 @@
     <div class="btn-row">
       <button class="ghost" style="flex:1" id="usageClose">关闭</button>
     </div>
+  </div>
+</div>
+
+<!-- 通用列表（项目 / 文件） -->
+<div class="overlay" id="dlgList" hidden>
+  <div class="card wide">
+    <h2 id="listTitle">列表</h2>
+    <p id="listSub"></p>
+    <div class="u-list" id="listBody"></div>
+    <div class="btn-row"><button class="ghost" style="flex:1" id="listClose">关闭</button></div>
   </div>
 </div>
 

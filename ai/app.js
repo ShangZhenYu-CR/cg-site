@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 16:59';
+const APP_BUILD = '2026-11-11 17:04';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -2748,13 +2748,63 @@ $('#uSaveBalance').addEventListener('click', async () => {
 $('#newChat').addEventListener('click', async () => { await createConv(); renderAll(); closeNav(); input.focus(); });
 
 $('#brandBtn').addEventListener('click', () => { $('#newChat').click(); });
-$('#navProjects').addEventListener('click', () => {
-  for (const p of state.projects || []) state.open[p.id] = true;
-  renderAll();
-  $('#list').scrollTop = 0;
-});
-$('#navFiles').addEventListener('click', () => { openCodePane(); });
+/** 通用列表面板（项目 / 文件共用） */
+function openListPanel(title, sub, rows) {
+  $('#listTitle').textContent = title;
+  $('#listSub').textContent = sub || '';
+  const box = $('#listBody');
+  box.textContent = '';
+  if (!rows.length) box.append(el('div', 'lk-row', '暂时没有内容'));
+  for (const r of rows) {
+    const row = el('div', 'lk-row');
+    const l = el('div');
+    l.append(el('div', null, r.label));
+    if (r.sub) l.append(el('div', 'sub', r.sub));
+    row.append(l);
+    if (r.value) row.append(el('b', null, r.value));
+    row.addEventListener('click', r.onClick);
+    box.append(row);
+  }
+  $('#dlgList').hidden = false;
+}
+
+/** 项目：列出全部项目，点一个只看它 */
+function showProjects() {
+  const convs = state.convs || [];
+  const rows = (state.projects || []).map((p) => ({
+    label: p.name,
+    sub: convs.filter((c) => c.projectId === p.id).length + ' 个对话',
+    value: state.projectFilter === p.id ? '筛选中' : '',
+    onClick: () => {
+      state.projectFilter = state.projectFilter === p.id ? null : p.id;
+      $('#dlgList').hidden = true;
+      renderAll();
+    },
+  }));
+  rows.unshift({
+    label: '全部对话',
+    sub: convs.length + ' 个对话',
+    value: state.projectFilter ? '' : '当前',
+    onClick: () => { state.projectFilter = null; $('#dlgList').hidden = true; renderAll(); },
+  });
+  openListPanel('项目', '点一个项目只看它，再点一次取消筛选', rows);
+}
+
+/** 文件：列出所有会话里的产物，点一个直接打开 */
+function showFiles() {
+  const items = recentArtifacts(50);
+  const rows = items.map((it) => ({
+    label: it.name,
+    sub: it.convTitle + ' · ' + when(it.at),
+    onClick: () => { $('#dlgList').hidden = true; openArtifact(it); },
+  }));
+  openListPanel('文件', '编程模式产生的文件，按最近排序', rows);
+}
+
+$('#navProjects').addEventListener('click', showProjects);
+$('#navFiles').addEventListener('click', showFiles);
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });
+$('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; });
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
     e.preventDefault();
