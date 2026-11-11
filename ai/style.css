@@ -1657,3 +1657,8 @@ html[data-theme="dark"]{--text:#ececea}
   .composer .cm-model{font-size:11px!important;padding:0 6px!important}
 }
 
+
+/* 正文色对齐 Claude 的 90% 黑（覆盖主题块里的 #0b0b0b） */
+html[data-theme="light"],:root{--text:#1a1a1a}
+html[data-theme="dark"]{--text:#ececea}
+
