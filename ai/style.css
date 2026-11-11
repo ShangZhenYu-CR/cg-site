@@ -1352,3 +1352,13 @@ body.artfull #side,body.artfull #main{visibility:hidden}
 #artPane.present .slide{width:min(96vw, calc((100vh - 120px) * 16 / 9))!important}
 #artPane.present .art-head .art-title-wrap{opacity:.6}
 
+
+/* 幻灯片尺寸统一模型：基准尺寸 × 缩放 */
+.art-deck{--slide-base:min(640px, 92%)}
+.slide{width:calc(var(--slide-base) * var(--slide-zoom, 1))!important;max-width:none!important}
+#artPane.expanded .art-deck{--slide-base:min(92vw, calc((100vh - 230px) * 16 / 9))}
+#artPane.present .art-deck{--slide-base:min(94vw, calc((100vh - 110px) * 16 / 9))}
+#artPane.present .deck-stage{padding:12px;overflow:hidden}
+#artPane.present .deck-page{display:none}
+#artPane.expanded .deck-stage{padding:20px}
+
