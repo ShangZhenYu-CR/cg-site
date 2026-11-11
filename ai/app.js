@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:45';
+const APP_BUILD = '2026-11-11 19:49';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -824,7 +824,8 @@ function palActions() {
   const acts = [
     { label: '新建对话', key: 'Ctrl+Shift+O', run: () => { $('#newChat').click(); } },
     { label: '打开项目页', key: '', run: () => showProjectsPage() },
-    { label: '打开文件列表', key: '', run: () => showFiles() },
+    { label: '打开文件列表', key: '', run: () => showFilesPage() },
+    { label: '打开图库', key: '', run: () => showGalleryPage() },
     { label: '切换模型…', key: '', run: () => openModelMenu() },
     { label: '自定义指令', key: '', run: () => openInstructions() },
   ];
@@ -1406,7 +1407,9 @@ async function copyImage(u) {
 }
 
 let lightboxUrl = '';
-function openLightbox(u) {
+let lightboxList = [];
+function openLightbox(u, list) {
+  lightboxList = Array.isArray(list) && list.length ? list : [];
   lightboxUrl = u;
   const elImg = $('#lightboxImg');
   elImg.src = fileUrl(u);
@@ -1421,6 +1424,13 @@ function closeLightbox() {
 /* 灯箱：← → 在同一条消息的图片间切换 */
 function lightboxNav(step) {
   if (!lightboxUrl) return;
+  if (Array.isArray(lightboxList) && lightboxList.length) {
+    const idx = lightboxList.indexOf(lightboxUrl);
+    const nx = lightboxList[(idx + step + lightboxList.length) % lightboxList.length];
+    lightboxUrl = nx;
+    $('#lightboxImg').src = fileUrl(nx);
+    return;
+  }
   const imgs = [...document.querySelectorAll('.msg .imgbox img')].map((i) => i.getAttribute('src') || '');
   const urls = imgs.map((s) => s.split('/').pop()).filter(Boolean);
   const cur = String(lightboxUrl).split('/').pop();
@@ -1593,6 +1603,12 @@ function renderAll() {
   renderSide();
   const isProj = state.view === 'projects';
   const isFiles = state.view === 'files';
+  const isImages = state.view === 'images';
+  const gp = $('#galleryPage');
+  if (gp) {
+    gp.hidden = !isImages;
+    if (isImages) renderGallery();
+  }
   const page = $('#projPage');
   if (page) {
     page.hidden = !isProj;
@@ -1603,7 +1619,7 @@ function renderAll() {
     fp.hidden = !isFiles;
     if (isFiles) renderFilesPage();
   }
-  if (isProj || isFiles) {
+  if (isProj || isFiles || isImages) {
     $('#thread').textContent = '';
     $('#empty').hidden = true;
     layoutHomeComposer();
@@ -3909,6 +3925,57 @@ function showProjects() {
   openListPanel('项目', '点一个项目只看它；侧栏里 ⚙ 改指令，＋ 在项目里新建对话', rows);
 }
 
+/* ---------------- 图库 ---------------- */
+/** 汇总所有对话里的图片（用户贴的 + 模型生成的），最近的在前 */
+function allImages(limit) {
+  const out = [];
+  for (const c of state.convs || []) {
+    for (const m of c.messages || []) {
+      for (const u of m.images || []) {
+        out.push({ url: u, convId: c.id, convTitle: c.title || '未命名', at: m.ts || c.updatedAt || 0, role: m.role });
+      }
+    }
+  }
+  out.sort((a, b) => b.at - a.at);
+  return out.slice(0, limit || 200);
+}
+
+function renderGallery() {
+  const grid = $('#galGrid');
+  if (!grid) return;
+  grid.textContent = '';
+  const items = allImages(200);
+  const cnt = $('#galCount');
+  if (cnt) cnt.textContent = items.length ? items.length + ' 张' : '';
+  if (!items.length) {
+    const empty = el('div', 'pp-empty');
+    empty.append(el('div', 't', '还没有图片'));
+    empty.append(el('div', 'd', '在对话里发图，或用「画图 / 动图」让模型生成，这里会自动汇总。'));
+    grid.append(empty);
+    return;
+  }
+  for (const it of items) {
+    const b = el('button', 'gal-item');
+    b.type = 'button';
+    const img = document.createElement('img');
+    img.src = fileUrl(it.url);
+    img.loading = 'lazy';
+    img.alt = it.convTitle;
+    img.addEventListener('error', () => { b.classList.add('broken'); img.remove(); });
+    b.append(img);
+    const meta = el('div', 'gal-meta');
+    meta.textContent = it.convTitle + ' · ' + when(it.at);
+    b.append(meta);
+    b.title = it.convTitle;
+    b.addEventListener('click', () => openLightbox(it.url, items.map((x) => x.url)));
+    grid.append(b);
+  }
+}
+
+function showGalleryPage() {
+  state.view = 'images';
+  renderAll();
+}
 /** 文件页（Claude 的 Artifacts 页） */
 function renderFilesPage() {
   const grid = $('#fpGrid');
@@ -3957,6 +4024,7 @@ function showFiles() {
 $('#navProjects').addEventListener('click', showProjectsPage);
 $('#ppNew').addEventListener('click', () => openProjectDialog(null));
 $('#navFiles').addEventListener('click', showFilesPage);
+$('#navGallery').addEventListener('click', showGalleryPage);
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });
 $('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; });
 document.addEventListener('keydown', (e) => {
@@ -4005,6 +4073,24 @@ $('#newProject2').addEventListener('click', () => {
   openProjectDialog(null);
 });
 $('#newPrivateBtn').addEventListener('click', async () => { closePops(); await createConv({ private: true }); renderAll(); input.focus(); });
+$('#moveProjectBtn').addEventListener('click', () => {
+  const cv = current();
+  closePops();
+  if (!cv) return;
+  const rows = (state.projects || []).map((p) => ({
+    label: p.name,
+    sub: '点一下把当前对话移进去',
+    onClick: async () => {
+      cv.projectId = p.id;
+      await saveConv(cv);
+      $('#dlgList').hidden = true;
+      renderAll();
+      flashHint('已移到「' + p.name + '」');
+    },
+  }));
+  rows.unshift({ label: '移出项目（未分类）', sub: '', onClick: async () => { cv.projectId = null; await saveConv(cv); $('#dlgList').hidden = true; renderAll(); } });
+  openListPanel('移到项目', '项目内的对话会带上项目指令', rows);
+});
 $('#pinBtn').addEventListener('click', () => {
   const cv = current();
   closePops();
