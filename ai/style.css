@@ -1448,3 +1448,18 @@ body.noside .brand .brand-mark{width:20px;height:20px}
 .grp-toggle:hover{color:var(--text)}
 .grp-toggle .chev{font-style:normal;font-size:11px;color:var(--faint)}
 
+
+/* 幻灯片：灰色工作区 + 工具条右上角（对齐 Claude） */
+#artPane{position:fixed}
+.art-deck{background:var(--workspace,#F1F1EF)}
+.dark .art-deck,html[data-theme="dark"] .art-deck{background:#1b1b1a}
+.deck-rail{background:var(--bg);border-right:1px solid var(--line)}
+.slide{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+html[data-theme="dark"] .slide{background:#202020;box-shadow:none;border-color:rgba(255,255,255,.1)}
+/* 工具条挪到画布右上 */
+.art-canvasbar{position:absolute;right:14px;top:12px;left:auto;bottom:auto;transform:none;background:var(--bg);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.06);border-radius:10px}
+.cb-btn,.cb-zoom{color:var(--text)}
+.cb-btn:hover,.cb-zoom:hover{background:var(--panel2)}
+/* 空态更像 Claude：标题 + 说明 + 按钮 */
+.art-empty-t{font-size:17px}
+

@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:01';
+const APP_BUILD = '2026-11-12 00:07';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4931,7 +4931,7 @@ function emptyArtifactState() {
   const titles = { doc: '把想法变成文档', deck: '一句话变成幻灯片', design: '描述一个页面设计' };
   const subs = {
     doc: '左边直接发一句「写一份……」，内容会落进这份文档；也可以点「开始写」自己动手。',
-    deck: '左边说一句主题（比如「给团队讲新插件」），我按「每页标题 + 三条要点」写成分页。',
+    deck: '这套幻灯片还没有页面。加一页，或者直接让左边帮你写。',
     design: '左边描述你要的页面（比如「深色落地页，产品是本地 AI 助手」），我输出能直接看的 HTML。',
   };
   box.append(el('div', 'art-empty-t', titles[artKind] || '还没内容'));
