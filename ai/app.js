@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:08';
+const APP_BUILD = '2026-11-12 00:10';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4740,7 +4740,8 @@ function renderArtifact() {
   const hint = $('#artHint');
   if (hint) hint.textContent = file ? (ART_KINDS[artKind] || {}).label + ' · ' + artName : '';
   const bar = $('#artBar');
-  if (bar) bar.hidden = !file || artKind === 'doc';
+  // 画布工具条只属于幻灯片；文档/设计不显示（避免盖住预览/源码切换）
+  if (bar) bar.hidden = !file || artKind !== 'deck';
   if (artKind === 'deck') applyDeckZoom();
   const empty = !file || !String(file.content || '').trim() || (artKind === 'deck' && parseDeck(file).slides.length === 0);
   if (empty) {
