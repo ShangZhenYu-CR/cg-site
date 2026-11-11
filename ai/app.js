@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 01:00';
+const APP_BUILD = '2026-11-12 01:03';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -682,6 +682,17 @@ function rememberDims(url, w, h) {
   }, 600);
 }
 function dimsOf(url) { return imgDims[url] || null; }
+let dimsConvTimer = 0;
+function queueDimsSave() {
+  clearTimeout(dimsConvTimer);
+  dimsConvTimer = setTimeout(() => {
+    const cv = current();
+    if (!cv) return;
+    if ((cv.messages || []).some((mm) => mm.streaming)) return;   // 别和流式保存打架
+    saveConv(cv).catch(() => {});
+  }, 2500);
+}
+
 /** 产物预览：md 渲染 / 幻灯片首页 / 网页缩略 / 图片 */
 function artifactPreview(it) {
   const name = String(it.name || '');
@@ -1788,7 +1799,7 @@ function bubble(m, idx) {
   for (const u of (m.images || [])) {
     const box = el('div', 'imgbox');
     const img = el('img');
-    const known = dimsOf(u) || dimsOf(fileUrl(u));
+    const known = (m.dims && m.dims[u]) || dimsOf(u) || dimsOf(fileUrl(u));
     // 已知比例 → 直接按比例占位；未知 → 先按 1:1 占（生成图多数是方图）
     const ratio = known ? (known[0] + ' / ' + known[1]) : '1 / 1';
     img.style.aspectRatio = ratio;
@@ -1802,6 +1813,12 @@ function bubble(m, idx) {
       if (img.naturalWidth && img.naturalHeight) {
         img.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
         rememberDims(u, img.naturalWidth, img.naturalHeight);
+        // 存到消息上：下次（含其它设备）一进来就能先占对位置
+        if (!m.dims || !m.dims[u]) {
+          m.dims = m.dims || {};
+          m.dims[u] = [img.naturalWidth, img.naturalHeight];
+          queueDimsSave();
+        }
       }
     };
     img.addEventListener('load', settle, { once: true });
