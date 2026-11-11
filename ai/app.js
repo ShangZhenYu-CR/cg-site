@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:58';
+const APP_BUILD = '2026-11-11 19:01';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -708,7 +708,15 @@ function renderSide() {
   head2.innerHTML = '<span>最近</span>';
   listBox.append(head2);
   const loose = state.convs.filter(cv => !cv.projectId && !cv.archived && matches(cv));
-  if (!loose.length) listBox.append(el('div', 'kid', q ? '没有匹配' : '（还没有对话）'));
+  if (!loose.length) {
+    if (q) listBox.append(el('div', 'kid', '没有匹配'));
+    else {
+      const hint = el('div', 'side-empty');
+      hint.append(el('div', 'se-t', '还没有对话'));
+      hint.append(el('div', 'se-d', '点上面的「新建」开始，或按 Ctrl+Shift+O。'));
+      listBox.append(hint);
+    }
+  }
   for (const cv of loose) listBox.append(convRow(cv));
 
   // 已归档：默认收起，点开才列出来

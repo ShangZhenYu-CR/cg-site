@@ -851,3 +851,21 @@ body{font:var(--ui-font)/1.65 var(--font-sans)}
 .card.in-settings .btn-row{margin-top:14px}
 .set-pane .primary{background:var(--text)!important;color:var(--bg)!important}
 
+
+/* 第 16 轮：工具调用 / 元信息做成小胶囊 */
+.msg .meta{
+  display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  font-size:11.5px;color:var(--dim);background:var(--panel2);
+  border:1px solid var(--line);border-radius:999px;padding:2px 10px;
+  font-family:var(--font-sans);
+}
+.msg .meta::before{content:'';width:5px;height:5px;border-radius:999px;background:var(--ok);opacity:.9}
+/* 会话行：时间只在 hover 时让位给 ⋯（Claude 只显示 ⋯） */
+.kid .row-act{opacity:0}
+.kid:hover .row-act,.kid.on .row-act{opacity:1}
+
+
+.side-empty{padding:10px 10px 6px}
+.side-empty .se-t{font-size:13px;color:var(--dim)}
+.side-empty .se-d{font-size:12px;color:var(--faint);margin-top:4px;line-height:1.5}
+
