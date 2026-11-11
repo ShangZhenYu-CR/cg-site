@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 22:30';
+const APP_BUILD = '2026-11-11 22:36';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -859,7 +859,10 @@ function applyConvSettings(cv) {
   // 这个会话带产物（文档/幻灯片/设计）就顺手把右侧面板打开
   if (cv && cv.artifact && cv.artifact.kind) {
     const pane = $('#artPane');
-    if (pane && pane.hidden) openArtifactPane(cv.artifact.kind, cv.artifact.name);
+    // 换会话时按它自己的产物类型重开，避免沿用上一个面板
+    if (pane && (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name)) {
+      openArtifactPane(cv.artifact.kind, cv.artifact.name);
+    }
   } else if (cv && !cv.artifact) {
     closeArtifactPane();
   }
@@ -4682,13 +4685,17 @@ async function publishDesignArtifact() {
   const cv = current();
   const file = cv && (cv.files || []).find((x) => /\.html?$/i.test(x.name || '') && String(x.content || '').trim());
   if (!file) { flashHint('当前对话里没有可发布的 HTML'); return; }
-  const base = (file.name || 'plugin').replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || 'plugin';
+  const rawName = (cv.artifact && cv.artifact.name ? cv.artifact.name : file.name || '').replace(/\.[^.]+$/, '');
+  let displayName = (cv.title && cv.title !== '新对话' ? cv.title : rawName || '').trim();
+  if (!displayName) displayName = (prompt('这个插件叫什么名字？') || '').trim();
+  if (!displayName) { flashHint('得先有个名字'); return; }
+  const base = displayName.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'plugin';
   const slug = (base.length >= 2 ? base : 'plugin') + '-' + Math.random().toString(36).slice(2, 6);
   flashHint('发布中…');
   const r = await api('/plugins/publish', { method: 'POST', body: {
     slug,
-    name: (file.name || '未命名').replace(/\.[^.]+$/, ''),
-    desc: (cv.title || '').slice(0, 60),
+    name: displayName.slice(0, 40),
+    desc: String(cv.title || displayName).slice(0, 100),
     html: file.content,
   } });
   const j = await r.json().catch(() => ({}));
