@@ -1816,7 +1816,10 @@ function bubble(m, idx) {
     img.style.width = 'min(420px, 100%)';
     img.style.height = 'auto';
     img.src = fileUrl(u);
-    img.alt = '图片';
+    img.alt = '';
+    img.setAttribute('aria-label', '图片');
+    img.setAttribute('role', 'img');
+    box.append(el('span', 'img-load'));
     img.decoding = 'async';
     const settle = () => {
       box.classList.add('ready');
