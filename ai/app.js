@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:13';
+const APP_BUILD = '2026-11-11 17:15';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -581,7 +581,23 @@ function convRow(cv) {
   row.dataset.id = cv.id;
   const t = el('span', 't', (cv.private ? '🔒 ' : '') + (cv.title || '新对话'));
   const time = el('span', 'time', when(cv.updatedAt));
-  row.append(t, time);
+  const act = el('button', 'row-act');
+  act.type = 'button';
+  act.title = '更多';
+  act.innerHTML = ic('ellipsis', 15);
+  act.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.currentId = cv.id;
+    applyConvSettings(cv);
+    renderAll();
+    const pop = $('#menuPop');
+    const r = act.getBoundingClientRect();
+    closePops();
+    pop.hidden = false;
+    pop.style.left = Math.max(8, r.left - 200) + 'px';
+    pop.style.top = (r.bottom + 6) + 'px';
+  });
+  row.append(t, time, act);
 
   if (isAdmin() && cv.private && cv.owner) {
     const own = el('span', 'lock', cv.owner);

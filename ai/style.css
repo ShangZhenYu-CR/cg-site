@@ -524,3 +524,27 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .lk-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;background:var(--panel2);cursor:pointer;font-size:14px}
 .lk-row:hover{background:color-mix(in srgb, var(--text) 8%, transparent)}
 .lk-row .sub{font-size:12px;color:var(--faint)}
+/* ---------- 对照 Claude 修正：字重 / 字号 / hover 胶囊 ---------- */
+.brand{font-family:"Tiempos Text",Georgia,"Songti SC",serif;font-size:26px;font-weight:500;letter-spacing:-.01em;gap:10px;padding:2px 6px}
+.brand svg{width:24px;height:24px}
+.side-head{gap:10px;padding-bottom:10px}
+.new-split{gap:8px}
+.new-btn{height:44px;font-size:17px;border-radius:10px;padding-left:12px;gap:10px}
+.new-btn .plus{font-size:18px}
+.nav-row{font-size:17px;height:38px;gap:12px;padding:0 10px;border-radius:10px;font-weight:400}
+.nav-row svg{width:20px;height:20px}
+.nav-row:hover{background:var(--panel2)}
+.kid{font-size:16px;height:36px;border-radius:10px;padding:0 10px;gap:8px;font-weight:400}
+.kid:hover{background:var(--panel2)}
+.kid.on{background:color-mix(in srgb, var(--accent) 12%, transparent)}
+.kid .t{font-weight:400}
+.row-act{
+  margin-left:auto;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;
+  color:var(--faint);opacity:0;transition:opacity var(--dur-fast) var(--ease-out),background var(--dur-fast) var(--ease-out);
+}
+.kid:hover .row-act,.kid.on .row-act{opacity:1}
+.row-act:hover{background:color-mix(in srgb, var(--text) 10%, transparent);color:var(--text)}
+.greet{font-weight:400}
+.greet h1{font-weight:400}
+.empty h1{font-weight:400}
+.plan-pill{font-size:13px}
