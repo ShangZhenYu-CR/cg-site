@@ -957,3 +957,7 @@ body.noside #sideToggle{display:grid!important}
 @keyframes sk{0%{background-position:100% 0}100%{background-position:0 0}}
 .msg .err + .msg-more{margin-top:6px}
 
+
+.set-kv{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;color:var(--text)}
+.set-kv kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+

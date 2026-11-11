@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:26';
+const APP_BUILD = '2026-11-11 19:26 ';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -238,6 +238,13 @@ function showLogin(msg) {
   setTimeout(() => ($('#loginName').value ? $('#loginPass') : $('#loginName')).focus(), 40);
 }
 
+for (const sel of ['#loginName', '#loginPass']) {
+  const elx = document.querySelector(sel);
+  if (!elx) continue;
+  elx.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('#loginOk').click(); }
+  });
+}
 $('#loginOk').addEventListener('click', async () => {
   const name = $('#loginName').value.trim();
   const pass = $('#loginPass').value;
@@ -981,6 +988,7 @@ const SET_TABS = [
   ['users', '成员'],
   ['cfg', '接口'],
   ['usage', '用量'],
+  ['keys', '快捷键'],
   ['data', '数据'],
 ];
 
@@ -1068,6 +1076,26 @@ function mountPane(key) {
         row2.append(b);
       }
       pane.append(h, p, row, h2, row2);
+    }
+    return;
+  }
+  if (key === 'keys') {
+    if (!pane.dataset.built) {
+      pane.dataset.built = '1';
+      pane.append(el('h3', null, '快捷键'));
+      const list = [
+        ['Ctrl + K', '命令面板'],
+        ['Ctrl + F', '在对话里查找'],
+        ['Ctrl + Shift + O', '新建对话'],
+        ['Esc', '关闭浮层 / 弹窗 / 查找'],
+        ['Shift + Enter', '输入框内换行'],
+      ];
+      for (const pair of list) {
+        const row = el('div', 'set-kv');
+        row.append(el('span', null, pair[1]));
+        row.append(el('kbd', null, pair[0]));
+        pane.append(row);
+      }
     }
     return;
   }
