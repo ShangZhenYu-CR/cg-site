@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:15';
+const APP_BUILD = '2026-11-11 20:16';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1007,6 +1007,7 @@ const SET_TABS = [
   ['users', '成员'],
   ['cfg', '接口'],
   ['usage', '用量'],
+  ['account', '账号'],
   ['keys', '快捷键'],
   ['data', '数据'],
 ];
@@ -1114,6 +1115,32 @@ function mountPane(key) {
       }
       pane.append(h, p, row, h2, row2);
     }
+    return;
+  }
+  if (key === 'account') {
+    pane.textContent = '';
+    const h = el('h3', null, '账号');
+    const row = el('div', 'set-kv');
+    row.append(el('span', null, '昵称'));
+    row.append(el('span', null, LS.name || '未登录'));
+    const row2 = el('div', 'set-kv');
+    row2.append(el('span', null, '身份'));
+    row2.append(el('span', null, ({ astra: 'Astra', admin: '管理员' })[LS.role] || '成员'));
+    const row3 = el('div', 'set-kv');
+    row3.append(el('span', null, '站点版本'));
+    row3.append(el('span', null, APP_BUILD));
+    const acts = el('div', 'set-row');
+    acts.style.marginTop = '14px';
+    const rename = el('button', 'set-chip', '改昵称');
+    rename.type = 'button';
+    rename.addEventListener('click', () => { $('#dlgSet').hidden = true; $('#renameSelfBtn').click(); });
+    const out = el('button', 'set-chip', '退出登录');
+    out.type = 'button';
+    out.addEventListener('click', () => { $('#dlgSet').hidden = true; $('#logoutBtn').click(); });
+    acts.append(rename, out);
+    const about = el('p', 'set-hint', '毛豆 · 自建小站：聊天、看图、画图、动图、联网、写代码。数据存在自己的服务器。');
+    about.style.marginTop = '18px';
+    pane.append(h, row, row2, row3, acts, about);
     return;
   }
   if (key === 'keys') {
