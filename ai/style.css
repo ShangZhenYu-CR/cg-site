@@ -548,3 +548,6 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .greet h1{font-weight:400}
 .empty h1{font-weight:400}
 .plan-pill{font-size:13px}
+.pf-note{font-size:12px;color:var(--faint);padding:2px 10px 6px}
+.grp button{font-size:12px;color:var(--faint);padding:2px 6px;border-radius:6px}
+.grp button:hover{color:var(--text);background:var(--panel2)}

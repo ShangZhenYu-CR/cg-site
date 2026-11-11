@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 17:15';
+const APP_BUILD = '2026-11-11 17:18';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -633,11 +633,26 @@ function renderSide() {
   const q = $('#q').value.trim().toLowerCase();
   listBox.textContent = '';
 
+  const matches = (cv) => !q || String(cv.title || '').toLowerCase().includes(q);
+
+  // 项目模式：只看这一个项目里的对话
+  const pf = (state.projects || []).find((x) => x.id === state.projectFilter);
+  if (pf) {
+    const headP = el('div', 'grp');
+    headP.innerHTML = '<span>' + esc(pf.name) + '</span><button id="pfExit">← 全部</button>';
+    listBox.append(headP);
+    if (pf.instructions) listBox.append(el('div', 'pf-note', '该项目有指令，进入自动生效'));
+    const kidsP = state.convs.filter((cv) => cv.projectId === pf.id && matches(cv));
+    if (!kidsP.length) listBox.append(el('div', 'kid', '这个项目还没有对话'));
+    for (const cv of kidsP) listBox.append(convRow(cv));
+    const exitBtn = document.getElementById('pfExit');
+    if (exitBtn) exitBtn.addEventListener('click', () => { state.projectFilter = null; renderAll(); });
+    return;
+  }
+
   const head = el('div', 'grp');
   head.innerHTML = '<span>项目</span><button id="newProjInline">＋ 新建</button>';
   listBox.append(head);
-
-  const matches = (cv) => !q || String(cv.title || '').toLowerCase().includes(q);
 
   for (const p of state.projects) {
     const kids = state.convs.filter(cv => cv.projectId === p.id);
@@ -2785,7 +2800,12 @@ $('#uSaveBalance').addEventListener('click', async () => {
   } catch { flashHint('校准失败，检查网络'); }
 });
 
-$('#newChat').addEventListener('click', async () => { await createConv(); renderAll(); closeNav(); input.focus(); });
+$('#newChat').addEventListener('click', async () => {
+  await createConv({ projectId: state.projectFilter || null });
+  renderAll();
+  closeNav();
+  input.focus();
+});
 
 $('#brandBtn').addEventListener('click', () => { $('#newChat').click(); });
 /** 通用列表面板（项目 / 文件共用） */
@@ -2827,7 +2847,12 @@ function showProjects() {
     value: state.projectFilter ? '' : '当前',
     onClick: () => { state.projectFilter = null; $('#dlgList').hidden = true; renderAll(); },
   });
-  openListPanel('项目', '点一个项目只看它，再点一次取消筛选', rows);
+  rows.push({
+    label: '＋ 新建项目',
+    sub: '项目可以有自己的指令，进入后自动生效',
+    onClick: () => { $('#dlgList').hidden = true; openProjectDialog(null); },
+  });
+  openListPanel('项目', '点一个项目只看它；侧栏里 ⚙ 改指令，＋ 在项目里新建对话', rows);
 }
 
 /** 文件：列出所有会话里的产物，点一个直接打开 */
