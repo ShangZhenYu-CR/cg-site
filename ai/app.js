@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 00:10';
+const APP_BUILD = '2026-11-12 00:15';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -643,7 +643,7 @@ function recentArtifacts(limit) {
   const out = [];
   for (const c of state.convs || []) {
     for (const f of (c.files || [])) {
-      out.push({ name: f.name, at: f.updatedAt || 0, convId: c.id, convTitle: c.title || '未命名', head: String(f.content || '').slice(0, 160) });
+      out.push({ name: f.name, at: f.updatedAt || 0, convId: c.id, convTitle: c.title || '未命名', content: String(f.content || ''), head: String(f.content || '').slice(0, 160) });
     }
   }
   out.sort((a, b) => b.at - a.at);
@@ -659,6 +659,50 @@ function openArtifact(it) {
   if (idx >= 0) { state.fileIdx = idx; openCodePane(); }
 }
 
+/** 产物预览：md 渲染 / 幻灯片首页 / 网页缩略 / 图片 */
+function artifactPreview(it) {
+  const name = String(it.name || '');
+  const content = String(it.content || '');
+  const box = el('div', 'prev-render');
+  if (/\.(png|jpe?g|gif|webp|svg)$/i.test(name)) {
+    const img = document.createElement('img');
+    img.src = /^https?:|^\/oss\//.test(content) ? fileUrl(content) : content;
+    img.loading = 'lazy';
+    box.append(img);
+    return box;
+  }
+  if (/deck\.json$/i.test(name)) {
+    let deck = { slides: [] };
+    try { deck = JSON.parse(content); } catch (e) {}
+    const s = (deck.slides || [])[0] || { title: '（空）', bullets: [] };
+    const slide = el('div', 'mini-slide');
+    slide.append(el('div', 'ms-t', s.title || ''));
+    const ul = el('ul', 'ms-b');
+    for (const b of (s.bullets || []).slice(0, 3)) ul.append(el('li', null, b));
+    slide.append(ul);
+    slide.append(el('div', 'ms-n', '1 / ' + Math.max(1, (deck.slides || []).length)));
+    box.append(slide);
+    return box;
+  }
+  if (/\.html?$/i.test(name)) {
+    const frame = document.createElement('iframe');
+    frame.className = 'mini-page';
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('scrolling', 'no');
+    frame.loading = 'lazy';
+    frame.srcdoc = content || '<body style="font:13px system-ui;color:#aaa;padding:12px">空页面</body>';
+    box.append(frame);
+    return box;
+  }
+  if (/\.(md|markdown|txt)$/i.test(name)) {
+    const mdBox = el('div', 'mini-md bd');
+    mdBox.innerHTML = md(content || '');
+    box.append(mdBox);
+    return box;
+  }
+  box.append(el('pre', 'mini-code', content.slice(0, 400)));
+  return box;
+}
 function renderRecentArtifacts() {
   const box = $('#recentArt');
   const list = $('#raList');
@@ -670,8 +714,8 @@ function renderRecentArtifacts() {
   for (const it of items) {
     const b = el('button', 'ra-card');
     b.type = 'button';
-    const prev = el('div', 'ra-prev');
-    prev.textContent = (it.head || '').replace(/\s+/g, ' ').slice(0, 72) || '（空文件）';
+    const prev = artifactPreview(it);
+    prev.classList.add('ra-prev');
     const n = el('div', 'n');
     n.append(el('span', 'ftype', /\.html?$/i.test(it.name) ? '</>' : /\.(png|jpe?g|gif|svg)$/i.test(it.name) ? 'IMG' : 'FILE'));
     n.append(el('span', null, it.name));
@@ -5212,8 +5256,8 @@ function renderFilesPage() {
   for (const it of items) {
     const card = el('button', 'pp-card');
     card.type = 'button';
-    const prev = el('div', 'prev');
-    prev.textContent = (it.head || '').replace(/\s+/g, ' ').slice(0, 90) || '（空文件）';
+    const prev = artifactPreview(it);
+    prev.classList.add('prev');
     card.append(prev);
     const n = el('div', 'n');
     n.append(el('span', 'ftype', /\.html?$/i.test(it.name) ? '</>' : /.(png|jpe?g|gif|svg)$/i.test(it.name) ? 'IMG' : 'FILE'));
