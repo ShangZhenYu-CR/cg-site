@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 23:00';
+const APP_BUILD = '2026-11-11 23:03';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4562,6 +4562,19 @@ function renderArtifact() {
   const empty = !file || !String(file.content || '').trim() || (artKind === 'deck' && parseDeck(file).slides.length === 0);
   if (empty) {
     body.append(emptyArtifactState(file));
+    if (file && (artKind === 'deck' || artKind === 'design')) {
+      const blank = el('button', 'art-start', artKind === 'deck' ? '从空白一页开始' : '从空白页面开始');
+      blank.type = 'button';
+      blank.addEventListener('click', async () => {
+        file.content = artKind === 'deck'
+          ? JSON.stringify({ slides: [{ title: '第一页', bullets: ['在这里写要点'] }] }, null, 2)
+          : '<!doctype html>\n<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>新页面</title></head>\n<body style="font:16px/1.7 system-ui;padding:40px">\n  <h1>新页面</h1>\n  <p>从这里开始改。</p>\n</body></html>\n';
+        const cv = current();
+        if (cv) await saveConv(cv);
+        renderArtifact();
+      });
+      body.querySelector('.art-empty').append(blank);
+    }
     if (artKind === 'doc' && file) {
       const start = el('button', 'art-start', '开始写');
       start.type = 'button';
@@ -4827,8 +4840,14 @@ async function publishDesignArtifact() {
   let displayName = (cv.title && cv.title !== '新对话' ? cv.title : rawName || '').trim();
   if (!displayName) displayName = (prompt('这个插件叫什么名字？') || '').trim();
   if (!displayName) { flashHint('得先有个名字'); return; }
-  const base = displayName.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'plugin';
-  const slug = (base.length >= 2 ? base : 'plugin') + '-' + Math.random().toString(36).slice(2, 6);
+  let base = displayName.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (base.length < 2) {
+    // 中文标题生成不出合法 slug，问用户要一个英文标识
+    const typed = (prompt('给这个插件起一个英文标识（小写字母/数字/连字符，例如 my-calculator）', '') || '').trim().toLowerCase();
+    base = typed.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    if (base.length < 2) { flashHint('标识不合法，发布会取消'); return; }
+  }
+  const slug = base;
   flashHint('发布中…');
   const r = await api('/plugins/publish', { method: 'POST', body: {
     slug,
