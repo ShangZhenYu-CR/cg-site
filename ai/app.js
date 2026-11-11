@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:12';
+const APP_BUILD = '2026-11-11 19:14';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -704,10 +704,26 @@ function renderSide() {
     }
   }
 
-  const head2 = el('div', 'grp');
-  head2.innerHTML = '<span>最近</span>';
-  listBox.append(head2);
   const loose = state.convs.filter(cv => !cv.projectId && !cv.archived && matches(cv));
+  const dayKey = (ts) => {
+    if (!ts) return '更早';
+    const d = new Date(ts);
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (ts >= start) return '今天';
+    if (ts >= start - 86400000) return '昨天';
+    if (ts >= start - 7 * 86400000) return '本周';
+    return '更早';
+  };
+  let lastGroup = '';
+  const addGroupIfNeeded = (cv) => {
+    const g = q ? '最近' : dayKey(cv.updatedAt);
+    if (g === lastGroup) return;
+    lastGroup = g;
+    const h = el('div', 'grp');
+    h.innerHTML = '<span>' + g + '</span>';
+    listBox.append(h);
+  };
   if (!loose.length) {
     if (q) listBox.append(el('div', 'kid', '没有匹配'));
     else {
@@ -717,7 +733,7 @@ function renderSide() {
       listBox.append(hint);
     }
   }
-  for (const cv of loose) listBox.append(convRow(cv));
+  for (const cv of loose) { addGroupIfNeeded(cv); listBox.append(convRow(cv)); }
 
   // 已归档：默认收起，点开才列出来
   const arch = state.convs.filter((cv) => cv.archived && matches(cv));
@@ -1680,6 +1696,11 @@ function humanError(msg) {
 async function sendChat(text, opts = {}) {
   const cv = current() || await createConv();
   if (!cv) return;
+  // 首句自动命名：标题还是「新对话」时，用第一句当标题
+  if ((!cv.title || cv.title === '新对话') && text && text.trim()) {
+    const first = text.trim().split(/\n/)[0].slice(0, 24);
+    if (first) cv.title = first;
+  }
 
   // 参考图：显式指定的优先，否则把当前附件全部带上（多图参考，最多 4 张）
   const picked = (opts.refImages && opts.refImages.length) ? opts.refImages
