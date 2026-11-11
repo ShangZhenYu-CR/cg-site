@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 20:29';
+const APP_BUILD = '2026-11-11 20:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -30,6 +30,16 @@ function decorateIcons() {
   }
 }
 
+/* 默认模型迁移：老的 5.6 Terra / Luna 升到 6.1 Terra（中等思考） */
+(function migrateModelOnce() {
+  if (localStorage.getItem('ai.modelMigrated61')) return;
+  localStorage.setItem('ai.modelMigrated61', '1');
+  const cur = localStorage.getItem('ai.model') || '';
+  if (/gpt-5\.6-(terra|luna)/i.test(cur)) {
+    localStorage.setItem('ai.model', 'gpt-6.1-terra');
+    localStorage.setItem('ai.effort', 'medium');
+  }
+})();
 const RECOMMENDED = [
   'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.1-terra', 'gpt-6-luna',
   'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
@@ -507,6 +517,18 @@ async function loadConvs() {
     }
     return s;
   });
+  // 一次性把会话里记录的 5.6 Terra / Luna 升到 6.1 Terra（中等思考）
+  if (!localStorage.getItem('ai.convModelMigrated61')) {
+    localStorage.setItem('ai.convModelMigrated61', '1');
+    for (const cv of state.convs) {
+      if (cv.settings && RETIRED_DEFAULT_RE.test(String(cv.settings.model || ''))) {
+        cv.settings.model = 'gpt-6.1-terra';
+        cv.settings.effort = 'medium';
+        saveConv(cv).catch(() => {});
+      }
+    }
+  }
+
   // 只缓存列表元信息，避免塞满 localStorage
   LS.convCache = state.convs.map(c => ({
     id: c.id, title: c.title, updatedAt: c.updatedAt,
@@ -570,9 +592,13 @@ function persistSettings() {
   settingsTimer = setTimeout(() => saveConv(cv), 600);
 }
 
+const RETIRED_DEFAULT_RE = /gpt-5\.6-(terra|luna)/i;
+
 function applyConvSettings(cv) {
   const s = cv && cv.settings;
   if (!s) return;
+  // 空会话不吃历史设置：新对话一律用当前默认（6.1 Terra / 中等）
+  if (!(cv.messages || []).length && !(cv.files || []).length) return;
   applyingSettings = true;
   try {
     if (s.model) { modelPinned = true; LS.model = s.model; }   // 会话记录的就是它当时用的模型，直接恢复
@@ -1746,7 +1772,7 @@ let showRetired = false;   // 已淘汰模型默认折叠
 /** 首页菜单上的模型（用户指定：6 Sol 只出现在「更多模型」里） */
 const HOME_MODEL_RE = [
   /gpt-6\.1-sol/i, /gpt-6-astra/i, /gpt-6\.1-terra/i, /gpt-6-luna/i,
-  /gpt-5\.6-sol/i, /gpt-5\.6-terra/i, /gpt-5\.6-luna/i,
+  /gpt-5\.6-sol/i,
 ];
 /** 明确用不上的（搜索/嵌入/语音/审核类），直接不显示 */
 const DEAD_MODEL_RE = /search-api|embedding|whisper|tts|transcribe|moderation|dall-e|realtime|image-1|^o[13](-|$)/i;
