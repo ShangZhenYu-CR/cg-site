@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 18:19';
+const APP_BUILD = '2026-11-11 18:20';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1073,12 +1073,18 @@ function renderThread() {
 function renderAll() {
   renderSide();
   const isProj = state.view === 'projects';
+  const isFiles = state.view === 'files';
   const page = $('#projPage');
   if (page) {
     page.hidden = !isProj;
     if (isProj) renderProjectsPage();
   }
-  if (isProj) {
+  const fp = $('#filesPage');
+  if (fp) {
+    fp.hidden = !isFiles;
+    if (isFiles) renderFilesPage();
+  }
+  if (isProj || isFiles) {
     $('#thread').textContent = '';
     $('#empty').hidden = true;
     layoutHomeComposer();
@@ -3092,7 +3098,7 @@ $('#planPill').addEventListener('click', async () => {
   $('#dlgUsage').hidden = false;
 });
 
-$('#raAll').addEventListener('click', () => { showFiles(); });
+$('#raAll').addEventListener('click', () => { showFilesPage(); });
 
 $('#usageBar').addEventListener('click', async () => {
   await refreshUsage();
@@ -3171,7 +3177,17 @@ function renderProjectsPage() {
     card.addEventListener('click', () => { state.view = 'chat'; state.projectFilter = p.id; renderAll(); });
     grid.append(card);
   }
-  if (!(state.projects || []).length) grid.append(el('div', 'pp-sub', '还没有项目，点右上角新建一个。'));
+  if (!(state.projects || []).length) {
+    const empty = el('div', 'pp-empty');
+    empty.innerHTML = '<span class="mark">' + (typeof ICON_PATHS !== 'undefined' ? '' : '') + '</span>';
+    const t = el('div', 't', '想开始一个项目？');
+    const d = el('div', 'd', '把资料、指令和对话放进同一个项目，每次打开都自带上下文。');
+    const b = el('button', null, '新建项目');
+    b.type = 'button';
+    b.addEventListener('click', () => openProjectDialog(null));
+    empty.append(t, d, b);
+    grid.append(empty);
+  }
 }
 
 function showProjectsPage() {
@@ -3206,6 +3222,37 @@ function showProjects() {
   openListPanel('项目', '点一个项目只看它；侧栏里 ⚙ 改指令，＋ 在项目里新建对话', rows);
 }
 
+/** 文件页（Claude 的 Artifacts 页） */
+function renderFilesPage() {
+  const grid = $('#fpGrid');
+  if (!grid) return;
+  grid.textContent = '';
+  const items = recentArtifacts(60);
+  if (!items.length) {
+    const empty = el('div', 'pp-empty');
+    empty.append(el('div', 't', '还没有产物'));
+    empty.append(el('div', 'd', '在编程模式里让模型写文件，或让它生成 HTML 页面，这里就会出现。'));
+    grid.append(empty);
+    return;
+  }
+  for (const it of items) {
+    const card = el('button', 'pp-card');
+    card.type = 'button';
+    const n = el('div', 'n');
+    n.append(el('span', 'ftype', /\.html?$/i.test(it.name) ? '</>' : /.(png|jpe?g|gif|svg)$/i.test(it.name) ? 'IMG' : 'FILE'));
+    n.append(el('span', null, it.name));
+    card.append(n);
+    card.append(el('div', 'm', it.convTitle + ' · ' + when(it.at)));
+    card.addEventListener('click', () => openArtifact(it));
+    grid.append(card);
+  }
+}
+
+function showFilesPage() {
+  state.view = 'files';
+  renderAll();
+}
+
 /** 文件：列出所有会话里的产物，点一个直接打开 */
 function showFiles() {
   const items = recentArtifacts(50);
@@ -3219,7 +3266,7 @@ function showFiles() {
 
 $('#navProjects').addEventListener('click', showProjectsPage);
 $('#ppNew').addEventListener('click', () => openProjectDialog(null));
-$('#navFiles').addEventListener('click', showFiles);
+$('#navFiles').addEventListener('click', showFilesPage);
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });
 $('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; });
 document.addEventListener('keydown', (e) => {
