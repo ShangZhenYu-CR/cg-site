@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 15:41';
+const APP_BUILD = '2026-11-11 15:50';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 const RECOMMENDED = [
@@ -2029,14 +2029,70 @@ document.querySelectorAll('#plusPop .opt').forEach(o => {
   });
 });
 
-/* 画图参数面板：并排按钮，选中高亮 */
+/* 画图参数面板：按生成方式切换内容 */
+const GIF_SIZES = [320, 480, 640, 720, 1088];
+
+/** 一行「标签 + 按钮组」 */
+function segRow(label, items, current, onPick) {
+  const row = el('div', 'seg-row');
+  row.append(el('span', 'seg-label', label));
+  const seg = el('div', 'seg');
+  for (const it of items) {
+    const cur = String(current) === String(it.value);
+    const b = el('button', 'seg-btn' + (cur ? ' on' : ''), it.label);
+    b.type = 'button';
+    if (it.disabled) {
+      b.disabled = true;
+      b.title = it.note || '';
+    } else {
+      b.addEventListener('click', () => onPick(it.value));
+    }
+    seg.append(b);
+  }
+  row.append(seg);
+  return row;
+}
+
+/** 改一个参数 → 收敛 → 提示 → 重画 */
+function applyDraw(patch, changed) {
+  const { s, notes } = normalizeDraw(Object.assign({}, LS.draw, patch), changed);
+  LS.draw = s;
+  if (notes.length) showToast(notes.join('<br>'));
+  renderDrawPanel();
+}
+
+/** 面板顶部的「画图 / 动图」切换 */
+function renderModeSeg() {
+  const box = $('#drawModeSeg');
+  if (!box) return;
+  box.textContent = '';
+  const items = [['image', '🖼️ 画图', state.imageMode], ['gif', '🎞️ 动图', state.gifMode]];
+  for (const [key, label, on] of items) {
+    const b = el('button', 'seg-btn' + (on ? ' on' : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      if (key === 'gif') {
+        setCap('image', false);
+        setCap('gif', true);
+        LS.draw = Object.assign({}, LS.draw, { format: 'gif' });
+      } else {
+        setCap('gif', false);
+        setCap('image', true);
+        if (LS.draw.format === 'gif') LS.draw = Object.assign({}, LS.draw, { format: 'png' });
+      }
+      renderDrawPanel();
+    });
+    box.append(b);
+  }
+}
+
 const DRAW_GROUPS = [
   { key: 'size', label: '尺寸', opts: [['1024x1024', '1024²'], ['1536x1024', '1536×1024'], ['1024x1536', '1024×1536'], ['2880x2880', '2880²'], ['3840x2160', '4K'], ['auto', 'auto']] },
   { key: 'quality', label: '质量', opts: [['auto', 'auto'], ['low', '低'], ['medium', '中'], ['high', '高']] },
   { key: 'complexity', label: '复杂度', opts: [['', '默认'], ['low', '低'], ['medium', '中'], ['high', '高']] },
   { key: 'bg', label: '背景', opts: [['', 'auto'], ['opaque', '不透明'], ['transparent', '透明']] },
   { key: 'n', label: '张数', opts: [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['6', '6'], ['10', '10']] },
-  { key: 'format', label: '格式', opts: [['png', 'png'], ['webp', 'webp'], ['jpeg', 'jpeg'], ['gif', 'GIF'], ['svg', 'svg']] },
+  { key: 'format', label: '格式', opts: [['png', 'png'], ['webp', 'webp'], ['jpeg', 'jpeg'], ['svg', 'svg']] },
 ];
 
 /** 当前参数的一句话摘要 + 费用提示（面板底部显示） */
@@ -2045,7 +2101,10 @@ function drawSummary(d) {
   const parts = [];
   if (isGif) {
     const frames = Math.max(2, Math.min(16, Number(d.frames) || 8));
-    parts.push('GIF ' + frames + ' 帧 → 每帧 ' + gifSizeForFrames(frames, d.size).replace('x', '×') + '（帧图集上限）');
+    const side = (parseSize(d.size) || { w: 720 }).w || 720;
+    const maxF = maxFramesForSize(side + 'x' + side);
+    parts.push('GIF ' + frames + ' 帧 · 每帧 ' + gifSizeForFrames(frames, d.size).replace('x', '×'));
+    if (maxF && maxF < 16) parts.push('这一档最多 ' + maxF + ' 帧');
   } else {
     parts.push('尺寸 ' + (d.size === 'custom' ? (d.custom || '待填') : d.size));
     if (d.quality && d.quality !== 'auto') parts.push('质量 ' + d.quality);
@@ -2063,53 +2122,42 @@ function renderDrawPanel() {
     LS.draw = fixed.s;
     showToast(fixed.notes.join('<br>'));
   }
-  const d = LS.draw;
+  renderModeSeg();
+
   const body = $('#drawPopBody');
   if (!body) return;
   body.textContent = '';
 
-  for (const g of DRAW_GROUPS) {
-    const row = el('div', 'seg-row');
-    row.append(el('span', 'seg-label', g.label));
-    const seg = el('div', 'seg');
-    for (const [val, text] of g.opts) {
-      const cur = String(d[g.key] == null ? '' : d[g.key]) === val;
-      const b = el('button', 'seg-btn' + (cur ? ' on' : ''), text);
-      b.type = 'button';
-      b.addEventListener('click', () => {
-        const nd = Object.assign({}, LS.draw);
-        nd[g.key] = g.key === 'n' ? Number(val) : val;
-        const { s, notes } = normalizeDraw(nd, g.key);
-        LS.draw = s;
-        if (notes.length) showToast(notes.join('<br>'));
-        renderDrawPanel();
-      });
-      seg.append(b);
-    }
-    row.append(seg);
-    body.append(row);
-  }
+  if (state.gifMode) {
+    // ---- 动图面板：只放动图参数 ----
+    if (LS.draw.format !== 'gif') LS.draw = Object.assign({}, LS.draw, { format: 'gif' });
+    const side = (parseSize(LS.draw.size) || { w: 720 }).w || 720;
+    const maxF = maxFramesForSize(side + 'x' + side) || 16;
 
-  // 只有 GIF 才需要帧数，且它决定每帧分辨率，必须能和尺寸放一起看
-  if (LS.draw.format === 'gif') {
-    const fRow = el('div', 'seg-row');
-    fRow.append(el('span', 'seg-label', '帧数'));
-    const fSeg = el('div', 'seg');
-    for (const n of [2, 4, 8, 12, 16]) {
-      const cur = Number(LS.draw.frames) === n;
-      const b = el('button', 'seg-btn' + (cur ? ' on' : ''), String(n));
-      b.type = 'button';
-      b.addEventListener('click', () => {
-        const nd = Object.assign({}, LS.draw, { frames: n });
-        const { s, notes } = normalizeDraw(nd, 'frames');
-        LS.draw = s;
-        if (notes.length) showToast(notes.join('<br>'));
-        renderDrawPanel();
-      });
-      fSeg.append(b);
+    body.append(segRow('分辨率', GIF_SIZES.map((n) => ({ value: n, label: n + 'p' })), side, (v) => {
+      applyDraw({ size: v + 'x' + v, custom: v + 'x' + v }, 'size');
+    }));
+
+    body.append(segRow('帧数', [2, 4, 6, 8, 12, 16].map((n) => ({
+      value: n,
+      label: String(n),
+      disabled: n > maxF,
+      note: '该分辨率最多 ' + maxF + ' 帧',
+    })), Number(LS.draw.frames), (v) => applyDraw({ frames: v }, 'frames')));
+
+    body.append(segRow('间隔', [60, 100, 150, 200].map((n) => ({ value: n, label: n + 'ms' })), Number(LS.draw.dur) || 150, (v) => applyDraw({ dur: v }, 'dur')));
+
+    body.append(segRow('质量', [['low', '低'], ['medium', '中'], ['high', '高']].map(([v, t]) => ({ value: v, label: t })), LS.draw.quality, (v) => applyDraw({ quality: v }, 'quality')));
+  } else {
+    // ---- 画图面板 ----
+    for (const g of DRAW_GROUPS) {
+      const cur = g.key === 'n' ? Number(LS.draw.n) : LS.draw[g.key];
+      body.append(segRow(g.label, g.opts.map(([v, t]) => ({ value: v, label: t })), cur, (v) => {
+        const patch = {};
+        patch[g.key] = g.key === 'n' ? Number(v) : v;
+        applyDraw(patch, g.key);
+      }));
     }
-    fRow.append(fSeg);
-    body.append(fRow);
   }
 
   const note = el('div', 'seg-note');
