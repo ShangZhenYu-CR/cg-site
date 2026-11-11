@@ -995,3 +995,12 @@ body.noside #sideToggle{display:grid!important}
 .grp-toggle:hover{color:var(--text)}
 .grp-toggle .chev{font-style:normal;font-size:11px;color:var(--faint);margin-left:2px}
 
+
+/* 首页产物卡：加预览块，尺寸贴近 Claude 卡片 */
+.ra-list{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.ra-card{padding:10px;display:flex;flex-direction:column;gap:8px;border-radius:12px}
+.ra-card .ra-prev{height:76px;border-radius:8px;background:var(--code-bg);border:1px solid var(--line);color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:1.45;padding:7px 9px;overflow:hidden;white-space:pre-wrap;word-break:break-all}
+.ra-card .n{font-size:13px;font-weight:435;display:flex;align-items:center;gap:6px;min-width:0}
+.ra-card .n span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ra-card .m{font-size:11px}
+

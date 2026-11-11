@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:34';
+const APP_BUILD = '2026-11-11 19:35';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -390,9 +390,13 @@ function renderRecentArtifacts() {
   for (const it of items) {
     const b = el('button', 'ra-card');
     b.type = 'button';
-    const n = el('div', 'n', it.name);
+    const prev = el('div', 'ra-prev');
+    prev.textContent = (it.head || '').replace(/\s+/g, ' ').slice(0, 72) || '（空文件）';
+    const n = el('div', 'n');
+    n.append(el('span', 'ftype', /\.html?$/i.test(it.name) ? '</>' : /\.(png|jpe?g|gif|svg)$/i.test(it.name) ? 'IMG' : 'FILE'));
+    n.append(el('span', null, it.name));
     const m = el('div', 'm', it.convTitle + ' · ' + when(it.at));
-    b.append(n, m);
+    b.append(prev, n, m);
     b.addEventListener('click', () => openArtifact(it));
     list.append(b);
   }
