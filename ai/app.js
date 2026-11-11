@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-11 19:26 ';
+const APP_BUILD = '2026-11-11 19:27';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -995,6 +995,24 @@ const SET_TABS = [
 /** 把已有的小弹窗内容搬进设置面板（保留原有事件） */
 const SET_SRC = { ins: 'dlgIns', users: 'dlgUsers', cfg: 'dlgCfg', usage: 'dlgUsage' };
 
+function exportConvMarkdown() {
+  const cv = current();
+  if (!cv) return;
+  const lines2 = ['# ' + (cv.title || '对话'), ''];
+  for (const m of cv.messages || []) {
+    if (m.role === 'divider') { lines2.push('---', String(m.text || ''), '---', ''); continue; }
+    const who = m.role === 'user' ? (m.who || LS.name || '我') : 'AI';
+    lines2.push('## ' + who, '', String(m.text || ''), '');
+    for (const u of (m.images || [])) lines2.push('![](' + fileUrl(u) + ')', '');
+  }
+  const blob = new Blob([lines2.join('\n')], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (cv.title || '对话').replace(/[\\/:*?"<>|]/g, '_') + '.md';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  flashHint('已导出 Markdown');
+}
 function exportAll() {
   const payload = { exportedAt: Date.now(), version: 1, conversations: state.convs || [], projects: state.projects || [] };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -3890,6 +3908,8 @@ $('#pinBtn').addEventListener('click', () => {
   togglePin(cv.id);
   renderAll();
 });
+
+$('#exportMdBtn').addEventListener('click', () => { closePops(); exportConvMarkdown(); });
 
 $('#archiveBtn').addEventListener('click', async () => {
   const cv = current();
