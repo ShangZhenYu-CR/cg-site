@@ -259,7 +259,7 @@ button{cursor:pointer;background:none;border:0}
 .icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--dim);border:1px solid transparent;font-size:18px;line-height:1}
 .icon:hover{background:var(--panel2);color:var(--text)}
 .icon.on{background:color-mix(in srgb, var(--accent) 16%, transparent);color:var(--accent);border-color:color-mix(in srgb, var(--accent) 40%, transparent)}
-.send{width:34px;height:34px;border-radius:999px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.send{width:34px;height:34px;border-radius:10px;background:var(--brand);color:#fff;display:grid;place-items:center}
 .send:disabled{opacity:.45;cursor:default}
 .send.stop{background:var(--danger);color:#2a1010}
 .send svg{display:block}
@@ -452,7 +452,8 @@ body:not(.noside) #sideToggle{display:none}
 .nav-row:hover{background:var(--panel2)}
 .kbd-hint{font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:1px 5px;background:transparent}
 .greet{display:flex;align-items:center;justify-content:center;gap:12px}
-.greet .mark{color:var(--brand);font-size:30px;line-height:1;transform:translateY(-2px)}
+.greet .mark{color:var(--brand);display:inline-flex;align-items:center;transform:translateY(-2px)}
+.greet .mark-svg{width:40px;height:40px;display:block}
 /* ---------- 首页：欢迎语 + 输入框一体居中 ---------- */
 .empty.with-composer{margin:0 auto;min-height:calc(100vh - 170px);display:flex;flex-direction:column;justify-content:center;padding:0 24px 20px}
 .empty.with-composer #composerBlock{width:100%;margin-top:28px}
