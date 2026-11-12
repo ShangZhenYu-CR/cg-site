@@ -5945,37 +5945,7 @@ initSideResizer();
 // 面板可能在启动时就是打开的（有产物），补一次初始化
 setTimeout(initArtResizer, 300);
 
-/* 输入框下方的「项目」标签：点开选项目 */
-$('#metaProject').addEventListener('click', () => {
-  const cv = current();
-  if (!cv) return;
-  const rows = [{
-    label: (cv.projectId ? '' : '✓ ') + '未归档',
-    sub: '不属于任何项目',
-    onClick: async () => {
-      cv.projectId = null;
-      await saveConv(cv);
-      $('#dlgList').hidden = true;
-      renderAll();
-      flashHint('已移出项目');
-    },
-  }];
-  for (const p of (state.projects || [])) {
-    rows.push({
-      label: (cv.projectId === p.id ? '✓ ' : '') + p.name,
-      sub: p.instructions ? '带项目指令' : '',
-      onClick: async () => {
-        cv.projectId = p.id;
-        await saveConv(cv);
-        $('#dlgList').hidden = true;
-        renderAll();
-        flashHint('已归到「' + p.name + '」');
-      },
-    });
-  }
-  rows.push({ label: '＋ 新建项目…', sub: '', onClick: () => { $('#dlgList').hidden = true; openProjectDialog(null); } });
-  openListPanel('归到哪个项目', '项目会带上它自己的指令和知识', rows);
-});
+
 const FEATURES_FB = { feedback: false, readAloud: false };
 /* 代码块复制（事件委托，流式重绘也能用） */
 document.addEventListener('click', async (e) => {
@@ -5994,35 +5964,163 @@ document.addEventListener('click', async (e) => {
 });
 
 
-/* 输入框下方的「项目」标签：点开选项目 */
-$('#metaProject').addEventListener('click', () => {
-  const cv = current();
-  if (!cv) return;
-  const rows = [{
-    label: (cv.projectId ? '' : '✓ ') + '未归档',
-    sub: '不属于任何项目',
-    onClick: async () => {
-      cv.projectId = null;
-      await saveConv(cv);
-      $('#dlgList').hidden = true;
-      renderAll();
-      flashHint('已移出项目');
-    },
-  }];
-  for (const p of (state.projects || [])) {
-    rows.push({
-      label: (cv.projectId === p.id ? '✓ ' : '') + p.name,
-      sub: p.instructions ? '带项目指令' : '',
-      onClick: async () => {
-        cv.projectId = p.id;
-        await saveConv(cv);
-        $('#dlgList').hidden = true;
-        renderAll();
-        flashHint('已归到「' + p.name + '」');
-      },
-    });
-  }
-  rows.push({ label: '＋ 新建项目…', sub: '', onClick: () => { $('#dlgList').hidden = true; openProjectDialog(null); } });
-  openListPanel('归到哪个项目', '项目会带上它自己的指令和知识', rows);
-});
 
+
+
+/* ---------------- 项目选择器：对齐 Claude 的 Project 菜单 ---------------- */
+let projPickEl = null;
+let projPickOnlyPinned = false;
+let projPickIdx = -1;
+
+function closeProjectPicker() {
+  if (!projPickEl) return;
+  projPickEl.remove();
+  projPickEl = null;
+  projPickIdx = -1;
+}
+
+function openProjectPicker(anchor) {
+  const cv = current();
+  if (!cv || !anchor) return;
+  closeProjectPicker();
+
+  const pop = el('div', 'proj-pick');
+  pop.setAttribute('role', 'menu');
+  pop.setAttribute('aria-label', '选择项目');
+
+  const searchRow = el('div', 'pp-search');
+  const searchIco = el('span', 'pp-ico');
+  searchIco.innerHTML = ic('search', 15);
+  const input = document.createElement('input');
+  input.type = 'search';
+  input.placeholder = '搜索项目';
+  input.setAttribute('aria-label', '搜索项目');
+  input.autocomplete = 'off';
+  const filterBtn = el('button', 'pp-filter');
+  filterBtn.type = 'button';
+  filterBtn.title = '只看置顶';
+  filterBtn.setAttribute('aria-pressed', 'false');
+  filterBtn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg>';
+  searchRow.append(searchIco, input, filterBtn);
+
+  const body = el('div', 'pp-body');
+  const foot = el('div', 'pp-foot');
+  const newRow = el('button', 'pp-row pp-new');
+  newRow.type = 'button';
+  newRow.innerHTML = ic('plus', 16) + '<span>新建项目</span>';
+  newRow.addEventListener('click', () => { closeProjectPicker(); openProjectDialog(null); });
+  foot.append(newRow);
+
+  pop.append(searchRow, body, foot);
+  document.body.append(pop);
+
+  const assign = async (pid, name) => {
+    cv.projectId = pid;
+    closeProjectPicker();
+    try { await saveConv(cv); } catch (e) {}
+    renderAll();
+    flashHint(pid ? '已归到「' + name + '」' : '已移出项目');
+  };
+
+  const mkRow = (p) => {
+    const row = el('button', 'pp-row');
+    row.type = 'button';
+    row.setAttribute('role', 'menuitem');
+    const ico = el('span', 'pp-ico');
+    ico.innerHTML = ic('folder', 16);
+    const name = el('span', 'pp-name', p.name || '未命名项目');
+    row.append(ico, name);
+    if (cv.projectId === p.id) row.append(el('span', 'pp-check', '✓'));
+    row.addEventListener('click', () => assign(p.id, p.name || '未命名项目'));
+    return row;
+  };
+
+  const render = () => {
+    const q = input.value.trim().toLowerCase();
+    const hit = (p) => !q || String(p.name || '').toLowerCase().includes(q);
+    const pinned = (state.projects || []).filter((p) => p.pinned && hit(p));
+    const rest = projPickOnlyPinned ? [] : (state.projects || []).filter((p) => !p.pinned && hit(p));
+    body.textContent = '';
+    if (cv.projectId) {
+      const out = el('button', 'pp-row pp-out');
+      out.type = 'button';
+      out.innerHTML = '<span class="pp-ico">' + ic('file', 16) + '</span><span class="pp-name">不属于任何项目</span>';
+      out.addEventListener('click', () => assign(null, ''));
+      body.append(out, el('div', 'pp-sep'));
+    }
+    if (pinned.length) {
+      body.append(el('div', 'pp-label', '已置顶'));
+      for (const p of pinned) body.append(mkRow(p));
+    }
+    if (rest.length) {
+      if (pinned.length) body.append(el('div', 'pp-sep'));
+      body.append(el('div', 'pp-label', '项目'));
+      for (const p of rest) body.append(mkRow(p));
+    }
+    if (!pinned.length && !rest.length) {
+      const msg = !(state.projects || []).length ? '还没有项目' : (projPickOnlyPinned ? '没有置顶的项目' : '没有匹配的项目');
+      body.append(el('div', 'pp-empty', msg));
+    }
+    projPickIdx = -1;
+  };
+
+  const rows = () => [...pop.querySelectorAll('.pp-row')];
+  const highlight = (i) => {
+    const list = rows();
+    if (!list.length) return;
+    projPickIdx = (i + list.length) % list.length;
+    list.forEach((r, k) => r.classList.toggle('hl', k === projPickIdx));
+    list[projPickIdx].scrollIntoView({ block: 'nearest' });
+  };
+
+  input.addEventListener('input', render);
+  filterBtn.addEventListener('click', () => {
+    projPickOnlyPinned = !projPickOnlyPinned;
+    filterBtn.classList.toggle('on', projPickOnlyPinned);
+    filterBtn.setAttribute('aria-pressed', String(projPickOnlyPinned));
+    render();
+    input.focus();
+  });
+  pop.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeProjectPicker(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(projPickIdx + 1); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); highlight(projPickIdx - 1); return; }
+    if (e.key === 'Enter') {
+      const list = rows();
+      const target = list[projPickIdx >= 0 ? projPickIdx : 0];
+      if (target) { e.preventDefault(); target.click(); }
+    }
+  });
+
+  render();
+  const r = anchor.getBoundingClientRect();
+  const w = 280;
+  pop.style.width = w + 'px';
+  const h = pop.offsetHeight;
+  const left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+  let top = r.bottom + 6;
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+
+  const outside = (e) => {
+    if (!pop.contains(e.target) && !anchor.contains(e.target)) closeProjectPicker();
+  };
+  setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
+  const obs = new MutationObserver(() => {
+    if (!document.body.contains(pop)) {
+      document.removeEventListener('mousedown', outside, true);
+      obs.disconnect();
+    }
+  });
+  obs.observe(document.body, { childList: true });
+
+  projPickEl = pop;
+  setTimeout(() => input.focus(), 0);
+}
+
+$('#metaProject').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (projPickEl) { closeProjectPicker(); return; }
+  openProjectPicker(e.currentTarget);
+});
