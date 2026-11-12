@@ -1915,3 +1915,32 @@ body.noside #side .nav-row svg{width:20px;height:20px}
   margin:8px auto 0!important;
   box-sizing:border-box;
 }
+
+/* ---- 项目选择器：对齐 Claude 的 Project 菜单（紧凑、可搜索、键盘可用） ---- */
+.proj-pick{
+  position:fixed;z-index:600;width:280px;padding:6px;
+  background:var(--panel);color:var(--text);
+  border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12),0 2px 6px rgba(0,0,0,.08);
+  font-family:var(--font-sans);
+}
+.proj-pick .pp-search{display:flex;align-items:center;gap:8px;height:34px;padding:0 4px 0 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.proj-pick .pp-search .pp-ico{color:var(--faint);display:inline-flex;flex:none}
+.proj-pick input{flex:1;min-width:0;height:28px;border:0;background:none;outline:0;font:inherit;font-size:13.5px;color:var(--text)}
+.proj-pick input::placeholder{color:var(--faint)}
+.proj-pick .pp-filter{width:26px;height:26px;border:0;border-radius:7px;background:none;color:var(--faint);display:grid;place-items:center;cursor:pointer}
+.proj-pick .pp-filter:hover{background:var(--panel2);color:var(--text)}
+.proj-pick .pp-filter.on{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.proj-pick .pp-body{max-height:280px;overflow:auto;padding:2px 0}
+.proj-pick .pp-label{font-size:11.5px;font-weight:500;color:var(--faint);padding:8px 10px 4px}
+.proj-pick .pp-row{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 10px;border:0;border-radius:8px;background:none;font:inherit;font-size:13.5px;color:var(--text);text-align:left;cursor:pointer}
+.proj-pick .pp-row:hover,.proj-pick .pp-row.hl{background:var(--panel2)}
+.proj-pick .pp-row .pp-ico{color:var(--dim);display:inline-flex;flex:none}
+.proj-pick .pp-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proj-pick .pp-check{color:var(--accent);font-size:12px}
+.proj-pick .pp-sep{height:1px;background:var(--line);margin:5px 6px}
+.proj-pick .pp-foot{border-top:1px solid var(--line);margin-top:4px;padding-top:4px}
+.proj-pick .pp-empty{font-size:12.5px;color:var(--faint);padding:10px}
+
+.proj-pick input:focus,
+.proj-pick input:focus-visible{box-shadow:none!important;outline:0!important}
