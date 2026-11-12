@@ -1995,3 +1995,9 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 /* 显式「写成文档」按钮 */
 .doc-btn{border:0;background:none;color:var(--faint);font:12px/1.2 var(--font-sans);padding:2px 6px;border-radius:6px;margin-left:6px;cursor:pointer}
 .doc-btn:hover{background:var(--panel2);color:var(--text)}
+
+/* 图片操作按钮：恢复悬停显示（触屏设备保持常驻），不再默认盖住图片 */
+.imgacts{opacity:0!important}
+.imgbox:hover .imgacts,
+.imgbox:focus-within .imgacts{opacity:1!important}
+@media (hover:none){.imgacts{opacity:1!important}}
