@@ -2653,13 +2653,20 @@ async function sendChat(text, opts = {}) {
   const drawMode = !!opts.draw || !!state.imageMode;
   const gifAsk = !!opts.gif;
 
-  // 文档类需求：自动建一份文档产物，让模型按 file 围栏写到右侧，而不是只在对话里输出
+  // 产物类需求：按关键词自动建 doc / deck / design，并打开右栏
   if (!drawMode && !gifAsk && !cv.artifact) {
-    const m = text.match(/(文档|报告|方案|说明书|白皮书|文章|总结|简历|会议纪要|策划书|需求文档|设计文档)/);
-    if (m) {
-      const safe = String(m[1]).replace(/[\\/:*?"<>|]/g, '').slice(0, 16) || '文档';
-      cv.artifact = { kind: 'doc', name: safe + '.md' };
-      openArtifactPane('doc', cv.artifact.name);
+    const t = String(text || '');
+    let kind = null;
+    let name = null;
+    if (/(幻灯片|PPT|ppt|演示文稿|演示稿|slides?|deck)/i.test(t)) { kind = 'deck'; name = '幻灯片.deck.json'; }
+    else if (/(网站|网页|落地页|landing|html|设计稿|页面设计|webpage)/i.test(t)) { kind = 'design'; name = '页面.html'; }
+    else {
+      const m = t.match(/(文档|报告|方案|说明书|白皮书|文章|总结|简历|会议纪要|策划书|需求文档|设计文档)/);
+      if (m) { kind = 'doc'; name = (String(m[1]).replace(/[\\/:*?"<>|]/g, '').slice(0, 16) || '文档') + '.md'; }
+    }
+    if (kind && name) {
+      cv.artifact = { kind, name };
+      openArtifactPane(kind, name);
     }
   }
 
@@ -2858,7 +2865,7 @@ function hideThinking() {
               applyFiles(cv, [{ name, content }]);
               reply.wrote = [name];
               if (!cv.artifact) cv.artifact = { kind: 'doc', name };
-              if (cv.artifact.kind === 'doc') cv.artifact.name = name;
+              cv.artifact.name = name;
               reply.tools = reply.tools || [];
               reply.tools.push({ name: 'write_file', args: { name }, result: '已写入' });
               if ($('#artPane').hidden) openArtifactPane(cv.artifact.kind, name);
