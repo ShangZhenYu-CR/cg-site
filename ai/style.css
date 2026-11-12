@@ -1953,3 +1953,7 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 }
 
 .proj-pick .pp-search{width:100%!important;max-width:none!important;flex:none!important}
+
+/* ---- 图片操作按钮常驻显示（不再依赖 hover；触屏/鼠标一致） ---- */
+.imgacts{opacity:1!important}
+.imgbox:hover .imgacts{opacity:1!important}
