@@ -1966,3 +1966,28 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 
 /* ---- 代码/产物面板：后面的 #codepane{position:relative} 覆盖了 fixed，导致面板掉到页面下方 ---- */
 #codepane{position:fixed!important}
+
+/* ==== 4 项修正：尺寸 / 灯箱底色 / 工具卡 ==== */
+/* 1) 正文列 768；对话态输入卡、meta、附件、能力条 752（空态保持 672） */
+#thread{width:min(768px,100%)!important;padding:32px 16px 12px}
+#main > #composerBlock .composer{width:min(752px,calc(100% - 32px))!important}
+#main > #composerBlock .composer-meta{width:min(752px,calc(100% - 32px))!important}
+#main > #composerBlock #caps{width:min(752px,calc(100% - 32px))!important;max-width:752px!important}
+#main > #composerBlock .attach{width:min(752px,calc(100% - 32px))!important}
+/* 会话行 38.4 → 28，菜单 220 → 240 */
+#menuPop{min-width:240px!important}
+#menuPop .opt{height:28px!important;min-height:28px!important;padding:0 10px!important;font-size:13px!important;line-height:1.2!important;border-radius:7px!important}
+/* 2) 灯箱：底色更实，避免背景按钮透出来形成“重影” */
+.lightbox{background:rgba(6,8,12,.985)!important;backdrop-filter:blur(3px)}
+
+/* 4) 工具调用卡（Claude 的 details 结构） */
+.tool-card{margin:10px 0 4px;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden;max-width:100%}
+.tool-card summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:32px;padding:5px 10px;cursor:pointer;font-size:12.5px;color:var(--text)}
+.tool-card summary::-webkit-details-marker{display:none}
+.tool-card summary .tc-chev{color:var(--faint);transition:transform .15s ease;display:inline-flex}
+.tool-card[open] summary .tc-chev{transform:rotate(90deg)}
+.tool-card summary .tc-ico{width:20px;height:20px;border-radius:6px;background:var(--panel2);display:grid;place-items:center;color:var(--dim);flex:none}
+.tool-card summary .tc-name{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tool-card summary .tc-cnt{margin-left:auto;color:var(--faint);font-size:11.5px;flex:none}
+.tool-card .tc-body{border-top:1px solid var(--line);padding:8px 11px;font-size:12px;line-height:1.6;color:var(--dim);background:color-mix(in srgb,var(--panel2) 55%,transparent)}
+.tool-card .tc-body code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--text);background:var(--panel2);border-radius:4px;padding:1px 5px;word-break:break-all}
