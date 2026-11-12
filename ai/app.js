@@ -4436,6 +4436,11 @@ syncSendVisible();
 scrollBox.addEventListener('scroll', updateToLatest);
 $('#toLatest').addEventListener('click', () => { scrollBox.scrollTop = scrollBox.scrollHeight; updateToLatest(); });
 
+for (const sel of ['#micBtn', '#voiceBtn']) {
+  const vb = document.querySelector(sel);
+  if (vb) vb.addEventListener('click', (e) => { e.stopPropagation(); flashHint('语音功能还在接入中，先用文字吧'); });
+}
+
 for (const sel of ['#cmModel']) {
   const btn = document.querySelector(sel);
   if (!btn) continue;
