@@ -2746,8 +2746,19 @@ async function sendChat(text, opts = {}) {
     const now = performance.now();
     if (now - lastPaint < 80) { raf = requestAnimationFrame(paint); return; }
     lastPaint = now;
-    host.innerHTML = md(acc);
+    const split = splitStreamFiles(acc);
+    host.innerHTML = md(split.text);
     host.append(caret);
+    if (split.files.length && cv) {
+      cv.files = cv.files || [];
+      for (const f of split.files) {
+        const fi = cv.files.findIndex((x) => x.name === f.name);
+        const rec = { name: f.name, content: f.content, updatedAt: Date.now() };
+        if (fi >= 0) cv.files[fi] = rec; else cv.files.push(rec);
+      }
+      if (cv.artifact && !cv.artifact.name && split.files[0]) cv.artifact.name = split.files[0].name;
+      if (!$('#artPane').hidden) renderArtifact();
+    }
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
@@ -2898,9 +2909,6 @@ function hideThinking() {
       const sz = String((imageOpts && imageOpts.size) || gifSizeForFrames(fr)).replace('x', '×');
       reply.meta = 'GIF · ' + fr + ' 帧 · ' + sz + (reply.images.length > 1 ? ' · ' + reply.images.length + ' 张' : '');
     }
-    if (host) { host.innerHTML = md(reply.text || ''); hydrateCalcs(host); }
-    if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
-
     const parsed = extractFiles(reply.text || '');
     if (parsed.files.length) {
       applyFiles(cv, parsed.files);
@@ -2908,6 +2916,8 @@ function hideThinking() {
       reply.text = parsed.text;
       if (!reply.text) reply.text = '';
     }
+    if (host) { host.innerHTML = md(reply.text || ''); hydrateCalcs(host); }
+    if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   } catch (e) {
     hideThinking();
     delete reply.streaming;
@@ -3301,6 +3311,32 @@ document.addEventListener('paste', (e) => {
 
 /* ---------------- 代码面板 ---------------- */
 const FILE_RE = /```file:([^\n`]+)\n([\s\S]*?)```/g;
+
+
+/** 流式切分：把 ```file:name ... ``` 从正文里摘出来；未闭合的也先收进 files */
+function splitStreamFiles(src) {
+  const files = [];
+  let text = '';
+  let pos = 0;
+  while (true) {
+    const open = src.indexOf('```file:', pos);
+    if (open < 0) break;
+    text += src.slice(pos, open);
+    const nl = src.indexOf('\n', open);
+    if (nl < 0) { pos = src.length; break; }
+    const name = src.slice(open + 8, nl).trim();
+    const close = src.indexOf('```', nl + 1);
+    if (close < 0) {
+      files.push({ name, content: src.slice(nl + 1) });
+      pos = src.length;
+      break;
+    }
+    files.push({ name, content: src.slice(nl + 1, close) });
+    pos = close + 3;
+  }
+  text += src.slice(pos);
+  return { text, files };
+}
 
 function extractFiles(text) {
   const files = [];
