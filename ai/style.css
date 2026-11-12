@@ -1991,3 +1991,7 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .tool-card summary .tc-cnt{margin-left:auto;color:var(--faint);font-size:11.5px;flex:none}
 .tool-card .tc-body{border-top:1px solid var(--line);padding:8px 11px;font-size:12px;line-height:1.6;color:var(--dim);background:color-mix(in srgb,var(--panel2) 55%,transparent)}
 .tool-card .tc-body code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--text);background:var(--panel2);border-radius:4px;padding:1px 5px;word-break:break-all}
+
+/* 显式「写成文档」按钮 */
+.doc-btn{border:0;background:none;color:var(--faint);font:12px/1.2 var(--font-sans);padding:2px 6px;border-radius:6px;margin-left:6px;cursor:pointer}
+.doc-btn:hover{background:var(--panel2);color:var(--text)}
