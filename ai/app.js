@@ -6019,6 +6019,7 @@ function openProjectPicker(anchor) {
     closeProjectPicker();
     try { await saveConv(cv); } catch (e) {}
     renderAll();
+    updateComposerMeta();
     flashHint(pid ? '已归到「' + name + '」' : '已移出项目');
   };
 
