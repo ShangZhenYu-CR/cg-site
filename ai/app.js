@@ -1750,6 +1750,18 @@ $('#setClose').addEventListener('click', () => { $('#dlgSet').hidden = true; });
 $('#dlgSet').addEventListener('click', (e) => { if (e.target.id === 'dlgSet') $('#dlgSet').hidden = true; });
 
 /* 线程 */
+function toolCard(t) {
+  const d = el('details', 'tool-card');
+  const sum = document.createElement('summary');
+  sum.innerHTML = '<span class="tc-chev">›</span><span class="tc-ico">' + ic('code', 12) + '</span><span class="tc-name">' + esc(t.name || 'tool') + '</span><span class="tc-cnt">' + (t.result ? '1 个结果' : '') + '</span>';
+  d.append(sum);
+  const body = el('div', 'tc-body');
+  const args = typeof t.args === 'string' ? t.args : JSON.stringify(t.args || {});
+  body.innerHTML = '<div>参数：<code>' + esc(String(args).slice(0, 300)) + '</code></div>' + (t.result ? '<div style="margin-top:4px">结果：' + esc(String(t.result).slice(0, 400)) + '</div>' : '');
+  d.append(body);
+  return d;
+}
+
 function bubble(m, idx) {
   if (m.role === 'divider') {
     const d = el('div', 'divider');
@@ -1793,6 +1805,10 @@ function bubble(m, idx) {
   }
   else { content.innerHTML = md(m.text || ''); hydrateCalcs(content); }
   bd.append(content);
+
+  if (!isUser && Array.isArray(m.tools) && m.tools.length) {
+    for (const t of m.tools) bd.append(toolCard(t));
+  }
 
   // 长消息折叠（默认只显示前半段，可展开）
   if (!isUser && !m.err && String(m.text || '').length > 1400) {
@@ -2704,9 +2720,8 @@ async function sendChat(text, opts = {}) {
   const body = node && node.querySelector('.bd');
   const host = body ? body.querySelector('div') : null;
   // 流式期间只更新一个纯文本节点 + 光标，避免整块 innerHTML 重建导致高度抖动
-  const textNode = document.createTextNode('');
   const caret = el('span', 'cursor');
-  if (host) { host.textContent = ''; host.append(textNode, caret); }
+  if (host) { host.textContent = ''; host.append(caret); }
 
   setBusy(true);
   showThinking();
@@ -2714,9 +2729,15 @@ async function sendChat(text, opts = {}) {
 
   let acc = '';
   let raf = 0;
+  let lastPaint = 0;
   const paint = () => {
     raf = 0;
-    textNode.nodeValue = acc;
+    if (!host) return;
+    const now = performance.now();
+    if (now - lastPaint < 80) { raf = requestAnimationFrame(paint); return; }
+    lastPaint = now;
+    host.innerHTML = md(acc);
+    host.append(caret);
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
@@ -2793,6 +2814,8 @@ function hideThinking() {
               if (ev.imgPrompt) reply.imgPrompts = [...(reply.imgPrompts || []), ev.imgPrompt];
               if (!reply.meta) reply.meta = '图片';
             }
+            if (ev.tool) { reply.tools = reply.tools || []; reply.tools.push({ name: ev.tool.name || ev.tool, args: ev.tool.args, result: null }); }
+            if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }
             if (ev.t) { acc += ev.t; schedule(); }
           }
         }
@@ -2834,7 +2857,7 @@ function hideThinking() {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         acc = '';
-        textNode.nodeValue = '';
+        if (host) host.innerHTML = '';
         await postChat(imageOpts);
         lastErr = null;
         break;
