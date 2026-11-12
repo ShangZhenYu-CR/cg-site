@@ -1872,3 +1872,17 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .composer .cm-mic{order:2;margin-left:auto}
 .composer .cm-voice{order:2}
 .composer .send{order:3;margin-left:6px}
+
+/* ---- 输入框恢复多行高度（Claude 不是单行；覆盖 tighter composer 的 26px） ---- */
+#composer{
+  min-height:120px!important;
+  padding:14px 16px 10px!important;
+  align-content:space-between;
+}
+#composer textarea{
+  min-height:60px!important;
+  max-height:220px!important;
+  line-height:1.55!important;
+  padding:0!important;
+  font-size:16px!important;
+}
