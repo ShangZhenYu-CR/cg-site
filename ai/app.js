@@ -2268,7 +2268,21 @@ function renderThread() {
 /* 能力开关：语音还没接，先渲染但隐藏，接上后把 voice 改成 true 即可 */
 const FEATURES = { voice: false };
 if (FEATURES.voice) { const mb = $('#micBtn'); if (mb) mb.hidden = false; }
+function syncArtifactPane() {
+  const cv = current();
+  const pane = $('#artPane');
+  if (!pane) return;
+  if (state.view !== 'chat' || !cv || !cv.artifact || !cv.artifact.kind) {
+    if (!pane.hidden) closeArtifactPane();
+    return;
+  }
+  if (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name) {
+    openArtifactPane(cv.artifact.kind, cv.artifact.name);
+  }
+}
+
 function renderAll() {
+  syncArtifactPane();
   renderSide();
   // 顶栏标题：跟着当前视图走，别停在上一段对话的标题
   const VIEW_TITLE = { projects: '项目', files: '文件', images: '图库', plugins: '插件' };
