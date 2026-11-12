@@ -2001,3 +2001,8 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .imgbox:hover .imgacts,
 .imgbox:focus-within .imgacts{opacity:1!important}
 @media (hover:none){.imgacts{opacity:1!important}}
+
+/* 所有设备统一：图片操作默认隐藏，悬停/聚焦才出现；触屏用灯箱里的下载/复制 */
+@media (hover:none){.imgacts{opacity:0!important}}
+.imgbox:hover .imgacts,
+.imgbox:focus-within .imgacts{opacity:1!important}
