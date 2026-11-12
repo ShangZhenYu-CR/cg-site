@@ -2854,8 +2854,20 @@ function hideThinking() {
                 if (name) {
                   applyFiles(cv, [{ name, content }]);
                   if (!cv.artifact) cv.artifact = { kind: 'doc', name };
-                  if ($('#artPane').hidden) openArtifactPane(cv.artifact.kind, cv.artifact.name);
-                  else renderArtifact();
+                  const kind = cv.artifact.kind || 'doc';
+                  if (kind === 'doc') {
+                    if ($('#artPane').hidden) openArtifactPane('doc', cv.artifact.name);
+                    else renderArtifact();
+                  } else {
+                    // design / deck：流式阶段 iframe 反复重载会白屏闪烁，只有内容完整时才刷新一次
+                    const complete = kind === 'design'
+                      ? /<\/html>\s*$/i.test(content)
+                      : (/"slides"\s*:/.test(content) && /\}\s*$/.test(content));
+                    if (complete) {
+                      if ($('#artPane').hidden) openArtifactPane(kind, name);
+                      else { artName = name; renderArtifact(); }
+                    }
+                  }
                 }
               }
             }
