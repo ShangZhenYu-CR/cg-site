@@ -1906,3 +1906,12 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 }
 #composer #plusBtn:hover{background:var(--panel2)!important;color:var(--text)!important}
 #composer #plusBtn.on{background:transparent!important;border-color:transparent!important;color:var(--dim)!important}
+
+/* 底栏宽度必须跟输入框一致：空态下 composer 被 !important 锁在 672，meta 却是 100%，
+   导致「项目 / 模型」比输入框两边各宽出 30px。这里用同一套宽度表达式。 */
+.composer-meta{
+  width:min(672px,calc(100% - 32px))!important;
+  max-width:100%!important;
+  margin:8px auto 0!important;
+  box-sizing:border-box;
+}
