@@ -1951,3 +1951,5 @@ body.noside #side .nav-row svg{width:20px;height:20px}
   border-radius:0!important;background:transparent!important;box-shadow:none!important;
   padding:0 4px 0 8px!important;margin:0 0 4px!important;
 }
+
+.proj-pick .pp-search{width:100%!important;max-width:none!important;flex:none!important}
