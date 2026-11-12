@@ -2660,6 +2660,7 @@ async function sendChat(text, opts = {}) {
     let name = null;
     if (/(幻灯片|PPT|ppt|演示文稿|演示稿|slides?|deck)/i.test(t)) { kind = 'deck'; name = '幻灯片.deck.json'; }
     else if (/(网站|网页|落地页|landing|html|设计稿|页面设计|webpage)/i.test(t)) { kind = 'design'; name = '页面.html'; }
+    else if (/(做|创建|写|开发|实现|来个|整个)/.test(t) && /(游戏|小游戏|\bgame\b)/i.test(t)) { kind = 'design'; name = '游戏.html'; }
     else {
       const m = t.match(/(文档|报告|方案|说明书|白皮书|文章|总结|简历|会议纪要|策划书|需求文档|设计文档)/);
       if (m) { kind = 'doc'; name = (String(m[1]).replace(/[\\/:*?"<>|]/g, '').slice(0, 16) || '文档') + '.md'; }
