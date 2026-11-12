@@ -6267,3 +6267,152 @@ $('#docBtn').addEventListener('click', () => {
   flashHint(cv.artifact.kind === 'doc' ? '这次回复会写进右侧文档' : '已打开右侧产物');
   input.focus();
 });
+
+/* ---------------- 斜杠技能：Claude 风格命令面板 ---------------- */
+const SLASH_ICON = {
+  clip: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12.5 12.5 21a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>',
+  slides: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 22h8"/><path d="m10 8 4 2-4 2z"/></svg>',
+  design: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h5a4 4 0 0 0 4-4c0-3.3-4-6-9-6Z"/><circle cx="7.5" cy="10" r=".8"/><circle cx="10" cy="6.5" r=".8"/><circle cx="15" cy="6.5" r=".8"/><circle cx="17.5" cy="10" r=".8"/></svg>',
+  skill: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg>',
+};
+
+const SLASH_ITEMS = [
+  { group: 'add', label: '添加文件', en: 'Add files', icon: 'clip', run: 'files', detail: '上传图片或文件作为参考。' },
+  { group: 'add', label: '文档', en: 'Doc', icon: 'doc', run: 'doc', detail: '新建一份 Markdown 文档产物，之后写的内容会进右栏。' },
+  { group: 'add', label: '幻灯片', en: 'Slides', icon: 'slides', run: 'deck', detail: '新建一套幻灯片产物，按页写标题和要点。' },
+  { group: 'add', label: '设计', en: 'Design', icon: 'design', run: 'design', detail: '新建一个 HTML 设计产物，直接预览页面。' },
+  { group: 'skill', label: '深度研究', en: 'deep-research', icon: 'skill', insert: '用联网搜索做一次深度研究，输出带来源的报告。', detail: '多轮检索、交叉核对，最后给出带来源的结论。' },
+  { group: 'skill', label: '游戏', en: 'game', icon: 'skill', run: 'game', detail: '新建一个 HTML5 游戏产物（单文件，可直接预览）。' },
+  { group: 'skill', label: '画图', en: 'image', icon: 'skill', click: '#plusPop [data-mode="image"]', detail: '开启 / 关闭画图模式，让模型直接出图。' },
+  { group: 'skill', label: '联网搜索', en: 'web-search', icon: 'skill', click: '#plusPop [data-mode="search"]', detail: '开启 / 关闭联网搜索。' },
+  { group: 'skill', label: '编程模式', en: 'code', icon: 'skill', click: '#plusPop [data-mode="code"]', detail: '开启后模型用 write_file 写代码文件到右侧。' },
+  { group: 'skill', label: '切换模型', en: 'model', icon: 'skill', click: '#cmModel', detail: '选择模型和思考强度。' },
+  { group: 'skill', label: '设置', en: 'settings', icon: 'skill', click: '#setOpenBtn', detail: '打开设置面板。' },
+];
+
+let slashEl = null;
+let slashTip = null;
+let slashList = [];
+let slashIdx = 0;
+
+function closeSlash() {
+  if (slashTip) { slashTip.remove(); slashTip = null; }
+  if (!slashEl) return;
+  slashEl.remove();
+  slashEl = null;
+  slashList = [];
+  slashIdx = 0;
+  if (input) input.placeholder = DEFAULT_PH;
+}
+
+function slashQuery() {
+  const v = input.value;
+  if (!v.startsWith('/')) return null;
+  return (v.slice(1).match(/^[^\s]*/) || [''])[0];
+}
+
+function showSlashTip(row, item) {
+  if (!item || !item.detail) { if (slashTip) slashTip.style.display = 'none'; return; }
+  if (!slashTip) { slashTip = el('div', 'slash-tip'); document.body.append(slashTip); }
+  slashTip.style.display = 'block';
+  slashTip.textContent = item.detail;
+  const rr = row.getBoundingClientRect();
+  const mr = slashEl.getBoundingClientRect();
+  let left = mr.right + 10;
+  if (left + 260 > window.innerWidth - 8) left = mr.left - 270;
+  slashTip.style.left = Math.max(8, left) + 'px';
+  slashTip.style.top = Math.max(8, Math.min(rr.top, window.innerHeight - 120)) + 'px';
+}
+
+function renderSlash(q) {
+  const key = String(q || '').toLowerCase();
+  slashList = SLASH_ITEMS.filter((s) => !key || s.label.includes(key) || s.en.toLowerCase().includes(key) || (s.detail || '').includes(key));
+  if (!slashList.length) { closeSlash(); return; }
+  if (!slashEl) {
+    slashEl = el('div', 'slash-menu');
+    slashEl.addEventListener('mousedown', (e) => e.preventDefault());
+    document.body.append(slashEl);
+  }
+  slashIdx = Math.max(0, Math.min(slashIdx, slashList.length - 1));
+  slashEl.textContent = '';
+  let lastGroup = null;
+  slashList.forEach((s, i) => {
+    if (s.group !== lastGroup) {
+      if (lastGroup) slashEl.append(el('div', 'slash-sep'));
+      if (s.group === 'skill') slashEl.append(el('div', 'slash-label', '技能'));
+      lastGroup = s.group;
+    }
+    const row = el('button', 'slash-item' + (i === slashIdx ? ' on' : ''));
+    row.type = 'button';
+    row.innerHTML = '<span class="sc-ico sc-' + s.icon + '">' + (SLASH_ICON[s.icon] || SLASH_ICON.skill) + '</span>'
+      + '<span class="sc-cmd">' + esc(s.label) + '</span>'
+      + '<span class="sc-en">' + esc(s.en) + '</span>';
+    row.addEventListener('mouseenter', () => { slashIdx = i; showSlashTip(row, s); });
+    row.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); chooseSlash(i); });
+    slashEl.append(row);
+  });
+  const r = input.getBoundingClientRect();
+  const w = Math.min(340, Math.max(280, window.innerWidth - 32));
+  slashEl.style.width = w + 'px';
+  const h = slashEl.offsetHeight;
+  let top = r.top - h - 8;
+  if (top < 8) top = Math.max(8, r.bottom + 8);
+  slashEl.style.left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8) + 'px';
+  slashEl.style.top = top + 'px';
+  const active = slashEl.querySelectorAll('.slash-item')[slashIdx];
+  if (active) showSlashTip(active, slashList[slashIdx]);
+}
+
+function createSlashArtifact(kind) {
+  const cv = current();
+  if (!cv) return;
+  const cfg = { doc: { kind: 'doc', name: '文档.md' }, deck: { kind: 'deck', name: '幻灯片.deck.json' }, design: { kind: 'design', name: '页面.html' }, game: { kind: 'design', name: '游戏.html' } }[kind];
+  if (!cfg) return;
+  if (!cv.artifact) cv.artifact = { kind: cfg.kind, name: cfg.name };
+  openArtifactPane(cv.artifact.kind, cv.artifact.name);
+  saveConv(cv).catch(() => {});
+  flashHint('已新建' + (kind === 'doc' ? '文档' : kind === 'deck' ? '幻灯片' : '设计') + '产物');
+  input.focus();
+}
+
+function chooseSlash(i) {
+  const s = slashList[i];
+  if (!s) return;
+  closeSlash();
+  if (s.insert) {
+    input.value = s.insert;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    return;
+  }
+  if (s.run === 'files') { const f = $('#fileInput'); if (f) f.click(); return; }
+  if (['doc', 'deck', 'design', 'game'].includes(s.run)) { createSlashArtifact(s.run); return; }
+  if (s.click) { const target = document.querySelector(s.click); if (target) target.click(); }
+}
+
+input.addEventListener('input', () => {
+  const q = slashQuery();
+  if (q === null) closeSlash();
+  else { slashIdx = 0; renderSlash(q); }
+});
+
+input.addEventListener('keydown', (e) => {
+  if (!slashEl) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeSlash(); return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); e.stopImmediatePropagation(); slashIdx = (slashIdx + 1) % slashList.length; renderSlash(slashQuery()); return; }
+  if (e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); slashIdx = (slashIdx - 1 + slashList.length) % slashList.length; renderSlash(slashQuery()); return; }
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); chooseSlash(slashIdx); }
+}, true);
+
+document.addEventListener('mousedown', (e) => {
+  if (slashEl && !slashEl.contains(e.target) && e.target !== input) closeSlash();
+});
+
+const slashBtn = $('#slashBtn');
+if (slashBtn) slashBtn.addEventListener('click', () => {
+  input.value = '/';
+  input.focus();
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+});
