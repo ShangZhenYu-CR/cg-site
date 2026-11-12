@@ -2835,9 +2835,39 @@ function hideThinking() {
               if (ev.imgPrompt) reply.imgPrompts = [...(reply.imgPrompts || []), ev.imgPrompt];
               if (!reply.meta) reply.meta = '图片';
             }
-            if (ev.tool) { reply.tools = reply.tools || []; reply.tools.push({ name: ev.tool.name || ev.tool, args: ev.tool.args, result: null }); }
-            if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }
-            if (ev.t) { acc += ev.t; schedule(); }
+            if (ev.tool_progress && ev.tool_progress.name === 'write_file') {
+              const raw = String(ev.tool_progress.raw || '');
+              const nm = raw.match(/"name"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+              const cm = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/);
+              if (nm && cm) {
+                let name = '', content = '';
+                try { name = JSON.parse('"' + nm[1] + '"'); } catch (e) {}
+                try { content = JSON.parse('"' + cm[1].replace(/\\$/, '') + '"'); } catch (e) { content = cm[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'); }
+                if (name) {
+                  applyFiles(cv, [{ name, content }]);
+                  if (!cv.artifact) cv.artifact = { kind: 'doc', name };
+                  if ($('#artPane').hidden) openArtifactPane(cv.artifact.kind, cv.artifact.name);
+                  else renderArtifact();
+                }
+              }
+            }
+            if (ev.tool && ev.tool.name === 'write_file' && ev.tool.args) {
+              const a = ev.tool.args;
+              const name = String(a.name || '文档.md');
+              const content = String(a.content || '');
+              applyFiles(cv, [{ name, content }]);
+              reply.wrote = [name];
+              if (!cv.artifact) cv.artifact = { kind: 'doc', name };
+              if (cv.artifact.kind === 'doc') cv.artifact.name = name;
+              reply.tools = reply.tools || [];
+              reply.tools.push({ name: 'write_file', args: { name }, result: '已写入' });
+              if ($('#artPane').hidden) openArtifactPane(cv.artifact.kind, name);
+              else renderArtifact();
+            } else if (ev.tool) {
+              reply.tools = reply.tools || [];
+              reply.tools.push({ name: ev.tool.name || 'tool', args: ev.tool.args, result: null });
+            }
+            if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }            if (ev.t) { acc += ev.t; schedule(); }
           }
         }
       }
@@ -6193,4 +6223,13 @@ $('#metaProject').addEventListener('click', (e) => {
   e.stopPropagation();
   if (projPickEl) { closeProjectPicker(); return; }
   openProjectPicker(e.currentTarget);
+});
+
+$('#docBtn').addEventListener('click', () => {
+  const cv = current();
+  if (!cv) return;
+  if (!cv.artifact) cv.artifact = { kind: 'doc', name: '文档.md' };
+  openArtifactPane(cv.artifact.kind, cv.artifact.name);
+  flashHint(cv.artifact.kind === 'doc' ? '这次回复会写进右侧文档' : '已打开右侧产物');
+  input.focus();
 });
