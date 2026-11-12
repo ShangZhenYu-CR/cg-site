@@ -2870,6 +2870,18 @@ function hideThinking() {
               reply.tools.push({ name: 'write_file', args: { name }, result: '已写入' });
               if ($('#artPane').hidden) openArtifactPane(cv.artifact.kind, name);
               else renderArtifact();
+            } else if (ev.tool && ev.tool.name === 'publish_plugin') {
+              const a = ev.tool.args || {};
+              reply.tools = reply.tools || [];
+              const card = { name: 'publish_plugin', args: a, result: '待确认' };
+              reply.tools.push(card);
+              const ok = window.confirm('发布到插件库并生成在线页面？\n\n名称：' + (a.name || '(未命名)') + '\n标识：' + (a.slug || '(自动)') + '\n\n发布会推送到 GitHub，几秒后生效。');
+              if (!ok) { card.result = '已取消'; flashHint('已取消发布'); }
+              else {
+                card.result = '发布中…';
+                const r = await publishDesignArtifact({ name: a.name, desc: a.desc, slug: a.slug });
+                card.result = r.ok ? ('已发布：' + r.url) : ('失败：' + (r.error || ''));
+              }
             } else if (ev.tool) {
               reply.tools = reply.tools || [];
               reply.tools.push({ name: ev.tool.name || 'tool', args: ev.tool.args, result: null });
@@ -5497,34 +5509,36 @@ function openPluginViewer(it) {
   $('#plugView').hidden = false;
 }
 
-async function publishDesignArtifact() {
+async function publishDesignArtifact(opts) {
+  const o = opts || {};
   const cv = current();
   const file = cv && (cv.files || []).find((x) => /\.html?$/i.test(x.name || '') && String(x.content || '').trim());
-  if (!file) { flashHint('当前对话里没有可发布的 HTML'); return; }
+  if (!file) { flashHint('当前对话里没有可发布的 HTML'); return { ok: false, error: '没有 HTML' }; }
   const rawName = (cv.artifact && cv.artifact.name ? cv.artifact.name : file.name || '').replace(/\.[^.]+$/, '');
-  let displayName = (cv.title && cv.title !== '新对话' ? cv.title : rawName || '').trim();
+  let displayName = String(o.name || '').trim() || (cv.title && cv.title !== '新对话' ? cv.title : rawName || '').trim();
   if (!displayName) displayName = (prompt('这个插件叫什么名字？') || '').trim();
-  if (!displayName) { flashHint('得先有个名字'); return; }
-  let base = displayName.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!displayName) { flashHint('得先有个名字'); return { ok: false, error: '没有名字' }; }
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  let base = norm(o.slug || displayName);
   if (base.length < 2) {
-    // 中文标题生成不出合法 slug，问用户要一个英文标识
     const typed = (prompt('给这个插件起一个英文标识（小写字母/数字/连字符，例如 my-calculator）', '') || '').trim().toLowerCase();
-    base = typed.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-    if (base.length < 2) { flashHint('标识不合法，发布会取消'); return; }
+    base = norm(typed);
+    if (base.length < 2) { flashHint('标识不合法，发布会取消'); return { ok: false, error: 'slug 不合法' }; }
   }
   const slug = base;
   flashHint('发布中…');
   const r = await api('/plugins/publish', { method: 'POST', body: {
     slug,
     name: displayName.slice(0, 40),
-    desc: String(cv.title || displayName).slice(0, 100),
+    desc: String(o.desc || cv.title || displayName).slice(0, 100),
     html: file.content,
   } });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { flashHint(j.error || '发布失败'); return; }
+  if (!r.ok) { flashHint(j.error || '发布失败'); return { ok: false, error: j.error || '发布失败' }; }
   pluginItems = [];
   flashHint(j.networked ? '已发布（注意：这个插件会联网）' : '已发布：' + j.url);
   try { await navigator.clipboard.writeText(j.url); } catch {}
+  return { ok: true, url: j.url, networked: !!j.networked };
 }
 /* ---------------- 图库 ---------------- */
 /** 汇总所有对话里的图片（用户贴的 + 模型生成的），最近的在前 */
