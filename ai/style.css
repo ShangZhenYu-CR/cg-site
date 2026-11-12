@@ -1944,3 +1944,10 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 
 .proj-pick input:focus,
 .proj-pick input:focus-visible{box-shadow:none!important;outline:0!important}
+
+/* 避免与项目页的 .pp-search 全局样式撞车：选择器里的搜索行必须是无框的 */
+.proj-pick .pp-search{
+  height:34px!important;border:0!important;border-bottom:1px solid var(--line)!important;
+  border-radius:0!important;background:transparent!important;box-shadow:none!important;
+  padding:0 4px 0 8px!important;margin:0 0 4px!important;
+}
