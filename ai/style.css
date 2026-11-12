@@ -1889,3 +1889,20 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 
 /* 底部 Project / 模型文字与输入框内缩对齐（Claude 是往框内缩 ~10px） */
 .composer-meta{padding:0 12px;box-sizing:border-box}
+
+/* ＋ 按钮：图标与按钮同心（之前 grid 的 justify 是 normal，图标从左边排，偏 3px） */
+#plusBtn{
+  width:28px!important;height:28px!important;
+  padding:0!important;border-radius:50%!important;
+  display:grid!important;place-items:center!important;justify-items:center!important;
+}
+#plusBtn svg{width:18px;height:18px;display:block}
+
+/* ＋ 常态保持中性（Claude 的加号不填充），激活状态由上方 chips 表达 */
+#composer #plusBtn{
+  width:28px!important;height:28px!important;padding:0!important;
+  border-radius:50%!important;display:grid!important;place-items:center!important;justify-items:center!important;
+  background:transparent!important;border-color:transparent!important;color:var(--dim)!important;
+}
+#composer #plusBtn:hover{background:var(--panel2)!important;color:var(--text)!important}
+#composer #plusBtn.on{background:transparent!important;border-color:transparent!important;color:var(--dim)!important}
