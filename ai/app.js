@@ -6401,6 +6401,9 @@ function chooseSlash(i) {
     input.setSelectionRange(input.value.length, input.value.length);
     return;
   }
+  // 执行动作类命令时清空 /game 这段文本
+  input.value = '';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
   if (s.run === 'files') { const f = $('#fileInput'); if (f) f.click(); return; }
   if (['doc', 'deck', 'design', 'game'].includes(s.run)) { createSlashArtifact(s.run); return; }
   if (s.click) { const target = document.querySelector(s.click); if (target) target.click(); }
