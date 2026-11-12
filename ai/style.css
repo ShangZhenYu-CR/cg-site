@@ -1854,3 +1854,21 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .imgbox.ready .img-load,
 .imgbox.broken .img-load{display:none}
 @keyframes img-spin{to{transform:rotate(360deg)}}
+
+/* ---- 输入区对齐 Claude：模型信息放框下右侧，框内只留语音与发送（2026-11-12） ---- */
+#cmModel{
+  height:auto;padding:2px 6px;margin:0;border-radius:6px;gap:6px;
+  font-size:12.5px;font-weight:400;color:var(--faint);background:transparent;
+}
+#cmModel .mm{color:var(--dim);font-weight:500}
+#cmModel .me{color:var(--faint)}
+#cmModel:hover{background:var(--panel2);color:var(--text)}
+.composer-meta .right{display:flex;align-items:center;gap:6px}
+.composer .cm-mic,.composer .cm-voice{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;color:var(--dim)}
+.composer .cm-mic:hover,.composer .cm-voice:hover{background:var(--panel2);color:var(--text)}
+
+/* 底栏顺序对齐 Claude：＋ 左，语音靠右，发送最右 */
+.composer .plus-wrap{order:1}
+.composer .cm-mic{order:2;margin-left:auto}
+.composer .cm-voice{order:2}
+.composer .send{order:3;margin-left:6px}
