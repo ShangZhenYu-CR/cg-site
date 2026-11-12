@@ -1886,3 +1886,6 @@ body.noside #side .nav-row svg{width:20px;height:20px}
   padding:0!important;
   font-size:16px!important;
 }
+
+/* 底部 Project / 模型文字与输入框内缩对齐（Claude 是往框内缩 ~10px） */
+.composer-meta{padding:0 12px;box-sizing:border-box}
