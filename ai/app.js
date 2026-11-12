@@ -3315,30 +3315,31 @@ const FILE_RE = /```file:([^\n`]+)\n([\s\S]*?)```/g;
 
 /** 流式切分：把 ```file:name ... ``` 从正文里摘出来；未闭合的也先收进 files */
 function splitStreamFiles(src) {
-  const files = [];
-  let text = '';
-  let pos = 0;
-  while (true) {
-    const open = src.indexOf('```file:', pos);
-    if (open < 0) break;
-    text += src.slice(pos, open);
-    const nl = src.indexOf('\n', open);
-    if (nl < 0) { pos = src.length; break; }
-    const name = src.slice(open + 8, nl).trim();
-    const close = src.indexOf('```', nl + 1);
-    if (close < 0) {
-      files.push({ name, content: src.slice(nl + 1) });
-      pos = src.length;
-      break;
-    }
-    files.push({ name, content: src.slice(nl + 1, close) });
-    pos = close + 3;
-  }
-  text += src.slice(pos);
-  return { text, files };
+  const open = src.indexOf('```file:');
+  if (open < 0) return { text: src, files: [] };
+  const nl = src.indexOf('\n', open);
+  if (nl < 0) return { text: src.slice(0, open), files: [] };
+  const name = src.slice(open + 8, nl).trim();
+  // 注意：文档内容里可能还有 ``` 代码块，流式阶段不找闭合，整段都归文件；
+  // 真正的闭合在 extractFiles 里用最后一个 ``` 判断。
+  return { text: src.slice(0, open), files: [{ name, content: src.slice(nl + 1) }] };
 }
-
 function extractFiles(text) {
+  // 单文件块：文档正文里可能有 ``` 代码块，闭合必须取最后一个 ```
+  const open = text.indexOf('```file:');
+  if (open >= 0) {
+    const nl = text.indexOf('\n', open);
+    if (nl >= 0) {
+      const name = text.slice(open + 8, nl).trim();
+      const close = text.lastIndexOf('```');
+      const second = text.indexOf('```file:', open + 1);
+      if (name && close > nl && (second < 0 || second > close)) {
+        const content = text.slice(nl + 1, close).replace(/\s+$/, '') + '\n';
+        const cleaned = (text.slice(0, open) + text.slice(close + 3)).replace(/\n{3,}/g, '\n\n').trim();
+        return { files: [{ name, content }], text: cleaned };
+      }
+    }
+  }
   const files = [];
   FILE_RE.lastIndex = 0;
   let m;
@@ -3349,7 +3350,6 @@ function extractFiles(text) {
   const cleaned = text.replace(FILE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
   return { files, text: cleaned };
 }
-
 function applyFiles(cv, incoming) {
   cv.files = cv.files || [];
   for (const f of incoming) {
