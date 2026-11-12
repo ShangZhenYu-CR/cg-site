@@ -2653,6 +2653,16 @@ async function sendChat(text, opts = {}) {
   const drawMode = !!opts.draw || !!state.imageMode;
   const gifAsk = !!opts.gif;
 
+  // 文档类需求：自动建一份文档产物，让模型按 file 围栏写到右侧，而不是只在对话里输出
+  if (!drawMode && !gifAsk && !cv.artifact) {
+    const m = text.match(/(文档|报告|方案|说明书|白皮书|文章|总结|简历|会议纪要|策划书|需求文档|设计文档)/);
+    if (m) {
+      const safe = String(m[1]).replace(/[\\/:*?"<>|]/g, '').slice(0, 16) || '文档';
+      cv.artifact = { kind: 'doc', name: safe + '.md' };
+      openArtifactPane('doc', cv.artifact.name);
+    }
+  }
+
   // 上文里最近的一张图，作为参考图（保持角色/风格一致）
   let refImages = [];
   if (drawMode) {
@@ -2766,7 +2776,7 @@ function hideThinking() {
         // 出图工具常开：模型自己判断要不要画
         imageTool: true,
         ...(drawMode
-          ? { imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wa }
+          ? { imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wantN }
           : { effort }),
         codeMode: state.codeMode || !!cv.artifact,
         fileNames: (cv.files || []).map(f => f.name),
