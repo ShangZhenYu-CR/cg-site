@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 15:05';
+const APP_BUILD = '2026-11-13 15:11';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4507,7 +4507,8 @@ const MAX_REF_IMAGES = 10;
 
 
 /* ---------------- 建议下一句 ---------------- */
-const SUGGEST_MODEL = 'gpt-6-luna';
+const SUGGEST_MODEL = 'gpt-6.1-terra';
+const SUGGEST_EFFORT = 'low';
 let suggestReqToken = 0;
 let suggestKey = '';
 function hideSuggests() {
@@ -4550,7 +4551,7 @@ async function maybeSuggest(cv) {
   suggestKey = key;
   const my = ++suggestReqToken;
   try {
-    const r = await api('/suggest', { method: 'POST', body: { model: SUGGEST_MODEL, messages: cv.messages } });
+    const r = await api('/suggest', { method: 'POST', body: { model: SUGGEST_MODEL, effort: SUGGEST_EFFORT, messages: cv.messages } });
     if (my !== suggestReqToken) return;      // 已经切走/又发了一条
     if (!r.ok) return;
     const j = await r.json().catch(() => ({}));
