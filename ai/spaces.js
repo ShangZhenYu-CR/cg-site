@@ -103,6 +103,7 @@ export function mountSpaces(ctx) {
     const isCanvas = res.type === 'canvas';
     box.classList.toggle('canvas-board', isCanvas);
     $('#addBlockBtn').textContent = isCanvas ? '＋ 文本卡' : '＋ 添加文本块';
+    $('#linkCardsBtn').hidden = !isCanvas;
     if (isCanvas) { renderCanvas(box, res); return; }
     for (const e of (res.entities || [])) {
       const row = el('div', 'page-block');
@@ -173,6 +174,14 @@ export function mountSpaces(ctx) {
       }
       card.addEventListener('pointerdown', (ev) => {
         if (ev.target.closest('textarea,button')) return;
+        if (S.linkMode) {
+          if (!S.linkFrom) { S.linkFrom = e.id; card.classList.add('link-from'); } else if (S.linkFrom !== e.id) {
+            S.resource.edges = (S.resource.edges || []).concat([{ from: S.linkFrom, to: e.id }]);
+            S.linkFrom = null; S.linkMode = false; $('#linkCardsBtn').classList.remove('on');
+            renderEditor(); scheduleSave();
+          }
+          return;
+        }
         S.activeEntity = e.id;
         const sx = ev.clientX, sy = ev.clientY, ox = Number(p.x) || 0, oy = Number(p.y) || 0;
         card.setPointerCapture(ev.pointerId);
@@ -193,6 +202,22 @@ export function mountSpaces(ctx) {
       });
       box.append(card);
     }
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'canvas-edges');
+    svg.setAttribute('width', '2000'); svg.setAttribute('height', '1200');
+    for (const ed of (res.edges || [])) {
+      const a = (res.entities || []).find((x) => x.id === ed.from);
+      const b = (res.entities || []).find((x) => x.id === ed.to);
+      if (!a || !b) continue;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', (a.payload.x || 0) + (a.payload.w || 240) / 2);
+      line.setAttribute('y1', (a.payload.y || 0) + (a.payload.h || 160) / 2);
+      line.setAttribute('x2', (b.payload.x || 0) + (b.payload.w || 240) / 2);
+      line.setAttribute('y2', (b.payload.y || 0) + (b.payload.h || 160) / 2);
+      line.setAttribute('stroke', 'rgba(120,120,120,.55)'); line.setAttribute('stroke-width', '2');
+      svg.append(line);
+    }
+    box.append(svg);
     if (!(res.entities || []).length) box.append(el('div', 'set-hint', '画布还是空的，点下面「＋ 文本卡」。'));
     $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
   }
@@ -227,6 +252,7 @@ export function mountSpaces(ctx) {
     let blocks;
     if (S.resource.type === 'canvas') {
       blocks = (S.resource.entities || []).map((e) => ({ id: e.id || undefined, expectedRevision: Number(e.revision) || 0, payload: e.payload || {} }));
+      S.resource.edges = S.resource.edges || [];
     } else {
       blocks = [...document.querySelectorAll('#pageEditor .page-block textarea')].map((ta) => ({
         id: ta.dataset.eid || undefined,
@@ -239,7 +265,7 @@ export function mountSpaces(ctx) {
     try {
       const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id), {
         method: 'PUT',
-        body: { baseRevision: S.resource.revision, title: titleEl ? titleEl.value : S.resource.title, entities: blocks },
+        body: { baseRevision: S.resource.revision, title: titleEl ? titleEl.value : S.resource.title, entities: blocks, edges: S.resource.type === 'canvas' ? (S.resource.edges || []) : undefined },
       });
       const j = await r.json().catch(() => ({}));
       if (r.status === 409) { S.conflict = true; $('#spaceSaveState').textContent = '有冲突，已保留你的输入'; flashHint(j.error || '页面已被其他人修改'); return; }
@@ -525,6 +551,12 @@ export function mountSpaces(ctx) {
   $('#newResourceBtn').addEventListener('click', () => createPage());
   $('#spaceNotif').addEventListener('click', () => showNotifications());
   $('#spaceAddMember').addEventListener('click', () => addMember());
+  $('#linkCardsBtn').addEventListener('click', () => {
+    if (!S.resource || S.resource.type !== 'canvas') return;
+    S.linkMode = !S.linkMode; S.linkFrom = null;
+    $('#linkCardsBtn').classList.toggle('on', S.linkMode);
+    flashHint(S.linkMode ? '点两张卡建立连线' : '已退出连线');
+  });
   $('#addBlockBtn').addEventListener('click', () => {
     if (!S.resource) return;
     if (S.resource.type === 'canvas') {
