@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:30';
+const APP_BUILD = '2026-11-14 00:32';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1060,6 +1060,7 @@ function setSaveState(conv, state, error, extra) {
 }
 
 async function saveConv(conv, extra) {
+  console.log('[dbg] saveConv', conv && conv.rev, 'streaming', state.streaming, new Error().stack.split('\n').slice(2, 5).join(' | '));
   if (!conv || !conv.id) return { ok: false, error: '没有会话' };
   // 冲突未解决：暂停这个会话的保存队列，绝不自动提交旧内容
   const rec0 = saveStates.get(conv.id);
