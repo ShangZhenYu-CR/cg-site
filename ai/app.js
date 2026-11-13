@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 18:03';
+const APP_BUILD = '2026-11-13 18:05';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -937,7 +937,10 @@ async function createConv(opts = {}) {
       settings: { model: LS.model, effort: LS.effort, codeMode: !!state.codeMode, search: !!state.search, raw: !!state.rawUpload, imageMode: !!state.imageMode, gifMode: !!state.gifMode },
     },
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    if (r.status === 401) { const e = new Error('登录过期了'); e.status = 401; throw e; }
+    return null;
+  }
   const { conversation } = await r.json();
   state.convs.unshift(conversation);
   state.currentId = conversation.id;
@@ -2704,6 +2707,7 @@ async function sendChat(text, opts = {}) {
     try {
       cv = await createConv({ private: !!state.pendingPrivate, projectId: state.projectFilter || null });
     } catch (e) {
+      if (e && e.status === 401) { logout(); flashHint('登录过期了，请重新登录'); return; }
       cv = null;
     }
     if (!cv) {
