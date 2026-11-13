@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:33';
+const APP_BUILD = '2026-11-13 17:35';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5541,6 +5541,8 @@ function renderArtifact() {
       start.type = 'button';
       start.addEventListener('click', () => {
         body.textContent = '';
+        docEditPref = true;
+        try { localStorage.setItem('ai.docEdit', '1'); } catch {}
         renderDoc(body, file);
         const ta = body.querySelector('.art-md');
         if (ta) ta.focus();
@@ -5574,8 +5576,16 @@ function renderCodeFile(body, file) {
   body.append(wrap);
 }
 
-/** 文档：可编辑 markdown，右侧实时预览 */
+/** 文档：默认只看渲染结果，需要改的时候再切「编辑」 */
+let docEditPref = (() => { try { return localStorage.getItem('ai.docEdit') === '1'; } catch { return false; } })();
 function renderDoc(body, file) {
+  const wrapBox = el('div', 'doc-wrap');
+  const bar = el('div', 'doc-bar');
+  const bPrev = el('button', 'doc-tab', '预览');
+  const bEdit = el('button', 'doc-tab', '编辑');
+  bPrev.type = 'button'; bEdit.type = 'button';
+  bar.append(bPrev, bEdit);
+
   const wrap = el('div', 'art-doc');
   const ta = el('textarea', 'art-md');
   ta.value = file.content || '';
@@ -5589,8 +5599,22 @@ function renderDoc(body, file) {
     timer = setTimeout(() => { prev.innerHTML = md(file.content || ''); hydrateCalcs(prev); }, 250);
   });
   ta.addEventListener('blur', () => { const cv = current(); if (cv) saveConv(cv).catch(() => {}); });
+
+  const apply = (edit) => {
+    docEditPref = edit;
+    try { localStorage.setItem('ai.docEdit', edit ? '1' : '0'); } catch {}
+    wrap.classList.toggle('view-only', !edit);
+    bPrev.classList.toggle('on', !edit);
+    bEdit.classList.toggle('on', edit);
+    if (edit) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  };
+  bPrev.addEventListener('click', () => apply(false));
+  bEdit.addEventListener('click', () => apply(true));
+
   wrap.append(ta, prev);
-  body.append(wrap);
+  wrapBox.append(bar, wrap);
+  body.append(wrapBox);
+  apply(docEditPref);
 }
 
 /** 幻灯片：左缩略图 + 右画布；数据是 {slides:[{title,bullets}]} */

@@ -2050,3 +2050,15 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 /* 等待状态：文字 + 计时 */
 .msg.thinking .te{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
 
+
+/* 文档：默认只看渲染结果，编辑模式才显示原文 */
+.doc-wrap{height:100%;display:flex;flex-direction:column;min-height:0}
+.doc-bar{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid var(--line);flex:none}
+.doc-tab{height:24px;padding:0 10px;border-radius:7px;font-size:12px;color:var(--dim);border:0;background:transparent}
+.doc-tab:hover{color:var(--text)}
+.doc-tab.on{background:var(--panel2);color:var(--text)}
+.art-doc{min-height:0}
+.art-doc.view-only{grid-template-columns:1fr}
+.art-doc.view-only .art-md{display:none}
+.art-doc.view-only .art-preview{max-width:760px;margin:0 auto;padding:26px 28px}
+
