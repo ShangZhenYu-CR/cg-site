@@ -1247,8 +1247,8 @@ body.in-project .top .title::after{content:'⌄';font-size:11px;color:var(--fain
 #artPane{position:fixed;right:0;top:0;bottom:0;width:min(720px,46vw);background:var(--bg);border-left:1px solid var(--line);display:flex;flex-direction:column;z-index:40}
 #artPane[hidden]{display:none}
 #artPane.wide{width:min(1100px,72vw)}
-body.artopen #main{margin-right:min(720px,46vw)}
-body.artopen #artPane.wide ~ #main{margin-right:min(1100px,72vw)}
+body.artopen #main{margin-right:var(--art-w)}
+body.artopen #artPane.wide ~ #main{margin-right:var(--art-w)}
 .art-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);flex:none}
 .art-title-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
 .art-kind{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel2);color:var(--dim);flex:none}
@@ -1308,6 +1308,9 @@ body.artopen #artPane.wide ~ #main{margin-right:min(1100px,72vw)}
 /* 产物面板：真正全屏（覆盖整页），并让主区让位 */
 body{--art-w:min(720px,46vw)}
 body.artopen .app{margin-right:var(--art-w);transition:margin-right .16s var(--ease-out)}
+/* 拖动过程中不要过渡，否则中间内容会慢半拍 */
+body.art-resizing .app,body.art-resizing #main,body.art-resizing #artPane{transition:none!important}
+body.art-resizing #main{margin-right:var(--art-w)}
 body.artfull .app{margin-right:0}
 #artPane{width:var(--art-w)}
 #artPane.expanded{position:fixed;inset:0;width:100vw!important;max-width:none;z-index:120;box-shadow:none}

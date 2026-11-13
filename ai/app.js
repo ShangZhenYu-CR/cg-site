@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:35';
+const APP_BUILD = '2026-11-13 17:37';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5375,8 +5375,10 @@ function initSideResizer() {
 /* 产物面板宽度：拖动左边缘可调，双击复位 */
 const ART_W_KEY = 'ai.artw';
 function applyArtWidth(w) {
-  const max = Math.round(window.innerWidth * 0.78);
-  const v = Math.max(360, Math.min(w, max));
+  // 右栏再宽也要给中间的对话留出可读宽度（侧栏宽度 + 360）
+  const side = document.body.classList.contains('noside') ? 0 : 288;
+  const max = Math.max(360, Math.min(Math.round(window.innerWidth * 0.78), window.innerWidth - side - 360));
+  const v = Math.max(320, Math.min(w, max));
   document.body.style.setProperty('--art-w', v + 'px');
   return v;
 }
