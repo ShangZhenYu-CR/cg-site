@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 19:48';
+const APP_BUILD = '2026-11-13 19:53';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1566,7 +1566,7 @@ function renderSetNav(active) {
 
 
 /* ---------------- 设置 · 技能 ---------------- */
-const SKILL_PERM_LABEL = { search: '联网搜索', image: '画图', gif: '动图', code: '代码文件', artifact: '产物' };
+const SKILL_PERM_LABEL = { search: '联网搜索', image: '画图', gif: '动图', code: '代码文件', chart: '图表', calc: '计算', artifact: '产物' };
 async function mountSkillList(box) {
   box.textContent = '';
   box.append(el('div', 'set-hint', '读取中…'));
@@ -1586,7 +1586,7 @@ async function mountSkillList(box) {
     main.append(head);
     if (s.desc) main.append(el('div', 'sk-desc', s.desc));
     const perms = el('div', 'sk-perms');
-    for (const k of ['search', 'image', 'gif', 'code']) if (s.perms && s.perms[k]) perms.append(el('span', 'sk-p', SKILL_PERM_LABEL[k]));
+    for (const k of ['search', 'image', 'gif', 'code', 'chart', 'calc']) if (s.perms && s.perms[k]) perms.append(el('span', 'sk-p', SKILL_PERM_LABEL[k]));
     if (s.perms && s.perms.artifact) perms.append(el('span', 'sk-p', '产物：' + ({ doc: '文档', deck: '幻灯片', design: '设计稿' }[s.perms.artifact] || s.perms.artifact)));
     if (!perms.children.length) perms.append(el('span', 'sk-p', '只用对话'));
     perms.append(el('span', 'sk-p', '作者 ' + (s.author || '—')));
@@ -1633,7 +1633,7 @@ function skillForm(pane, skill) {
   mk('说明', desc);
   mk('提示词', prompt);
   const checks = el('div', 'sk-checks');
-  const permDefs = [['search', '联网搜索'], ['image', '画图'], ['gif', '动图'], ['code', '代码文件']];
+  const permDefs = [['search', '联网搜索'], ['image', '画图'], ['gif', '动图'], ['code', '代码文件'], ['chart', '图表'], ['calc', '计算沙箱']];
   const boxes = {};
   for (const [k, label] of permDefs) {
     const lab = el('label');
@@ -1675,7 +1675,7 @@ function skillForm(pane, skill) {
       desc: desc.value.trim(),
       prompt: prompt.value,
       visibility: vis.value,
-      perms: { search: boxes.search.checked, image: boxes.image.checked, gif: boxes.gif.checked, code: boxes.code.checked, artifact: art.value || null },
+      perms: { search: boxes.search.checked, image: boxes.image.checked, gif: boxes.gif.checked, code: boxes.code.checked, chart: boxes.chart.checked, calc: boxes.calc.checked, artifact: art.value || null },
     };
     const r = skill ? await api('/skills/' + encodeURIComponent(skill.id), { method: 'PUT', body }) : await api('/skills', { method: 'POST', body });
     const j = await r.json().catch(() => ({}));
@@ -1790,6 +1790,18 @@ function mountPane(key) {
     const h = el('h3', null, '技能');
     h.style.marginBottom = '6px';
     pane.append(h, el('p', 'set-hint', '技能就是「斜杠命令 + 提示词 + 能力声明」。做好后所有人都能用：在输入框敲 / 就能选到。'));
+    const statsEl = el('p', 'set-hint', '');
+    statsEl.style.marginTop = '2px';
+    pane.append(statsEl);
+    (async () => {
+      try {
+        const r = await api('/skills/stats');
+        if (!r.ok) return;
+        const s = await r.json();
+        statsEl.textContent = '共 ' + (s.skills || 0) + ' 个技能（我的 ' + (s.mine || 0) + ' 个）· 累计调用 ' + (s.totalUses || 0) + ' 次'
+          + (s.top && s.top[0] ? ' · 最常用：' + s.top[0].name + '（' + s.top[0].uses + ' 次）' : '');
+      } catch (e) {}
+    })();
     const row = el('div', 'set-row');
     const add = el('button', 'set-chip', '＋ 新建技能');
     add.type = 'button';
@@ -2585,7 +2597,7 @@ function renderAll() {
   syncArtifactPane();
   renderSide();
   // 顶栏标题：跟着当前视图走，别停在上一段对话的标题
-  const VIEW_TITLE = { projects: '项目', files: '文件', images: '图库', plugins: '插件' };
+  const VIEW_TITLE = { projects: '项目', files: '文件', images: '图库', plugins: '插件', skills: '技能' };
   const tb = $('#titleBtn');
   if (tb && VIEW_TITLE[state.view]) {
     tb.textContent = VIEW_TITLE[state.view];
@@ -2599,6 +2611,12 @@ function renderAll() {
   if (pg) {
     pg.hidden = !isPlugins;
     if (isPlugins) renderPluginsPage();
+  }
+  const isSkills = state.view === 'skills';
+  const skp = $('#skillsPage');
+  if (skp) {
+    skp.hidden = !isSkills;
+    if (isSkills) renderSkillsPage();
   }
   const isImages = state.view === 'images';
   const isProject = state.view === 'project';
@@ -2623,7 +2641,7 @@ function renderAll() {
     fp.hidden = !isFiles;
     if (isFiles) renderFilesPage();
   }
-  if (isProj || isFiles || isImages || isPlugins || state.view === 'project') {
+  if (isProj || isFiles || isImages || isPlugins || isSkills || state.view === 'project') {
     $('#thread').textContent = '';
     $('#empty').hidden = true;
     layoutHomeComposer();
@@ -6269,6 +6287,67 @@ function renderGallery() {
   }
 }
 
+
+/* ---------------- 技能市场 ---------------- */
+function showSkillsPage() {
+  state.view = 'skills';
+  renderAll();
+}
+async function renderSkillsPage() {
+  const grid = $('#skGrid');
+  if (!grid) return;
+  await loadSkills();
+  const stats = await (async () => {
+    try { const r = await api('/skills/stats'); return r.ok ? await r.json() : null; } catch (e) { return null; }
+  })();
+  grid.textContent = '';
+  const cnt = $('#skCount');
+  if (cnt) cnt.textContent = (state.skills || []).length ? (state.skills || []).length + ' 个' + (stats && stats.totalUses ? ' · 共调用 ' + stats.totalUses + ' 次' : '') : '';
+  const list = (state.skills || []).slice().sort((a, b) => (b.uses || 0) - (a.uses || 0));
+  if (!list.length) {
+    const e = el('div', 'pp-empty');
+    e.append(el('div', 't', '还没有技能'));
+    e.append(el('div', 'd', '在 设置 → 技能 里新建，或者导入别人给的 JSON。'));
+    grid.append(e);
+    return;
+  }
+  for (const s of list) {
+    const card = el('div', 'plug-card sk-card');
+    const head = el('div', 'sk-head');
+    head.append(el('div', 'plug-n', s.name));
+    head.append(el('div', 'com', '/' + s.cmd));
+    card.append(head);
+    if (s.desc) card.append(el('div', 'plug-d', s.desc));
+    const meta = el('div', 'plug-m');
+    const pl = { search: '联网', image: '画图', gif: '动图', code: '代码', calc: '计算', chart: '图表' };
+    for (const k of Object.keys(pl)) if (s.perms && s.perms[k]) meta.append(el('span', 'plug-tag', pl[k]));
+    if (s.perms && s.perms.artifact) meta.append(el('span', 'plug-tag', '产物'));
+    if (s.uses) meta.append(el('span', 'plug-tag', '用过 ' + s.uses));
+    if (s.author) meta.append(el('span', null, s.author));
+    card.append(meta);
+    const acts = el('div', 'sk-acts2');
+    const use = el('button', 'set-chip', '用一次');
+    use.type = 'button';
+    use.addEventListener('click', () => useSkill(s));
+    acts.append(use);
+    if (s.mine) {
+      const ed = el('button', 'set-chip', '编辑');
+      ed.type = 'button';
+      ed.addEventListener('click', () => { $('#plusBtn').click(); setTimeout(() => { document.getElementById('setOpenBtn').click(); setTimeout(() => openSettings('skills'), 300); }, 100); });
+      const del = el('button', 'set-chip', '删除');
+      del.type = 'button';
+      del.addEventListener('click', async () => {
+        if (!confirm('删除技能「' + s.name + '」？')) return;
+        const r = await api('/skills/' + encodeURIComponent(s.id), { method: 'DELETE' });
+        if (r.ok) { flashHint('已删除'); renderSkillsPage(); }
+      });
+      acts.append(ed, del);
+    }
+    card.append(acts);
+    grid.append(card);
+  }
+}
+
 function showGalleryPage() {
   state.view = 'images';
   renderAll();
@@ -6420,6 +6499,7 @@ $('#navProjects').addEventListener('click', showProjectsPage);
 $('#ppNew').addEventListener('click', () => openProjectDialog(null));
 $('#navFiles').addEventListener('click', showFilesPage);
 $('#navGallery').addEventListener('click', showGalleryPage);
+$('#navSkills').addEventListener('click', () => { state.view = 'skills'; renderAll(); });
 $('#navPlugins').addEventListener('click', () => { state.view = 'plugins'; renderAll(); });
 $('#plugClose').addEventListener('click', () => { $('#plugView').hidden = true; $('#plugFrame').src = 'about:blank'; });
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });

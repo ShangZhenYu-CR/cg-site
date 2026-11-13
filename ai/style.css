@@ -2101,3 +2101,10 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .skill-form .sk-checks{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:13px}
 .skill-form .sk-checks label{display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--text)}
 
+
+/* 技能市场卡片 */
+.sk-card{display:flex;flex-direction:column;gap:6px}
+.sk-card .sk-head{display:flex;align-items:baseline;gap:8px;justify-content:space-between}
+.sk-card .com{font-size:12px;color:var(--dim);font-family:var(--mono)}
+.sk-card .sk-acts2{display:flex;gap:6px;margin-top:auto;padding-top:8px}
+
