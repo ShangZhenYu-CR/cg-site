@@ -2065,3 +2065,7 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .art-doc.view-only .art-md{display:none}
 .art-doc.view-only .art-preview{max-width:760px;margin:0 auto;padding:26px 28px}
 
+
+/* 图表：文字和网格跟随主题，饼图图例不再压到图上 */
+.chart-svg text{font-family:var(--font-sans)}
+

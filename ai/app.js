@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:49';
+const APP_BUILD = '2026-11-13 17:52';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -344,14 +344,17 @@ function chartSVG(specText) {
   const y = (v) => padT + ih - (((Number(v) || 0) - min) / span) * ih;
   const parts = [];
   parts.push('<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart-svg" role="img">');
-  for (let k = 0; k <= 4; k++) {
+  // pie：单独排版——不画坐标轴/网格，避免轴标签、图例和饼图叠在一起
+  const isPie = type === 'pie';
+  for (let k = 0; !isPie && k <= 4; k++) {
     const gy = padT + (ih / 4) * k;
     const val = max - (span / 4) * k;
-    parts.push('<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="rgba(0,0,0,.08)"/>');
-    parts.push('<text x="' + (padL - 8) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="11" fill="rgba(0,0,0,.5)">' + (Math.round(val * 100) / 100) + '</text>');
+    parts.push('<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="var(--line)"/>');
+    parts.push('<text x="' + (padL - 8) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="11" fill="var(--dim)">' + (Math.round(val * 100) / 100) + '</text>');
   }
   labels.forEach((lb, i) => {
-    parts.push('<text x="' + x(i) + '" y="' + (H - padB + 16) + '" text-anchor="middle" font-size="11" fill="rgba(0,0,0,.55)">' + esc(lb) + '</text>');
+    if (isPie) return;
+    parts.push('<text x="' + x(i) + '" y="' + (H - padB + 16) + '" text-anchor="middle" font-size="11" fill="var(--dim)">' + esc(lb) + '</text>');
   });
   if (type === 'bar') {
     const bw = Math.max(6, (iw / labels.length) * 0.6 / series.length);
@@ -365,7 +368,11 @@ function chartSVG(specText) {
   } else if (type === 'pie') {
     const data = series[0].data.map((v) => Math.max(0, Number(v) || 0));
     const total = data.reduce((a, b) => a + b, 0) || 1;
-    const cx = W / 2, cy = H / 2, R = Math.min(iw, ih) / 2 - 6;
+    // 左边饼、右边图例，各自占一半宽度，互不覆盖
+    const legendW = Math.min(220, Math.max(120, iw * 0.38));
+    const pieArea = iw - legendW;
+    const R = Math.max(40, Math.min(pieArea, ih) / 2 - 10);
+    const cx = padL + pieArea / 2, cy = padT + ih / 2;
     let a0 = -Math.PI / 2;
     data.forEach((v, i) => {
       const a1 = a0 + (v / total) * Math.PI * 2;
@@ -373,10 +380,27 @@ function chartSVG(specText) {
       const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
       const large = a1 - a0 > Math.PI ? 1 : 0;
       parts.push('<path d="M' + cx + ' ' + cy + ' L' + x0 + ' ' + y0 + ' A' + R + ' ' + R + ' 0 ' + large + ' 1 ' + x1 + ' ' + y1 + ' Z" fill="' + colors[i % colors.length] + '"/>');
+      // 占比写在扇形里：太小的片子不写，避免文字压在一起
+      const pct = (v / total) * 100;
+      if (pct >= 8) {
+        const mid = (a0 + a1) / 2;
+        const lx = cx + R * 0.62 * Math.cos(mid), ly = cy + R * 0.62 * Math.sin(mid);
+        parts.push('<text x="' + lx.toFixed(1) + '" y="' + (ly + 4).toFixed(1) + '" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">' + (Math.round(pct * 10) / 10) + '%</text>');
+      }
       a0 = a1;
     });
+    // 图例：色块 + 名称 + 百分比，纵向排列，超过高度自动分两列
+    const rows = Math.max(1, labels.length);
+    const lineH = Math.min(20, (ih - 8) / Math.min(rows, 8));
+    const perCol = Math.max(1, Math.floor((ih - 8) / lineH));
+    const lx0 = padL + pieArea + 8;
     labels.forEach((lb, i) => {
-      parts.push('<text x="8" y="' + (14 + i * 16) + '" font-size="11" fill="rgba(0,0,0,.6)">' + esc(lb) + ' · ' + (Math.round((data[i] / total) * 1000) / 10) + '%</text>');
+      const col = Math.floor(i / perCol), row = i % perCol;
+      const lx = lx0 + col * 96;
+      const ly = padT + 12 + row * lineH;
+      parts.push('<rect x="' + lx + '" y="' + (ly - 8) + '" width="9" height="9" rx="2" fill="' + colors[i % colors.length] + '"/>');
+      const pct = (Math.round((data[i] / total) * 1000) / 10);
+      parts.push('<text x="' + (lx + 14) + '" y="' + (ly) + '" font-size="11" fill="var(--dim)">' + esc(lb) + '　' + pct + '%</text>');
     });
   } else {
     series.forEach((s, si) => {
@@ -388,7 +412,7 @@ function chartSVG(specText) {
   series.forEach((s, si) => {
     if (!s.name) return;
     parts.push('<rect x="' + (padL + si * 90) + '" y="4" width="8" height="8" rx="2" fill="' + colors[si % colors.length] + '"/>');
-    parts.push('<text x="' + (padL + si * 90 + 12) + '" y="11" font-size="11" fill="rgba(0,0,0,.65)">' + esc(String(s.name)) + '</text>');
+    parts.push('<text x="' + (padL + si * 90 + 12) + '" y="11" font-size="11" fill="var(--dim)">' + esc(String(s.name)) + '</text>');
   });
   parts.push('</svg>');
   const title = spec.title ? '<div class="chart-title">' + esc(String(spec.title)) + '</div>' : '';
