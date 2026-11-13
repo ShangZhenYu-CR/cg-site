@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 02:42';
+const APP_BUILD = '2026-11-14 02:44';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1887,7 +1887,7 @@ const SET_TABS = [
   ['keys', '快捷键'],
   ['data', '数据'],
 ];
-if (LS.role === 'admin') SET_TABS.push(['audit', '审计']);
+if (LS.role === 'admin') SET_TABS.push(['audit', '审计'], ['monitor', '监控']);
 
 /** 把已有的小弹窗内容搬进设置面板（保留原有事件） */
 const SET_SRC = { ins: 'dlgIns', users: 'dlgUsers', cfg: 'dlgCfg', usage: 'dlgUsage' };
@@ -2414,6 +2414,40 @@ function mountPane(key) {
         box.append(row);
       });
     })();
+    return;
+  }
+  if (key === 'monitor') {
+    pane.append(el('h3', null, '运行监控'));
+    pane.append(el('p', 'set-hint', '请求量、错误率、延迟与上游 5xx；每 15 秒刷新。'));
+    const box = el('div', 'mon-box');
+    pane.append(box);
+    const render = (m) => {
+      box.textContent = '';
+      if (!m) { box.append(el('div', 'set-hint', '读取失败')); return; }
+      const grid = el('div', 'mon-grid');
+      const card = (k, v) => { const c = el('div', 'mon-card'); c.append(el('div', 'mon-k', k)); c.append(el('div', 'mon-v', v)); return c; };
+      grid.append(card('请求数', String(m.req)));
+      grid.append(card('5xx', String(m.err5) + '（' + (m.errorRate * 100).toFixed(1) + '%）'));
+      grid.append(card('p50', Math.round(m.p50) + 'ms'));
+      grid.append(card('p95', Math.round(m.p95) + 'ms'));
+      grid.append(card('上游 5xx', String(m.upstream ? m.upstream.err5 : 0)));
+      grid.append(card('运行', Math.floor(m.uptimeSec / 60) + ' 分钟'));
+      box.append(grid);
+      if (Array.isArray(m.alerts) && m.alerts.length) box.append(el('div', 'mon-alert', '告警：' + m.alerts.join('；')));
+      if (Array.isArray(m.errors) && m.errors.length) {
+        const list = el('div', 'mon-errs');
+        for (const e of m.errors.slice(0, 6)) list.append(el('div', 'mon-err', new Date(e.at).toLocaleTimeString() + '  ' + e.status + '  ' + e.path));
+        box.append(list);
+      }
+    };
+    const load = async () => {
+      try { render(await (await api('/metrics')).json()); } catch (e) { render(null); }
+    };
+    load();
+    const timer = setInterval(load, 15000);
+    const dlg = $('#dlgSet');
+    const clear = () => { clearInterval(timer); dlg.removeEventListener('click', clear); };
+    dlg.addEventListener('click', clear);
     return;
   }
   if (key === 'audit') {
