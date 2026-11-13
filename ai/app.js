@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-12 02:41';
+const APP_BUILD = '2026-11-13 10:42';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2197,31 +2197,48 @@ function togglePin(id) {
   try { localStorage.setItem(PIN_KEY, JSON.stringify(all)); } catch {}
 }
 const DRAFT_KEY = 'ai.drafts';
+const DRAFT_NEW = '__new__';
 function loadDrafts() {
   try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); } catch { return {}; }
 }
-function saveDraft(convId, text) {
+function saveDraft(convId, text, images) {
   if (!convId) return;
   const all = loadDrafts();
-  if (text) all[convId] = text; else delete all[convId];
+  const hasImages = Array.isArray(images) && images.length > 0;
+  if (text || hasImages) {
+    if (convId === DRAFT_NEW) all[convId] = { text: text || '', images: hasImages ? images : [] };
+    else all[convId] = text;
+  } else {
+    delete all[convId];
+  }
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(all)); } catch {}
 }
 function restoreDraft(convId) {
   const all = loadDrafts();
-  const text = all[convId] || '';
+  const raw = all[convId];
+  const text = (raw && typeof raw === 'object') ? (raw.text || '') : (raw || '');
   input.value = text;
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+  if (convId === DRAFT_NEW) {
+    state.attachments = (raw && Array.isArray(raw.images)) ? raw.images : [];
+    renderAttach();
+  } else if (state.attachments.length) {
+    // 附件属于新对话草稿，切到别的会话要收起来
+    state.attachments = [];
+    renderAttach();
+  }
   const box = $('#composer');
   if (box) box.classList.toggle('has-text', !!text.trim() || state.attachments.length > 0);
+  syncSendVisible();
 }
 
 let lastDraftConv = null;
 function syncDraftSwitch() {
   const cv = current();
-  const id = cv ? cv.id : null;
+  const id = cv ? cv.id : DRAFT_NEW;
   if (id === lastDraftConv) return;
-  if (lastDraftConv) saveDraft(lastDraftConv, input.value.trim() ? input.value : '');
+  if (lastDraftConv) saveDraft(lastDraftConv, input.value, state.attachments);
   lastDraftConv = id;
   restoreDraft(id);
 }
@@ -2647,7 +2664,8 @@ function humanError(msg) {
 }
 
 async function sendChat(text, opts = {}) {
-  const cv = current() || await createConv();
+  const cv = current() || await createConv({ private: !!state.pendingPrivate, projectId: state.projectFilter || null });
+  if (cv) { state.pendingPrivate = false; saveDraft(DRAFT_NEW, ''); }
   if (!cv) return;
   // 首句自动命名：标题还是「新对话」时，用第一句当标题
   if ((!cv.title || cv.title === '新对话') && text && text.trim()) {
@@ -3054,6 +3072,7 @@ try { threadRO.observe(thread); } catch {}
 function renderAttach() {
   const box = $('#attach');
   box.textContent = '';
+  if (!current()) saveDraft(DRAFT_NEW, input.value, state.attachments);
   state.attachments.forEach((a, i) => {
     const chip = el('div', 'chip');
     const img = el('img');
@@ -4574,7 +4593,7 @@ input.addEventListener('input', () => {
   sendBtn.disabled = !input.value.trim() && !state.attachments.length;
   syncSendVisible();
   const cv = current();
-  saveDraft(cv && cv.id, input.value);
+  saveDraft(cv ? cv.id : DRAFT_NEW, input.value, state.attachments);
 });
 syncSendVisible();
 
@@ -4662,7 +4681,8 @@ $('#newChat').addEventListener('click', async () => {
     const terra = act.find((m) => /terra/i.test(m));
     if (act.length) { LS.model = terra || act[0]; modelPinned = false; persistSettings(); }
   }
-  await createConv({ projectId: state.projectFilter || null });
+  state.currentId = null;
+  state.pendingPrivate = false;
   renderAll();
   closeNav();
   input.focus();
@@ -5807,7 +5827,8 @@ $('#newMore').addEventListener('click', (e) => {
 
 $('#newPrivate2').addEventListener('click', async () => {
   closePops();
-  await createConv({ private: true });
+  state.currentId = null;
+  state.pendingPrivate = true;
   renderAll();
   closeNav();
   input.focus();
@@ -5817,7 +5838,7 @@ $('#newProject2').addEventListener('click', () => {
   closePops();
   openProjectDialog(null);
 });
-$('#newPrivateBtn').addEventListener('click', async () => { closePops(); await createConv({ private: true }); renderAll(); input.focus(); });
+$('#newPrivateBtn').addEventListener('click', async () => { closePops(); state.currentId = null; state.pendingPrivate = true; renderAll(); input.focus(); });
 $('#moveProjectBtn').addEventListener('click', () => {
   const cv = current();
   closePops();
@@ -5987,7 +6008,6 @@ async function bootData() {
   }
 
   await Promise.all([loadProjects(), loadConvs()]);
-  if (!state.convs.length) await createConv();
   if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
     state.currentId = state.convs[0] ? state.convs[0].id : null;
   }
