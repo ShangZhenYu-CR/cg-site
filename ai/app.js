@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 05:29';
+const APP_BUILD = '2026-11-14 05:31';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -7121,22 +7121,46 @@ async function renderPluginsPage() {
 }
 
 let pluginOrigin = null;
+let pluginSession = null;
+function newPluginNonce() {
+  try { return crypto.randomUUID(); } catch (e) { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2); }
+}
 function openPluginViewer(it) {
   $('#plugName').textContent = it.name || it.slug;
   $('#plugOpen').href = it.url;
-  $('#plugFrame').src = it.url;
   $('#plugView').hidden = false;
   try { pluginOrigin = new URL(it.url, location.href).origin; } catch (e) { pluginOrigin = null; }
+  const frame = document.getElementById('plugFrame');
+  pluginSession = { nonce: newPluginNonce(), ready: false, url: it.url };
+  if (frame) { frame.dataset.hostNonce = pluginSession.nonce; frame.src = it.url; }
 }
-
-/* 插件页 ↔ 宿主：只接受当前插件 iframe 的消息，转发到登记工具 */
+const plugFrameEl = document.getElementById('plugFrame');
+if (plugFrameEl) {
+  plugFrameEl.addEventListener('load', () => {
+    if (!pluginSession) return;
+    pluginSession.ready = false;
+    try {
+      plugFrameEl.contentWindow.postMessage({ type: 'dsh:host_hello', nonce: pluginSession.nonce, apiVersion: 1 }, '*');
+    } catch (e) {}
+  });
+}
+/* 插件页 ↔ 宿主：一次性 nonce 握手 + frame 绑定，转发到登记工具 */
 window.addEventListener('message', async (e) => {
-  if (!pluginOrigin || e.origin !== pluginOrigin) return;
   const frame = document.getElementById('plugFrame');
   if (!frame || e.source !== frame.contentWindow) return;
   const d = e.data || {};
+  const sess = pluginSession;
+  if (d.type === 'dsh:plugin_ready' && sess && d.nonce === sess.nonce) {
+    sess.ready = true;
+    try { frame.contentWindow.postMessage({ type: 'dsh:host_ready', nonce: sess.nonce, apiVersion: 1 }, '*'); } catch (e2) {}
+    return;
+  }
   if (d.type !== 'dsh:call' || !d.id || !d.name) return;
-  const reply = (payload) => { try { frame.contentWindow.postMessage({ type: 'dsh:result', id: d.id, ...payload }, pluginOrigin); } catch (e2) {} };
+  const v2 = !!(sess && sess.ready && d.nonce === sess.nonce);
+  const legacy = !v2 && !(sess && sess.ready) && !!(pluginOrigin && e.origin === pluginOrigin);
+  if (!v2 && !legacy) return;
+  const targetOrigin = v2 ? '*' : (pluginOrigin || '*');
+  const reply = (payload) => { try { frame.contentWindow.postMessage({ type: 'dsh:result', id: d.id, nonce: sess && sess.nonce, ...payload }, targetOrigin); } catch (e2) {} };
   const tool = (state.tools || []).find((t) => t.name === d.name);
   if (!tool) { reply({ ok: false, error: '没有这个工具：' + d.name }); return; }
   try {
