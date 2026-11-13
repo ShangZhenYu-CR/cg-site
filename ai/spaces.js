@@ -659,13 +659,33 @@ export function mountSpaces(ctx) {
     try {
       const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/ai', {
         method: 'POST', timeout: 90000,
-        body: { action, entityId: sel.id, expectedRevision: sel.revision, from: sel.from, to: sel.to, instruction },
+        body: { action: action === 'edit' ? 'preview' : action, entityId: sel.id, expectedRevision: sel.revision, from: sel.from, to: sel.to, instruction },
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { $('#spaceSaveState').textContent = ''; flashHint(j.error || 'AI 调用失败'); return; }
       if (action === 'ask') {
         $('#spaceSaveState').textContent = '';
         openListPanel('选区问答', '只回答，不改原文', [{ label: (j.answer || '').slice(0, 2000), sub: 'AI 回答' }]);
+        return;
+      }
+      if (j.action === 'preview') {
+        $('#spaceSaveState').textContent = '待确认';
+        const diff = diffLines(sel.text, j.answer || '');
+        openListPanel('修改建议', '确认应用后再写入页面', [
+          ...(diff.length ? diff : ['没有差异']).map((t) => ({ label: t, sub: '' })),
+          { label: '应用修改', sub: '应用后仍可撤销', onClick: async () => {
+            const ar = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/ai', {
+              method: 'POST', timeout: 60000,
+              body: { action: 'apply', entityId: sel.id, expectedRevision: sel.revision, from: sel.from, to: sel.to, replacement: j.answer || '', instruction },
+            });
+            const aj = await ar.json().catch(() => ({}));
+            if (!ar.ok) { flashHint(aj.error || '应用失败'); return; }
+            S.resource = aj.resource || S.resource;
+            renderEditor(); renderTree();
+            $('#spaceSaveState').textContent = 'AI 已应用';
+            flashHint('已应用修改');
+          } },
+        ]);
         return;
       }
       S.resource = j.resource || S.resource;
