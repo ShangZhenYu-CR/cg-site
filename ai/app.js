@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 03:10';
+const APP_BUILD = '2026-11-14 03:13';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1443,6 +1443,7 @@ function convRow(cv) {
   row.draggable = true;
   row.dataset.id = cv.id;
   const t = el('span', 't', (cv.private ? '🔒 ' : '') + (cv.title || '新对话'));
+  if (cv.private) t.title = '私人对话：仅创建者和管理员可见';
   const time = el('span', 'time', when(cv.updatedAt));
   const act = el('button', 'row-act');
   act.type = 'button';
@@ -1475,6 +1476,7 @@ function convRow(cv) {
 
   if (isAdmin() && cv.private && cv.owner) {
     const own = el('span', 'lock', cv.owner);
+    own.title = '私人对话：管理员可见';
     row.append(own);
   }
 
