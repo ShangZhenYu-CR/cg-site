@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 03:06';
+const APP_BUILD = '2026-11-14 03:10';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1994,6 +1994,8 @@ async function mountToolsPane(pane) {
     if (t.desc) main.append(el('div', 'sk-desc', t.desc));
     const perms = el('div', 'sk-perms');
     if (t.params && t.params.length) perms.append(el('span', 'sk-p', '参数：' + t.params.join(', ')));
+    perms.append(el('span', 'sk-p', 'v' + (t.version || 1)));
+    if (t.lastTest) perms.append(el('span', 'sk-p', '测试' + (t.lastTest.ok ? '✓' : '✗') + ' ' + (t.lastTest.ms || 0) + 'ms'));
     perms.append(el('span', 'sk-p', (t.timeoutMs || 5000) + 'ms'));
     perms.append(el('span', 'sk-p', '作者 ' + (t.author || '—')));
     if (t.uses) perms.append(el('span', 'sk-p', '用过 ' + t.uses));
