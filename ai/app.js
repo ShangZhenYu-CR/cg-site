@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 15:55';
+const APP_BUILD = '2026-11-13 16:02';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4984,6 +4984,10 @@ $('#artTitleBtn').addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#artMenu') && !e.target.closest('#artTitleBtn')) closeArtMenu();
 });
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (d && d.dshPreview === 'blocked') flashHint('预览里的链接不会跳转：' + String(d.href).slice(0, 40));
+});
 // ✦ 让 AI 改：Claude 头部没有这个按钮，能力改为点标题聚焦输入框
 $('#cbDownload').addEventListener('click', () => $('#artExport').click());
 $('#cbPresent').addEventListener('click', togglePresent);
@@ -5550,8 +5554,34 @@ function renderDesign(body, file) {
   body.append(wrap);
 }
 
+const previewGuardScript = '<script>(function(){' +
+  'document.addEventListener("click",function(e){' +
+  'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
+  'if(!a)return;' +
+  'var href=a.getAttribute("href")||"";' +
+  'e.preventDefault();' +
+  'if(href.charAt(0)==="#"){' +
+  'var id=href.slice(1);var t=id?document.getElementById(id):null;' +
+  'if(t&&t.scrollIntoView){t.scrollIntoView({behavior:"smooth",block:"start"});}' +
+  'else if(!id){window.scrollTo({top:0,behavior:"smooth"});}' +
+  'try{history.replaceState(null,"",href);}catch(err){}' +
+  '}else{' +
+  'try{parent.postMessage({dshPreview:"blocked",href:href},"*");}catch(err){}' +
+  '}' +
+  '},true);' +
+  '})();</script>';
+
+function withPreviewGuard(html) {
+  const h = String(html || '');
+  if (/<head[^>]*>/i.test(h)) return h.replace(/<head[^>]*>/i, (m) => m + previewGuardScript);
+  if (/<html[^>]*>/i.test(h)) return h.replace(/<html[^>]*>/i, (m) => m + previewGuardScript);
+  return previewGuardScript + h;
+}
+
 function designDoc(file) {
-  return String(file.content || '<!doctype html><body style="font:15px system-ui;padding:24px;color:#888">还没有内容——在左边描述你要的页面，我会输出 HTML。</body>');
+  const raw = String(file.content || '');
+  if (!raw.trim()) return '<!doctype html><body style="font:15px system-ui;padding:24px;color:#888">还没有内容——在左边描述你要的页面，我会输出 HTML。</body>';
+  return withPreviewGuard(raw);
 }
 function emptyArtifactState() {
   const box = el('div', 'art-empty');
