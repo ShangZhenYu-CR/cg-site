@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 20:25';
+const APP_BUILD = '2026-11-13 20:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3459,9 +3459,14 @@ function hideThinking() {
               }
             } else if (ev.tool) {
               reply.tools = reply.tools || [];
-              reply.tools.push({ name: ev.tool.name || 'tool', args: ev.tool.args, result: null });
+              reply.tools.push({ name: ev.tool.name || 'tool', args: ev.tool.args, result: null, call_id: ev.tool.call_id || null });
             }
             if (Array.isArray(ev.tool_calls)) pushToolCards(reply, ev.tool_calls);
+            if (ev.tool_done) {
+              const list = reply.tools || [];
+              const hit = ev.tool_done.call_id ? list.find((t) => t.call_id === ev.tool_done.call_id) : list.slice(-1)[0];
+              if (hit) hit.result = String(ev.tool_done.result || '').slice(0, 300);
+            }
             if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }
             if (ev.tool_start && ev.tool_start.name) showThinking(THINK_LABELS[ev.tool_start.name] || '正在调用工具');
             if (ev.tool_progress && ev.tool_progress.name === 'write_file') {
