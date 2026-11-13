@@ -704,6 +704,13 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* 项目页：标题居中 + 右上深色按钮（对齐 Claude projects 页） */
 
 /* 空间（多人协作） */
+.canvas-board{position:relative;display:block!important;min-height:560px;border:1px dashed var(--line);border-radius:10px;background-image:radial-gradient(rgba(0,0,0,.12) 1px,transparent 1px);background-size:20px 20px;overflow:auto}
+.canvas-card{position:absolute;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.10);overflow:hidden}
+.canvas-card.dragging{box-shadow:0 10px 28px rgba(0,0,0,.22);cursor:grabbing}
+.canvas-card .cc-head{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;font-size:11px;color:var(--faint);background:rgba(0,0,0,.03);cursor:grab;user-select:none}
+.canvas-card textarea{flex:1;border:0;background:transparent;color:var(--text);padding:8px 10px;resize:none;outline:none;font:13px/1.55 inherit}
+.canvas-card .cc-del{border:0;background:none;color:var(--faint);cursor:pointer;font-size:14px;line-height:1}
+
 .space-selbar{position:fixed;z-index:9999;display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
 .space-selbar button{border:0;background:transparent;color:var(--text);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer}
 .space-selbar button:hover{background:rgba(0,0,0,.06)}

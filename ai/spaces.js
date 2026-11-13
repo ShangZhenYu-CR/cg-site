@@ -98,6 +98,10 @@ export function mountSpaces(ctx) {
     if (!res) { title.value = ''; title.disabled = true; return; }
     title.disabled = false;
     title.value = res.title || '';
+    const isCanvas = res.type === 'canvas';
+    box.classList.toggle('canvas-board', isCanvas);
+    $('#addBlockBtn').textContent = isCanvas ? '＋ 文本卡' : '＋ 添加文本块';
+    if (isCanvas) { renderCanvas(box, res); return; }
     for (const e of (res.entities || [])) {
       const row = el('div', 'page-block');
       const ta = document.createElement('textarea');
@@ -123,6 +127,57 @@ export function mountSpaces(ctx) {
     }
     $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
   }
+  function renderCanvas(box, res) {
+    for (const e of (res.entities || [])) {
+      const p = e.payload || {};
+      const card = el('div', 'canvas-card');
+      card.style.left = (p.x || 20) + 'px';
+      card.style.top = (p.y || 20) + 'px';
+      card.style.width = (p.w || 240) + 'px';
+      card.style.height = (p.h || 160) + 'px';
+      card.dataset.eid = e.id || '';
+      card.dataset.rev = String(e.revision || 0);
+      const head = el('div', 'cc-head', p.type === 'image' ? '图片卡' : '文本卡');
+      const del = el('button', 'cc-del', '×');
+      del.type = 'button';
+      del.title = '删除卡片';
+      del.addEventListener('click', () => {
+        S.resource.entities = (S.resource.entities || []).filter((x) => x !== e);
+        renderEditor();
+        scheduleSave();
+      });
+      head.append(del);
+      const ta = document.createElement('textarea');
+      ta.value = p.text || '';
+      ta.placeholder = '卡片内容…';
+      ta.addEventListener('focus', () => { S.activeEntity = e.id; });
+      ta.addEventListener('input', () => { e.payload = { ...(e.payload || {}), text: ta.value }; scheduleSave(); });
+      card.append(head, ta);
+      card.addEventListener('pointerdown', (ev) => {
+        if (ev.target.closest('textarea,button')) return;
+        S.activeEntity = e.id;
+        const sx = ev.clientX, sy = ev.clientY, ox = Number(p.x) || 0, oy = Number(p.y) || 0;
+        card.setPointerCapture(ev.pointerId);
+        card.classList.add('dragging');
+        const move = (m) => {
+          const nx = Math.max(0, ox + m.clientX - sx), ny = Math.max(0, oy + m.clientY - sy);
+          card.style.left = nx + 'px'; card.style.top = ny + 'px';
+          e.payload = { ...(e.payload || {}), x: Math.round(nx), y: Math.round(ny) };
+        };
+        const up = () => {
+          card.classList.remove('dragging');
+          card.removeEventListener('pointermove', move);
+          card.removeEventListener('pointerup', up);
+          scheduleSave();
+        };
+        card.addEventListener('pointermove', move);
+        card.addEventListener('pointerup', up);
+      });
+      box.append(card);
+    }
+    if (!(res.entities || []).length) box.append(el('div', 'set-hint', '画布还是空的，点下面「＋ 文本卡」。'));
+    $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
+  }
   function scheduleSave() {
     if (S.saveTimer) clearTimeout(S.saveTimer);
     $('#spaceSaveState').textContent = '未保存…';
@@ -131,11 +186,16 @@ export function mountSpaces(ctx) {
   async function savePage() {
     if (S.saving || !S.resource || !S.space) return;
     const titleEl = $('#spaceResTitle');
-    const blocks = [...document.querySelectorAll('#pageEditor .page-block textarea')].map((ta) => ({
-      id: ta.dataset.eid || undefined,
-      expectedRevision: Number(ta.dataset.rev) || 0,
-      payload: { text: ta.value },
-    }));
+    let blocks;
+    if (S.resource.type === 'canvas') {
+      blocks = (S.resource.entities || []).map((e) => ({ id: e.id || undefined, expectedRevision: Number(e.revision) || 0, payload: e.payload || {} }));
+    } else {
+      blocks = [...document.querySelectorAll('#pageEditor .page-block textarea')].map((ta) => ({
+        id: ta.dataset.eid || undefined,
+        expectedRevision: Number(ta.dataset.rev) || 0,
+        payload: { text: ta.value },
+      }));
+    }
     S.saving = true;
     $('#spaceSaveState').textContent = '保存中…';
     try {
@@ -260,9 +320,12 @@ export function mountSpaces(ctx) {
   }
   async function createPage() {
     if (!S.space) return;
-    const title = (prompt('页面标题', '新页面') || '').trim();
+    const kind = (prompt('类型：page=页面，canvas=画布', 'page') || '').trim();
+    if (!kind) return;
+    const type = kind === 'canvas' ? 'canvas' : 'page';
+    const title = (prompt(type === 'canvas' ? '画布标题' : '页面标题', type === 'canvas' ? '新画布' : '新页面') || '').trim();
     if (!title) return;
-    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources', { method: 'POST', body: { type: 'page', title } });
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources', { method: 'POST', body: { type, title } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '新建失败'); return; }
     await openSpace(S.space.id);
@@ -296,7 +359,12 @@ export function mountSpaces(ctx) {
   $('#spaceAddMember').addEventListener('click', () => addMember());
   $('#addBlockBtn').addEventListener('click', () => {
     if (!S.resource) return;
-    S.resource.entities = (S.resource.entities || []).concat([{ id: '', payload: { text: '' }, revision: 0 }]);
+    if (S.resource.type === 'canvas') {
+      const n = (S.resource.entities || []).length;
+      S.resource.entities = (S.resource.entities || []).concat([{ id: '', payload: { text: '', x: 20 + (n % 5) * 30, y: 20 + (n % 4) * 30, w: 240, h: 160, type: 'text' }, revision: 0 }]);
+    } else {
+      S.resource.entities = (S.resource.entities || []).concat([{ id: '', payload: { text: '' }, revision: 0 }]);
+    }
     renderEditor();
     scheduleSave();
     const tas = document.querySelectorAll('#pageEditor textarea');
