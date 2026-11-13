@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 02:19';
+const APP_BUILD = '2026-11-14 02:26';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2383,9 +2383,17 @@ function mountPane(key) {
       if (!items.length) { box.append(el('div', 'set-hint', '还没有记忆。多聊几次它就会自己记住。')); return; }
       items.forEach((it) => {
         const row = el('div', 'mem-row');
-        const tier = el('span', 'mem-tier' + (it.tier === 'deep' ? ' deep' : ''), it.tier === 'deep' ? '深' : '常');
+        const scope = it.scope || (it.tier === 'deep' ? 'fact' : 'personal');
+        const scopeLabel = { personal: '个人', project: '项目', fact: '单次' }[scope] || '个人';
+        const tier = el('span', 'mem-tier' + (scope === 'fact' ? ' deep' : ''), scopeLabel);
         row.append(tier);
-        row.append(el('div', 'mem-text', it.text));
+        const wrap = el('div', 'mem-main');
+        wrap.append(el('div', 'mem-text', it.text));
+        if (it.source && it.source.convId) {
+          const srcConv = (state.convs || []).find((c) => c.id === it.source.convId);
+          wrap.append(el('div', 'mem-src', '来源：' + (srcConv ? srcConv.title || srcConv.id : String(it.source.convId).slice(0, 10))));
+        }
+        row.append(wrap);
         const move = el('button', 'mem-del', it.tier === 'deep' ? '转常用' : '转深库');
         move.type = 'button';
         move.addEventListener('click', async () => {
