@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 03:21';
+const APP_BUILD = '2026-11-14 05:13';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -569,6 +569,7 @@ async function api(path, opts = {}) {
       method: opts.method || 'GET',
       headers: { 'content-type': 'application/json', 'x-token': LS.token },
       credentials: 'include',
+      cache: 'no-store',
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: opts.signal || (ctrl && ctrl.signal),
     });
@@ -3307,6 +3308,7 @@ function syncArtifactPane() {
   }
 }
 
+let spacesApi = null;
 function renderAll() {
   syncArtifactPane();
   renderSide();
@@ -3318,6 +3320,9 @@ function renderAll() {
     const i = el('i', 'tchev', '⌄');
     tb.append(i);
   }
+  const isSpaces = state.view === 'spaces';
+  const spPage = $('#spacesPage');
+  if (spPage) { spPage.hidden = !isSpaces; if (isSpaces && spacesApi) spacesApi.render(); }
   const isProj = state.view === 'projects';
   const isFiles = state.view === 'files';
   const isPlugins = state.view === 'plugins';
@@ -3355,7 +3360,7 @@ function renderAll() {
     fp.hidden = !isFiles;
     if (isFiles) renderFilesPage();
   }
-  if (isProj || isFiles || isImages || isPlugins || isSkills || state.view === 'project') {
+  if (isProj || isFiles || isImages || isPlugins || isSkills || isSpaces || state.view === 'project') {
     $('#thread').textContent = '';
     $('#empty').hidden = true;
     layoutHomeComposer();
@@ -7913,6 +7918,10 @@ async function boot() {
   startSync();
 }
 
+try {
+  const mod = await import('./spaces.js?v=' + encodeURIComponent(APP_BUILD));
+  spacesApi = mod.mountSpaces({ api, el, $, state, renderAll, openListPanel, flashHint });
+} catch (e) { console.error('spaces module failed', e); }
 boot();
 initSideResizer();
 // 面板可能在启动时就是打开的（有产物），补一次初始化

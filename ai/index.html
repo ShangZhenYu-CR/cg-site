@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>毛豆 · 大肥鱼的小站</title>
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="style.css?v=202611140321">
+<link rel="stylesheet" href="style.css?v=202611140513">
   <link rel="stylesheet" href="vendor/katex/katex.min.css">
   <script defer src="vendor/katex/katex.min.js"></script>
 </head>
@@ -39,6 +39,7 @@
       </div>
       <nav class="side-nav">
         <button class="nav-row" id="navProjects"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 7h5l2 2h11v10H3z"/></svg>项目</button>
+        <button class="nav-row" id="navSpaces"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/></svg>空间</button>
         <button class="nav-row" id="navFiles"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4h7l9 9-7 7-9-9z"/></svg>文件</button>
         <button class="nav-row" id="navGallery"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg>图库</button>
         <button class="nav-row" id="navSkills"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.9 5.3.5-4 3.6 1.2 5.2L12 14.6 7.3 17.2l1.2-5.2-4-3.6 5.3-.5z"/></svg><span>技能</span></button>
@@ -138,6 +139,40 @@
         <div class="pp-head"><h1>插件</h1><span class="pp-count" id="plugCount"></span></div>
         <p class="pp-sub">每个人写的小页面都放这里，独立域名托管，用沙箱打开——它读不到你的登录信息。</p>
         <div class="pp-grid" id="plugGrid"></div>
+      </div>
+      <div class="spaces-page" id="spacesPage" hidden>
+        <div class="spaces-head">
+          <button class="ghost" id="spaceBack" hidden>← 空间</button>
+          <h1 id="spacesTitle">空间</h1>
+          <div class="spaces-acts">
+            <button class="ghost" id="spaceNotif">通知</button>
+            <button class="primary" id="newSpaceBtn">新建空间</button>
+            <button class="ghost" id="spaceAddMember" hidden>邀请成员</button>
+          </div>
+        </div>
+        <p class="spaces-sub" id="spacesSub">空间是一起工作的资料容器：成员、页面、评论和通知都按空间隔离。</p>
+        <div class="spaces-list" id="spacesList"></div>
+        <div class="space-work" id="spaceWork" hidden>
+          <aside class="space-tree">
+            <div class="space-tree-head"><span>资源</span><button class="icon" id="newResourceBtn" title="新建页面">＋</button></div>
+            <div id="spaceRes"></div>
+          </aside>
+          <section class="space-main">
+            <div class="space-main-head">
+              <input id="spaceResTitle" class="space-title-input" placeholder="页面标题">
+              <span class="space-save" id="spaceSaveState"></span>
+            </div>
+            <div id="pageEditor"></div>
+            <button class="ghost" id="addBlockBtn">＋ 添加文本块</button>
+          </section>
+          <aside class="space-side">
+            <div class="space-tabs">
+              <button class="on" id="tabComments" type="button">评论</button>
+              <button id="tabMembers" type="button">成员</button>
+            </div>
+            <div id="spaceSideBody"></div>
+          </aside>
+        </div>
       </div>
       <div class="proj-page" id="galleryPage" hidden>
         <div class="pp-head"><h1>图库</h1>
@@ -765,6 +800,6 @@
   </div>
 </div>
 
-<script src="app.js?v=202611140321" type="module"></script>
+<script src="app.js?v=202611140513" type="module"></script>
 </body>
 </html>
