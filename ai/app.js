@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 02:56';
+const APP_BUILD = '2026-11-14 03:01';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1287,6 +1287,7 @@ async function doSaveConv(conv, extra) {
     res = await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body });
   } catch (e) {
     setSaveState(conv, 'failed', e && e.message);
+    pendingSaves.set(conv.id, conv);
     return { ok: false, error: e };
   }
   if (epoch !== sessionEpoch) {
@@ -7713,10 +7714,16 @@ async function ensureFreshConv(cv) {
   return cv;
 }
 
+const pendingSaves = new Map();
+let syncOffline = false;
+let syncFails = 0;
+let syncRetryAt = 0;
 async function loadConvsMeta() {
+  if (Date.now() < syncRetryAt) return false;
   let r;
-  try { r = await api('/convs?meta=1'); } catch (e) { return false; }
-  if (!r.ok) return false;
+  try { r = await api('/convs?meta=1'); } catch (e) { syncFails += 1; syncOffline = true; syncRetryAt = Date.now() + Math.min(8000, 1500 * syncFails); return false; }
+  if (!r.ok) { syncFails += 1; syncOffline = true; syncRetryAt = Date.now() + Math.min(8000, 1500 * syncFails); return false; }
+  if (syncOffline) { syncOffline = false; syncFails = 0; setTimeout(() => { forceSyncNow().catch(() => {}); }, 50); }
   const j = await r.json().catch(() => null);
   if (!j) return false;
   const list = Array.isArray(j.conversations) ? j.conversations : [];
@@ -7752,6 +7759,23 @@ try {
   }
 } catch (e) {}
 function pingTabs() { try { if (syncChannel) syncChannel.postMessage({ t: 'conv', at: Date.now() }); } catch (e) {} }
+
+async function flushPendingSaves() {
+  for (const [id, conv] of [...pendingSaves.entries()]) {
+    try { const r = await saveConv(conv); if (r && r.ok) pendingSaves.delete(id); } catch (e) {}
+  }
+}
+async function forceSyncNow() {
+  if (!LS.token) return;
+  syncRetryAt = 0;
+  try { await loadConvs(); } catch (e) {}
+  try { await loadConvsMeta(); } catch (e) {}
+  await flushPendingSaves();
+  renderAll();
+  loadRuns();
+}
+window.addEventListener('online', () => { flashHint('网络已恢复，正在同步…'); forceSyncNow().catch(() => {}); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) forceSyncNow().catch(() => {}); });
 
 function startSync() {
   if (syncTimer) return;
