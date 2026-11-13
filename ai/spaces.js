@@ -315,19 +315,34 @@ export function mountSpaces(ctx) {
           hist.addEventListener('click', async () => {
             const vr = await api('/spaces/' + encodeURIComponent(sp.id) + '/extensions/' + encodeURIComponent(x.id) + '/versions');
             const vj = await vr.json().catch(() => ({}));
-            const rows2 = (vj.versions || []).map((v) => ({
-              label: 'v' + v.version + (v.version === x.version ? '（当前）' : ''),
-              sub: new Date(v.createdAt).toLocaleString(),
-              onClick: async () => {
-                if (v.version === x.version) return;
-                if (!confirm('回滚到 v' + v.version + '？会生成新版本。')) return;
-                const rr = await api('/spaces/' + encodeURIComponent(sp.id) + '/extensions/' + encodeURIComponent(x.id) + '/rollback', { method: 'POST', body: { version: v.version } });
-                const jj = await rr.json().catch(() => ({}));
-                if (!rr.ok) { flashHint(jj.error || '回滚失败'); return; }
-                await openSpace(sp.id);
-                flashHint('已回滚到 v' + v.version);
-              },
-            }));
+            const base = '/spaces/' + encodeURIComponent(sp.id) + '/extensions/' + encodeURIComponent(x.id);
+            const rows2 = (vj.versions || []).flatMap((v) => {
+              const out = [{
+                label: 'v' + v.version + (v.version === x.version ? '（当前）' : ''),
+                sub: new Date(v.createdAt).toLocaleString() + ' · 点此对比当前',
+                onClick: async () => {
+                  const [a, b] = await Promise.all([
+                    api(base + '/versions/' + encodeURIComponent(x.version)).then((r) => r.json()).catch(() => ({})),
+                    api(base + '/versions/' + encodeURIComponent(v.version)).then((r) => r.json()).catch(() => ({})),
+                  ]);
+                  const diff = diffLines((b.version && b.version.html) || '', (a.version && a.version.html) || '');
+                  openListPanel('v' + v.version + ' ↔ 当前 v' + x.version, '只显示不同的行（最多 80 行）', diff.length ? diff.map((t) => ({ label: t, sub: '' })) : [{ label: '没有差异', sub: '' }]);
+                },
+              }];
+              if (v.version !== x.version) out.push({
+                label: '回滚到 v' + v.version,
+                sub: '会生成新版本，保留历史',
+                onClick: async () => {
+                  if (!confirm('回滚到 v' + v.version + '？会生成新版本。')) return;
+                  const rr = await api(base + '/rollback', { method: 'POST', body: { version: v.version } });
+                  const jj = await rr.json().catch(() => ({}));
+                  if (!rr.ok) { flashHint(jj.error || '回滚失败'); return; }
+                  await openSpace(sp.id);
+                  flashHint('已回滚到 v' + v.version);
+                },
+              });
+              return out;
+            });
             openListPanel('扩展版本 · ' + (x.name || x.id), '回滚会保留历史并生成新版本', rows2.length ? rows2 : [{ label: '没有历史版本', sub: '' }]);
           });
           row.append(hist);
@@ -435,6 +450,18 @@ export function mountSpaces(ctx) {
     });
     form.append(ta, sel, btn);
     box.append(form);
+  }
+
+  function diffLines(a, b) {
+    const al = String(a || '').split('\n'), bl = String(b || '').split('\n');
+    const out = [];
+    const n = Math.max(al.length, bl.length);
+    for (let i = 0; i < n && out.length < 80; i++) {
+      if ((al[i] || '') === (bl[i] || '')) continue;
+      if (al[i] != null) out.push('- ' + al[i].slice(0, 160));
+      if (bl[i] != null) out.push('+ ' + bl[i].slice(0, 160));
+    }
+    return out;
   }
 
   async function installExtension() {
