@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:33';
+const APP_BUILD = '2026-11-14 00:43';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -135,6 +135,8 @@ const canAstra = () => (RANK[LS.role] || 0) >= 2;
 const isAdmin = () => LS.role === 'admin';
 
 const state = {
+  runs: [],
+  currentRunId: null,
   projects: [],
   convs: [],
   currentId: null,
@@ -1012,6 +1014,55 @@ async function createConv(opts = {}) {
   state.currentId = conversation.id;
   return conversation;
 }
+
+
+/* ---------------- 任务（runs）：创建 / 取消 / 面板 ---------------- */
+const RUN_STATUS = { queued: '排队', running: '运行中', cancelling: '取消中', succeeded: '已完成', failed: '失败', cancelled: '已取消', interrupted: '已中断' };
+const RUN_ACTIVE = new Set(['queued', 'running', 'cancelling']);
+function newRunKey() { return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+async function loadRuns() {
+  try {
+    const r = await api('/runs');
+    if (!r.ok) return;
+    const j = await r.json().catch(() => ({}));
+    state.runs = Array.isArray(j.runs) ? j.runs : [];
+    renderRunChip();
+  } catch (e) {}
+}
+function renderRunChip() {
+  const b = $('#runChip');
+  if (!b) return;
+  const active = (state.runs || []).filter((r) => RUN_ACTIVE.has(r.status));
+  b.hidden = false;
+  b.textContent = active.length ? ('任务 · ' + active.length) : '任务';
+  b.classList.toggle('on', active.length > 0);
+  b.title = active.length ? (active.length + ' 个任务进行中') : '最近任务';
+}
+async function cancelRun(id) {
+  try { await api('/runs/' + encodeURIComponent(id) + '/cancel', { method: 'POST' }); } catch (e) {}
+  await loadRuns();
+}
+function openRunsPanel() {
+  const list = [...(state.runs || [])].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 10);
+  const rows = [{
+    label: '刷新', sub: '拉取最新任务状态', onClick: async () => { await loadRuns(); openRunsPanel(); },
+  }];
+  for (const r of list) {
+    const active = RUN_ACTIVE.has(r.status);
+    const when = new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString('zh-CN', { hour12: false });
+    rows.push({
+      label: (RUN_STATUS[r.status] || r.status) + ' · ' + (r.title || r.id),
+      sub: when + (active ? ' · 点一下取消' : (r.error ? ' · ' + String(r.error).slice(0, 40) : '')),
+      onClick: active ? async () => { await cancelRun(r.id); openRunsPanel(); } : undefined,
+    });
+  }
+  openListPanel('任务', list.length ? '最近 10 个任务；运行中的点一下取消' : '还没有任务', rows);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('#runChip');
+  if (!b) return;
+  loadRuns().then(openRunsPanel);
+});
 
 /* ---------------- 保存：状态、串行化、版本冲突 ---------------- */
 const saveQueues = new Map();
@@ -3382,6 +3433,14 @@ async function sendChat(text, opts = {}) {
   state.attachments = [];
   renderAttach();
 
+  // 每个请求都建一条任务记录：刷新后仍能看到状态/取消意图
+  let runId = null;
+  try {
+    const rr = await api('/runs', { method: 'POST', body: { conversationId: cv.id, requestKey: newRunKey(), title: cv.title } });
+    if (rr.ok) { const jj = await rr.json().catch(() => ({})); runId = jj.run && jj.run.id; }
+  } catch (e) {}
+  state.currentRunId = runId || null;
+
   // 画图模式且没有附件：走对话模型 + 图像工具，这样能看到上文
   const drawMode = !!opts.draw || !!state.imageMode;
   const gifAsk = !!opts.gif;
@@ -3548,7 +3607,7 @@ function hideThinking() {
     const res = await api('/chat', {
       method: 'POST', signal: state.controller.signal,
       body: {
-        model, search: state.search, convId: cv.id, projectId: cv.projectId || null,
+        model, search: state.search, convId: cv.id, projectId: cv.projectId || null, runId: runId || undefined,
         // 出图工具常开：模型自己判断要不要画
         imageTool: true,
         ...(drawMode
@@ -3855,6 +3914,8 @@ function hideThinking() {
     state.finishPromise = saveConv(cv);
     await state.finishPromise;
     state.finishPromise = null;
+    state.currentRunId = null;
+    loadRuns();
     renderAll();
     // 模型写完文件后，右侧产物面板跟着刷新
     if (!$('#artPane').hidden) renderArtifact();
@@ -5458,7 +5519,11 @@ function decideRoute({ text, hasAttach, attachUrl, attachUrls, gifMode, imageMod
 $('#composer').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (state.streaming) {
-    if (state.controller) { state.controller.abort(); return; }
+    if (state.controller) {
+      if (state.currentRunId) cancelRun(state.currentRunId);
+      state.controller.abort();
+      return;
+    }
     // 流已经结束、只是在收尾落盘：等它写完再发，别把这条消息吞掉
     if (state.finishPromise) { try { await state.finishPromise; } catch {} }
     if (state.streaming) {
@@ -7257,7 +7322,7 @@ async function bootData() {
     renderAll();
   }
 
-  await Promise.all([loadProjects(), loadConvs(), loadSkills(), loadTools()]);
+  await Promise.all([loadProjects(), loadConvs(), loadSkills(), loadTools(), loadRuns()]);
   if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
     state.currentId = state.convs[0] ? state.convs[0].id : null;
   }
@@ -7323,6 +7388,7 @@ function startSync() {
     if (state.streaming || state.saving || document.hidden || !LS.token) return;
     const before = state.convs.map(c => c.id + c.updatedAt).join('|');
     await loadConvs();
+    loadRuns();
     const after = state.convs.map(c => c.id + c.updatedAt).join('|');
     if (before !== after) renderAll();
   }, 15000);
