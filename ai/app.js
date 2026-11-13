@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:03';
+const APP_BUILD = '2026-11-13 22:08';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1131,6 +1131,7 @@ function persistSettings() {
     model: LS.model,
     effort: LS.effort,
     codeMode: !!state.codeMode,
+    workMode: !!state.workMode,
     search: !!state.search,
     raw: !!state.rawUpload,
     imageMode: !!state.imageMode,
@@ -1170,6 +1171,7 @@ function applyConvSettings(cv) {
 
     // 开关按会话重置；联网缺省为开（模型按需调用）
     setCap('code', !!s.codeMode);
+    setCap('work', !!s.workMode);
     setCap('search', s.search === undefined ? true : !!s.search);
     setCap('raw', !!s.raw);
     setCap('image', !!s.imageMode);
@@ -2303,6 +2305,15 @@ $('#setClose').addEventListener('click', () => { $('#dlgSet').hidden = true; });
 $('#dlgSet').addEventListener('click', (e) => { if (e.target.id === 'dlgSet') $('#dlgSet').hidden = true; });
 
 /* 线程 */
+/** 把结果里的链接变成可点的（下载文件尤其需要） */
+function linkify(text) {
+  return esc(String(text || '')).replace(/(https?:\/\/[^\s"'<>]+|\/files\/[A-Za-z0-9._-]+)/g, (m) => {
+    const href = m.startsWith('/') ? base() + m : m;
+    const attrs = m.startsWith('/files/') ? ' download' : ' target="_blank" rel="noreferrer"';
+    return '<a href="' + esc(href) + '"' + attrs + '>' + esc(m) + '</a>';
+  });
+}
+
 function toolCard(t) {
   const d = el('details', 'tool-card');
   const sum = document.createElement('summary');
@@ -2310,7 +2321,7 @@ function toolCard(t) {
   d.append(sum);
   const body = el('div', 'tc-body');
   const args = typeof t.args === 'string' ? t.args : JSON.stringify(t.args || {});
-  body.innerHTML = '<div>参数：<code>' + esc(String(args).slice(0, 300)) + '</code></div>' + (t.result ? '<div style="margin-top:4px">结果：' + esc(String(t.result).slice(0, 400)) + '</div>' : '');
+  body.innerHTML = '<div>参数：<code>' + esc(String(args).slice(0, 300)) + '</code></div>' + (t.result ? '<div style="margin-top:4px">结果：' + linkify(String(t.result).slice(0, 600)) + '</div>' : '');
   d.append(body);
   return d;
 }
@@ -3469,6 +3480,7 @@ function hideThinking() {
           ? { imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wantN }
           : { effort }),
         codeMode: state.codeMode || !!cv.artifact,
+        workMode: !!state.workMode,
         // 技能：服务端据此注入说明并只放开技能声明的工具
         skill: state.pendingSkill ? state.pendingSkill.id : undefined,
         fileNames: (cv.files || []).map(f => f.name),
@@ -4717,6 +4729,7 @@ const CAP_DEFS = [
   { k: 'image', icon: '🖼️', label: '画图' },
   { k: 'gif', icon: '🎞️', label: '动图' },
   { k: 'code', icon: '🧑‍💻', label: '编程模式' },
+  { k: 'work', icon: '🛠️', label: '工作模式' },
   { k: 'search', icon: '🌐', label: '联网搜索' },
   { k: 'fidelity', icon: '🔍', label: '保真' },
   { k: 'raw', icon: '📷', label: '原图' },
@@ -4726,6 +4739,7 @@ function capOn(k) {
   if (k === 'image') return state.imageMode;
   if (k === 'gif') return state.gifMode;
   if (k === 'code') return state.codeMode;
+  if (k === 'work') return state.workMode;
   if (k === 'search') return state.search;
   if (k === 'fidelity') return state.fidelity;
   if (k === 'raw') return state.rawUpload;
@@ -4758,6 +4772,7 @@ function resetTransientModes() {
   state.gifMode = false;
   state.imageMode = false;
   state.codeMode = false;
+  state.workMode = false;
   state.fidelity = false;
   state.rawUpload = false;
   input.placeholder = DEFAULT_PH;
@@ -4771,6 +4786,10 @@ function setCap(kind, on) {
   } else if (kind === 'gif') {
     state.gifMode = on;
     input.placeholder = on ? '描述动作（挂着图就是让这张图动起来）…' : DEFAULT_PH;
+  } else if (kind === 'work') {
+    state.workMode = on;
+    input.placeholder = on ? '描述要做的事，缺少工具时它会自己造…' : DEFAULT_PH;
+    flashHint(on ? '工作模式：可以自己找工具、造工具、生成文件' : '已关闭工作模式');
   } else if (kind === 'search') {
     state.search = on;
   } else if (kind === 'fidelity') {
