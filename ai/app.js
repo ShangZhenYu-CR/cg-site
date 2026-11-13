@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:54';
+const APP_BUILD = '2026-11-13 17:58';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2698,7 +2698,20 @@ function humanError(msg) {
 }
 
 async function sendChat(text, opts = {}) {
-  const cv = current() || await createConv({ private: !!state.pendingPrivate, projectId: state.projectFilter || null });
+  let cv = current();
+  if (!cv) {
+    // 新会话要先建号；断网/服务不可达时别把用户这句话吞掉
+    try {
+      cv = await createConv({ private: !!state.pendingPrivate, projectId: state.projectFilter || null });
+    } catch (e) {
+      cv = null;
+    }
+    if (!cv) {
+      if (input && text) { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); }
+      flashHint('网络好像断了，消息没发出去（已放回输入框）');
+      return;
+    }
+  }
   if (cv) { state.pendingPrivate = false; saveDraft(DRAFT_NEW, ''); }
   if (!cv) return;
   // 首句自动命名：标题还是「新对话」时，用第一句当标题
