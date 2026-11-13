@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:14';
+const APP_BUILD = '2026-11-13 17:17';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4093,6 +4093,17 @@ function renderCaps() {
   $('#plusBtn').classList.toggle('on', active.length > 0);
 }
 
+function resetTransientModes() {
+  state.search = false;
+  state.gifMode = false;
+  state.imageMode = false;
+  state.codeMode = false;
+  state.fidelity = false;
+  state.rawUpload = false;
+  input.placeholder = DEFAULT_PH;
+  renderCaps();
+  try { closeCodePane(); } catch (e) {}
+}
 function setCap(kind, on) {
   if (kind === 'image') {
     state.imageMode = on;
@@ -4825,6 +4836,8 @@ $('#newChat').addEventListener('click', async () => {
   }
   state.currentId = null;
   state.pendingPrivate = false;
+  // 新对话不继承上一个会话的临时模式：搜索/画图/动图/编程都是「这一句」的开关
+  resetTransientModes();
   renderAll();
   closeNav();
   input.focus();
