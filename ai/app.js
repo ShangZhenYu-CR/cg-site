@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:34';
+const APP_BUILD = '2026-11-13 16:52';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5245,6 +5245,7 @@ const ART_KINDS = {
   doc: { label: '文档', ext: '.md', tip: '把想法写下来，或者让我来写：直接在左边发一句「写一份……」，我会把内容放进这份文档。' },
   deck: { label: '幻灯片', ext: '.deck.json', tip: '一句话说清主题（比如「给团队讲一下新插件」），我按每页标题 + 要点写成分页。' },
   design: { label: '设计', ext: '.html', tip: '描述你要的页面（比如「一个深色落地页」），我输出可以直接看的 HTML。' },
+  code: { label: '代码', ext: '.py', tip: '让我写一个脚本或模块，文件会出现在这里，可以直接改。' },
 };
 
 let artKind = 'doc';
@@ -5380,7 +5381,7 @@ function kindOfFile(name) {
   if (/deck\.json$/i.test(n)) return 'deck';
   if (/\.html?$/i.test(n)) return 'design';
   if (/\.(md|markdown|txt)$/i.test(n)) return 'doc';
-  return 'doc';
+  return 'code';
 }
 function closeFileMenu() {
   const m = $('#artFileMenu');
@@ -5471,7 +5472,27 @@ function renderArtifact() {
   }
   if (artKind === 'deck') renderDeck(body, file);
   else if (artKind === 'design') renderDesign(body, file);
+  else if (artKind === 'code') renderCodeFile(body, file);
   else renderDoc(body, file);
+}
+
+
+/** 代码文件：等宽编辑，可直接改并保存 */
+function renderCodeFile(body, file) {
+  const wrap = el('div', 'art-codefile');
+  const head = el('div', 'acf-head');
+  head.append(el('span', 'acf-name', file.name));
+  const ta = el('textarea', 'acf-ta');
+  ta.value = String(file.content || '');
+  ta.spellcheck = false;
+  let timer = 0;
+  ta.addEventListener('input', () => {
+    file.content = ta.value;
+    clearTimeout(timer);
+    timer = setTimeout(() => { const cv = current(); if (cv) saveConv(cv).catch(() => {}); }, 600);
+  });
+  wrap.append(head, ta);
+  body.append(wrap);
 }
 
 /** 文档：可编辑 markdown，右侧实时预览 */
