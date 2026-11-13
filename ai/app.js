@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 21:57';
+const APP_BUILD = '2026-11-13 22:01';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -122,7 +122,10 @@ const LS = {
 const scopeName = () => (LS.name ? encodeURIComponent(String(LS.name)) : 'anon');
 const scopedKey = (k) => 'ai.' + scopeName() + '.' + k;
 const LEGACY_KEYS = ['ai.drafts', 'ai.convs.cache'];
-function clearLegacyKeys() { for (const k of LEGACY_KEYS) { try { localStorage.removeItem(k); } catch {} } }
+const ANON_KEYS = ['ai.anon.drafts', 'ai.anon.convs.cache'];
+function clearLegacyKeys() {
+  for (const k of LEGACY_KEYS.concat(ANON_KEYS)) { try { localStorage.removeItem(k); } catch {} }
+}
 
 const RANK = { user: 1, astra: 2, admin: 3 };
 const canAstra = () => (RANK[LS.role] || 0) >= 2;
@@ -598,8 +601,8 @@ function logout() {
   stopSync();
   try { if (state.controller) state.controller.abort(); } catch {}
   try { localStorage.removeItem(draftKey()); localStorage.removeItem(scopedKey('convs.cache')); } catch {}
-  clearLegacyKeys();
   LS.token = ''; LS.role = ''; LS.name = '';
+  clearLegacyKeys();
   state.convs = []; state.projects = []; state.currentId = null;
   state.attachments = []; state.pendingSkill = null; state.editing = null;
   state.streaming = false; state.skills = []; state.tools = [];
@@ -3717,8 +3720,8 @@ function hideThinking() {
       // 主动停止：保留已经收到的正文
       reply.text = acc || '（已停止）';
       if (acc) reply.stopped = true;
-    } else if (interrupted && acc) {
-      // 网络中断：保留正文，只标记状态，不覆盖成错误文字
+    } else if (acc) {
+      // 网络中断（或流提前结束）：保留已经收到的正文，只标记状态
       reply.text = acc;
       reply.interrupted = true;
     } else {
