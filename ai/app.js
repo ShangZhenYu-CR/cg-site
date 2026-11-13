@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 02:44';
+const APP_BUILD = '2026-11-14 02:56';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -7269,7 +7269,10 @@ $('#fpTabs').addEventListener('click', (e) => {
 async function shareCurrent() {
   const cv = current();
   if (!cv) return;
-  const r = await api('/share', { method: 'POST', body: { convId: cv.id } });
+  const daysRaw = prompt('链接有效期（天，留空 = 永久）', '');
+  if (daysRaw === null) return;
+  const days = Math.max(0, Math.min(365, Number(daysRaw) || 0));
+  const r = await api('/share', { method: 'POST', body: { convId: cv.id, expiresInDays: days || undefined } });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { flashHint(j.error || '分享失败'); return; }
   try { await navigator.clipboard.writeText(j.url); } catch {}
