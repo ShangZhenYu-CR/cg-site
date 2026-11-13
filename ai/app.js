@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:44';
+const APP_BUILD = '2026-11-14 00:48';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1038,9 +1038,9 @@ function renderRunChip() {
   b.classList.toggle('on', active.length > 0);
   b.title = active.length ? (active.length + ' 个任务进行中') : '最近任务';
 }
-async function cancelRun(id) {
+async function cancelRun(id, refresh = true) {
   try { await api('/runs/' + encodeURIComponent(id) + '/cancel', { method: 'POST' }); } catch (e) {}
-  await loadRuns();
+  if (refresh) await loadRuns();
 }
 function openRunsPanel() {
   const list = [...(state.runs || [])].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 10);
@@ -5520,7 +5520,8 @@ $('#composer').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (state.streaming) {
     if (state.controller) {
-      if (state.currentRunId) cancelRun(state.currentRunId);
+      // 先把取消意图写到服务端，再断开流；否则服务端先看到断开会记成 interrupted
+      if (state.currentRunId) { try { await cancelRun(state.currentRunId, false); } catch (e) {} }
       state.controller.abort();
       return;
     }
