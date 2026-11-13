@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 23:01';
+const APP_BUILD = '2026-11-13 23:02';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1038,7 +1038,9 @@ function paintSaveState() {
 
 function setSaveState(conv, state, error, extra) {
   if (!conv || !conv.id) return;
-  saveStates.set(conv.id, { state, at: Date.now(), error: error || '', ...(extra || {}) });
+  const prev = saveStates.get(conv.id) || {};
+  // 合并：重复标记 conflict 时不能丢掉 serverRev
+  saveStates.set(conv.id, { ...prev, state, at: Date.now(), error: error || '', ...(extra || {}) });
   paintSaveState();
   if (state === 'saved') setTimeout(paintSaveState, 2600);
 }
@@ -1117,6 +1119,7 @@ async function doSaveConv(conv, extra) {
     conv.updatedAt = j.conversation.updatedAt;
   }
   conv.__lastSaved = snapshot;
+  conv.__serverRev = null;
   // 保存期间又有新改动：只确认这份快照，剩下的继续排队
   if (convSnapshot(conv, extra) !== snapshot) {
     setSaveState(conv, 'pending');
