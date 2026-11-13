@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:12';
+const APP_BUILD = '2026-11-13 22:15';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -280,7 +280,9 @@ const calcPending = new Map();
 
 /* 计算块：默认只展示，点「运行」才算；只允许纯数字表达式，没有任何脚本/网络能力 */
 function safeCalc(code) {
-  const src = String(code || '').trim();
+  let src = String(code || '').trim();
+  // 兼容模型习惯：允许 return 开头、结尾分号
+  src = src.replace(/^return\s+/, '').replace(/;\s*$/, '').trim();
   if (!src) throw new Error('空表达式');
   if (src.length > 500) throw new Error('表达式太长');
   if (!/^[0-9+\-*/%().\s]+$/.test(src)) throw new Error('只支持数字表达式（+ - * / % 和括号）');
