@@ -61,14 +61,14 @@
             <span class="chev-s">⌄</span>
           </span>
         </button>
-        <button class="theme-btn" id="themeBtn" title="切换外观（跟随系统 / 浅色 / 深色）">◐</button>
+        <button class="theme-btn" id="themeBtn" title="切换外观（跟随系统 / 浅色 / 深色）" aria-label="切换外观">◐</button>
       </div>
     </div>
   </aside>
 
   <main id="main">
     <header class="top">
-      <button class="icon side-toggle" id="sideToggle" title="收起侧栏">«</button>
+      <button class="icon side-toggle" id="sideToggle" title="收起侧栏" aria-label="收起侧栏" aria-expanded="true">«</button>
       <button class="burger" id="burger">☰</button>
       <button class="title" id="titleBtn">新对话</button>
       <button class="save-state" id="saveState" hidden></button>
@@ -81,7 +81,7 @@
       </button>
       <button class="icon top-only-proj" id="topSearch" title="搜索项目内会话">⌕</button>
       <button class="icon top-only-proj" id="topStar" title="置顶这个项目">☆</button>
-      <button class="icon" id="menuBtn" title="更多">⋯</button>
+      <button class="icon" id="menuBtn" title="更多" aria-label="更多" aria-haspopup="menu" aria-expanded="false">⋯</button>
     </header>
 
     <div class="scroll" id="scroll">
@@ -200,7 +200,7 @@
       <div class="suggests" id="suggests" hidden></div>
       <form class="composer" id="composer">
         <div class="plus-wrap">
-          <button type="button" class="icon" id="plusBtn" title="更多">＋</button>
+          <button type="button" class="icon" id="plusBtn" title="更多" aria-label="添加能力" aria-haspopup="menu" aria-expanded="false">＋</button>
           <div class="pop plus-pop" id="plusPop" hidden>
             <div class="opt-sect">画图</div>
             <button type="button" class="opt" data-mode="image"><span class="oi">🖼️</span>生成图片</button>
@@ -219,7 +219,7 @@
         <textarea id="input" rows="1" placeholder="今天我能为您做些什么？"></textarea>
         <button type="button" class="icon cm-mic" id="micBtn" title="语音输入（待接入）" aria-label="语音输入"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button type="button" class="icon cm-voice" id="voiceBtn" title="语音模式（待接入）" aria-label="语音模式"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg></button>
-        <button type="submit" class="send" id="sendBtn" title="发送">
+        <button type="submit" class="send" id="sendBtn" title="发送" aria-label="发送消息">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5 12 7-7 7 7"/></svg>
         </button>
       </form>
@@ -710,7 +710,7 @@
 </div>
 
 <!-- 通用列表（项目 / 文件） -->
-<div class="overlay" id="dlgList" hidden>
+<div class="overlay" id="dlgList" role="dialog" aria-modal="true" aria-labelledby="listTitle" hidden>
   <div class="card wide">
     <h2 id="listTitle">列表</h2>
     <p id="listSub"></p>
@@ -721,6 +721,7 @@
 
 <!-- 参数冲突提示 -->
 <div class="toast" id="toast" hidden></div>
+<div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
 
 <!-- 图片放大预览 -->
 <div class="lightbox" id="lightbox" hidden>

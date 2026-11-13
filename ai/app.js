@@ -3377,6 +3377,9 @@ function setBusy(b) {
   const box = $('#composer');
   if (box) box.classList.toggle('is-busy', b);
   sendBtn.title = b ? '停止' : '发送';
+  sendBtn.setAttribute('aria-label', b ? '停止生成' : '发送消息');
+  const sr = document.getElementById('srStatus');
+  if (sr) sr.textContent = b ? '正在生成回复' : '生成结束';
   sendBtn.innerHTML = b
     ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m5 12 7-7 7 7"/></svg>';
@@ -4933,7 +4936,12 @@ $('#cfgSave').addEventListener('click', () => {
 
 /* ---------------- 弹层 / 交互 ---------------- */
 const pops = ['modelPop', 'menuPop', 'userPop', 'plusPop', 'newPop'];
-function closePops(except) { pops.forEach(id => { if (id !== except) $('#' + id).hidden = true; }); }
+function closePops(except) {
+  pops.forEach(id => { if (id !== except) $('#' + id).hidden = true; });
+  const menu = $('#menuBtn'), plus = $('#plusBtn');
+  if (menu) menu.setAttribute('aria-expanded', 'false');
+  if (plus) plus.setAttribute('aria-expanded', 'false');
+}
 
 /** 把面板放在触发元素上方（底部不够就翻到下方），Claude 的模型菜单就是这么弹的 */
 function placeAbove(pop, anchor, align) {
@@ -4962,9 +4970,9 @@ $('#modelBtn').addEventListener('click', (e) => {
   if (!p.hidden) { p.hidden = true; return; }
   openModelMenu();
 });
-$('#menuBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#menuPop'); const h = p.hidden; closePops(); p.hidden = !h; });
+$('#menuBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#menuPop'); const h = p.hidden; closePops(); p.hidden = !h; $('#menuBtn').setAttribute('aria-expanded', String(!p.hidden)); });
 $('#meBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#userPop'); const h = p.hidden; closePops(); p.hidden = !h; });
-$('#plusBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#plusPop'); const h = p.hidden; closePops(); p.hidden = !h; });
+$('#plusBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#plusPop'); const h = p.hidden; closePops(); p.hidden = !h; $('#plusBtn').setAttribute('aria-expanded', String(!p.hidden)); });
 document.addEventListener('click', () => closePops());
 
 /* 思考强度：点开子菜单（Claude 的二级面板），不再用滑杆 */
@@ -5812,7 +5820,9 @@ $('#newChat').addEventListener('click', async () => {
 
 $('#brandBtn').addEventListener('click', () => { $('#newChat').click(); });
 /** 通用列表面板（项目 / 文件共用） */
+let listPanelReturn = null;
 function openListPanel(title, sub, rows) {
+  listPanelReturn = document.activeElement;
   $('#listTitle').textContent = title;
   $('#listSub').textContent = sub || '';
   const box = $('#listBody');
@@ -5825,11 +5835,30 @@ function openListPanel(title, sub, rows) {
     if (r.sub) l.append(el('div', 'sub', r.sub));
     row.append(l);
     if (r.value) row.append(el('b', null, r.value));
-    if (typeof r.onClick === 'function') row.addEventListener('click', r.onClick);
+    if (typeof r.onClick === 'function') {
+      row.setAttribute('role', 'button');
+      row.tabIndex = 0;
+      row.addEventListener('click', r.onClick);
+      row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); r.onClick(); } });
+    }
     box.append(row);
   }
   $('#dlgList').hidden = false;
+  const first = box.querySelector('.lk-row[tabindex="0"]') || box.querySelector('.lk-row');
+  if (first) { first.tabIndex = 0; first.focus(); }
 }
+
+(function listPanelA11y() {
+  const panel = document.getElementById('dlgList');
+  if (!panel) return;
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      panel.hidden = true;
+      if (listPanelReturn && listPanelReturn.focus) { try { listPanelReturn.focus(); } catch (e2) {} }
+    }
+  });
+})();
 
 /** 项目页（Claude 的 claude.ai/projects） */
 function renderProjectsPage() {
@@ -7564,6 +7593,9 @@ function stopSync() {
 }
 
 async function boot() {
+  document.querySelectorAll('.overlay').forEach((o) => {
+    if (!o.getAttribute('role') && o.id !== 'dlgLogin') { o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); }
+  });
   initTheme();
   clearLegacyKeys();
   decorateIcons();
