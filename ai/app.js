@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:39';
+const APP_BUILD = '2026-11-13 17:40';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5427,6 +5427,10 @@ function openArtifactPane(kind, name) {
   pane.hidden = false;
   document.body.classList.add('artopen');
   initArtResizer();
+  // 默认宽度（46vw）在窄窗口上会挤掉中间对话：开面板时收一次，保证聊天区至少 420
+  const side = document.body.classList.contains('noside') ? 0 : 288;
+  const room = window.innerWidth - side - 420;
+  if (pane.getBoundingClientRect().width > room) applyArtWidth(room);
   $('#artKind').textContent = ART_KINDS[kind] ? ART_KINDS[kind].label : '产物';
   $('#artPublish').hidden = kind !== 'design';
   const dsBtn = $('#artDesignSystem');
