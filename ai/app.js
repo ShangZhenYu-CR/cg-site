@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 02:17';
+const APP_BUILD = '2026-11-14 02:19';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -6964,12 +6964,33 @@ async function renderPluginsPage() {
   }
 }
 
+let pluginOrigin = null;
 function openPluginViewer(it) {
   $('#plugName').textContent = it.name || it.slug;
   $('#plugOpen').href = it.url;
   $('#plugFrame').src = it.url;
   $('#plugView').hidden = false;
+  try { pluginOrigin = new URL(it.url, location.href).origin; } catch (e) { pluginOrigin = null; }
 }
+
+/* 插件页 ↔ 宿主：只接受当前插件 iframe 的消息，转发到登记工具 */
+window.addEventListener('message', async (e) => {
+  if (!pluginOrigin || e.origin !== pluginOrigin) return;
+  const frame = document.getElementById('plugFrame');
+  if (!frame || e.source !== frame.contentWindow) return;
+  const d = e.data || {};
+  if (d.type !== 'dsh:call' || !d.id || !d.name) return;
+  const reply = (payload) => { try { frame.contentWindow.postMessage({ type: 'dsh:result', id: d.id, ...payload }, pluginOrigin); } catch (e2) {} };
+  const tool = (state.tools || []).find((t) => t.name === d.name);
+  if (!tool) { reply({ ok: false, error: '没有这个工具：' + d.name }); return; }
+  try {
+    const r = await api('/tools/' + encodeURIComponent(tool.id) + '/run', { method: 'POST', timeout: 60000, body: { args: d.args || {} } });
+    const j = await r.json().catch(() => ({}));
+    reply({ ok: !!(r.ok && j.ok), result: j });
+  } catch (err) {
+    reply({ ok: false, error: String((err && err.message) || err) });
+  }
+});
 
 async function publishDesignArtifact(opts) {
   const o = opts || {};
