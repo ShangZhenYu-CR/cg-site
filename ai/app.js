@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 20:35';
+const APP_BUILD = '2026-11-13 21:57';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -98,10 +98,10 @@ const LS = {
   get side() { return localStorage.getItem('ai.side') !== '0'; },
   set side(v) { localStorage.setItem('ai.side', v ? '1' : '0'); },
   get convCache() {
-    try { return JSON.parse(localStorage.getItem('ai.convs.cache') || 'null'); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem(scopedKey('convs.cache')) || 'null'); } catch { return null; }
   },
   set convCache(list) {
-    try { localStorage.setItem('ai.convs.cache', JSON.stringify(list)); } catch {}
+    try { localStorage.setItem(scopedKey('convs.cache'), JSON.stringify(list)); } catch {}
   },
   get theme() { return localStorage.getItem('ai.theme') || 'auto'; },
   set theme(v) { localStorage.setItem('ai.theme', v); },
@@ -117,6 +117,12 @@ const LS = {
   },
   set draw(v) { try { localStorage.setItem('ai.draw', JSON.stringify(v)); } catch {} },
 };
+
+/* 本地缓存按账号分区：昵称只作显示，键里用稳定编码 */
+const scopeName = () => (LS.name ? encodeURIComponent(String(LS.name)) : 'anon');
+const scopedKey = (k) => 'ai.' + scopeName() + '.' + k;
+const LEGACY_KEYS = ['ai.drafts', 'ai.convs.cache'];
+function clearLegacyKeys() { for (const k of LEGACY_KEYS) { try { localStorage.removeItem(k); } catch {} } }
 
 const RANK = { user: 1, astra: 2, admin: 3 };
 const canAstra = () => (RANK[LS.role] || 0) >= 2;
@@ -269,82 +275,67 @@ let calcWorker = null;
 let calcSeq = 0;
 const calcPending = new Map();
 
-function getCalcWorker() {
-  if (calcWorker) return calcWorker;
-  const src = [
-    'self.onmessage = async (e) => {',
-    '  const { id, code } = e.data;',
-    '  const block = () => { throw new Error("沙箱内不能联网"); };',
-    '  try {',
-    '    const fn = new Function("fetch","XMLHttpRequest","WebSocket","importScripts","self","window","document",',
-    '      "return (async () => {\\n" + code + "\\n})()");',
-    '    const out = await fn(block, block, block, block, undefined, undefined, undefined);',
-    '    let payload;',
-    '    try { payload = JSON.parse(JSON.stringify(out === undefined ? null : out)); } catch (err) { payload = String(out); }',
-    '    self.postMessage({ id, ok: true, value: payload });',
-    '  } catch (err) {',
-    '    self.postMessage({ id, ok: false, error: String((err && err.message) || err) });',
-    '  }',
-    '};',
-  ].join('\n');
-  calcWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
-  calcWorker.onmessage = (e) => {
-    const { id, ok, value, error } = e.data || {};
-    const p = calcPending.get(id);
-    if (!p) return;
-    calcPending.delete(id);
-    if (ok) p.resolve(value); else p.reject(new Error(error || '执行失败'));
-  };
-  return calcWorker;
+/* 计算块：默认只展示，点「运行」才算；只允许纯数字表达式，没有任何脚本/网络能力 */
+function safeCalc(code) {
+  const src = String(code || '').trim();
+  if (!src) throw new Error('空表达式');
+  if (src.length > 500) throw new Error('表达式太长');
+  if (!/^[0-9+\-*/%().\s]+$/.test(src)) throw new Error('只支持数字表达式（+ - * / % 和括号）');
+  let v;
+  try { v = Function('"use strict"; return (' + src + ');')(); } catch (e) { throw new Error('算不出来'); }
+  if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error('结果不是有限数字');
+  return v;
 }
-
-function runCalc(code, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const id = ++calcSeq;
-    let done = false;
-    calcPending.set(id, {
-      resolve: (v) => { if (!done) { done = true; resolve(v); } },
-      reject: (e) => { if (!done) { done = true; reject(e); } },
-    });
-    const timer = setTimeout(() => {
-      if (done) return;
-      calcPending.delete(id);
-      try { calcWorker && calcWorker.terminate(); } catch {}
-      calcWorker = null;
-      reject(new Error('执行超时（超过 ' + Math.round((timeoutMs || 5000) / 1000) + ' 秒）'));
-    }, timeoutMs || 5000);
-    const wrap = calcPending.get(id);
-    const origResolve = wrap.resolve;
-    calcPending.set(id, { resolve: (v) => { clearTimeout(timer); origResolve(v); }, reject: wrap.reject });
-    getCalcWorker().postMessage({ id, code });
-  });
+function calcKey(code) {
+  let h = 5381;
+  const s = String(code || '');
+  for (let i = 0; i < s.length; i += 1) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return 'c' + h.toString(36);
 }
-
-/** 把 md() 里生成的 .calc 占位逐个执行，结果画成图表或数值 */
-async function hydrateCalcs(root) {
-  const nodes = [...(root || document).querySelectorAll('.calc[data-code]:not([data-done])')];
+/** 给计算块挂上「运行」按钮；有历史结果的直接显示结果，不重新执行 */
+function attachCalcRuns(root, msg, opts) {
+  const o = opts || {};
+  const nodes = [...(root || document).querySelectorAll('.calc[data-code]:not([data-ready])')];
   for (const node of nodes) {
-    node.dataset.done = '1';
-    let codeText = '';
-    try { codeText = decodeURIComponent(escape(atob(node.dataset.code || ''))); } catch { node.textContent = '代码解码失败'; continue; }
-    try {
-      const value = await runCalc(codeText, 5000);
-      node.textContent = '';
-      if (value && Array.isArray(value.labels) && Array.isArray(value.series)) {
-        node.innerHTML = chartSVG(JSON.stringify(value));
-      } else if (value && typeof value === 'object' && !Array.isArray(value) && value.chart) {
-        node.innerHTML = chartSVG(JSON.stringify(value.chart));
-      } else if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
-        node.innerHTML = '<div class="calc-out">' + esc(String(value)) + '</div>';
-      } else {
-        node.innerHTML = '<pre class="calc-json">' + esc(JSON.stringify(value, null, 2)) + '</pre>';
-      }
-    } catch (e) {
-      node.textContent = '';
-      node.innerHTML = '<div class="calc-err">计算失败：' + esc(String((e && e.message) || e)) + '</div>';
+    node.dataset.ready = '1';
+    let code = '';
+    try { code = decodeURIComponent(escape(atob(node.dataset.code || ''))); } catch { code = ''; }
+    const key = calcKey(code);
+    const saved = msg && msg.calcResults && msg.calcResults[key];
+    const out = node.querySelector('.calc-out');
+    const btn = node.querySelector('.calc-run');
+    const show = (v, err) => {
+      if (!out) return;
+      out.hidden = false;
+      out.className = 'calc-out' + (err ? ' calc-err' : '');
+      out.textContent = err ? ('计算失败：' + err) : String(v);
+    };
+    if (saved) {
+      show(saved.value, saved.err);
+      if (btn) btn.hidden = true;
+      continue;
+    }
+    if (o.readOnly) { if (btn) btn.hidden = true; continue; }
+    if (btn) {
+      btn.addEventListener('click', () => {
+        try {
+          const v = safeCalc(code);
+          show(v);
+          if (msg) {
+            msg.calcResults = msg.calcResults || {};
+            msg.calcResults[key] = { value: v };
+            const cv = current();
+            if (cv && (cv.messages || []).includes(msg)) saveConv(cv);
+          }
+        } catch (e) {
+          show(null, (e && e.message) || String(e));
+        }
+      });
     }
   }
 }
+function hydrateCalcs(root, msg, opts) { attachCalcRuns(root, msg, opts); }
+
 /** chart 块：{type,labels,series} → 内联 SVG（不依赖第三方库） */
 function chartSVG(specText) {
   let spec = null;
@@ -459,7 +450,11 @@ function md(src) {
         const codeTxt = buf.join('\n');
         let b64 = '';
         try { b64 = btoa(unescape(encodeURIComponent(codeTxt))); } catch (e) { b64 = ''; }
-        out.push('<div class="calc" data-code="' + b64 + '">计算中…</div>');
+        out.push('<div class="calc" data-code="' + b64 + '">'
+          + '<div class="calc-bar"><span class="calc-lab">计算</span>'
+          + '<button type="button" class="calc-run">运行</button></div>'
+          + '<pre class="calc-src">' + esc(codeTxt) + '</pre>'
+          + '<div class="calc-out" hidden></div></div>');
       }
       else {
         const code = buf.join('\n');
@@ -594,13 +589,21 @@ $('#loginOk').addEventListener('click', async () => {
     $('#dlgLogin').hidden = true;
     renderIdentity(); renderModels();
     await bootData();
+    startSync();
   } catch { $('#loginErr').textContent = '连不上后端'; }
   finally { $('#loginOk').disabled = false; }
 });
 
 function logout() {
-  LS.token = ''; LS.role = '';
+  stopSync();
+  try { if (state.controller) state.controller.abort(); } catch {}
+  try { localStorage.removeItem(draftKey()); localStorage.removeItem(scopedKey('convs.cache')); } catch {}
+  clearLegacyKeys();
+  LS.token = ''; LS.role = ''; LS.name = '';
   state.convs = []; state.projects = []; state.currentId = null;
+  state.attachments = []; state.pendingSkill = null; state.editing = null;
+  state.streaming = false; state.skills = []; state.tools = [];
+  saveStates.clear(); saveQueues.clear();
   thread.textContent = ''; listBox.textContent = '';
   $('#empty').hidden = false;
   renderIdentity();
@@ -991,9 +994,54 @@ async function createConv(opts = {}) {
   return conversation;
 }
 
+/* ---------------- 保存：状态、串行化、版本冲突 ---------------- */
+const saveQueues = new Map();
+const saveStates = new Map(); // convId -> { state, at, error }
+const SAVE_LABEL = { pending: '保存中…', saved: '已保存', failed: '未保存', conflict: '有冲突' };
+
+function paintSaveState() {
+  const elc = $('#saveState');
+  if (!elc) return;
+  const cv = current();
+  const rec = cv ? saveStates.get(cv.id) : null;
+  if (!rec || !cv || rec.state === 'saved' && Date.now() - rec.at > 2500) {
+    elc.hidden = true;
+    return;
+  }
+  elc.hidden = false;
+  elc.textContent = SAVE_LABEL[rec.state] || '';
+  elc.dataset.state = rec.state;
+  elc.title = rec.error ? String(rec.error).slice(0, 200) : (rec.state === 'conflict' ? '服务器上这个对话更新过，点这里处理' : '');
+}
+
+function setSaveState(conv, state, error) {
+  if (!conv || !conv.id) return;
+  saveStates.set(conv.id, { state, at: Date.now(), error: error || '' });
+  paintSaveState();
+  if (state === 'saved') setTimeout(paintSaveState, 2600);
+}
+
 async function saveConv(conv, extra) {
+  if (!conv || !conv.id) return { ok: false, error: '没有会话' };
+  const prev = saveQueues.get(conv.id) || Promise.resolve();
+  const run = prev.catch(() => {}).then(() => doSaveConv(conv, extra));
+  saveQueues.set(conv.id, run);
   state.saving = true;
-  conv.updatedAt = Date.now();
+  try { return await run; } finally {
+    if (saveQueues.get(conv.id) === run) {
+      saveQueues.delete(conv.id);
+      state.saving = [...saveQueues.values()].length > 0;
+      paintSaveState();
+    }
+  }
+}
+
+async function doSaveConv(conv, extra) {
+  if (conv.__cacheOnly) {
+    // 还没从服务器载入正文，不能拿空的 messages 覆盖
+    return { ok: false, error: '缓存占位，未保存' };
+  }
+  setSaveState(conv, 'pending');
   const body = {
     title: conv.title,
     messages: conv.messages,
@@ -1007,8 +1055,68 @@ async function saveConv(conv, extra) {
     cutIndex: (typeof conv.cutIndex === 'number' && conv.cutIndex >= 0) ? conv.cutIndex : null,
     ...(extra || {}),
   };
-  try { await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body }); } catch {} finally { state.saving = false; }
+  if (Number.isFinite(Number(conv.rev))) body.baseRev = Number(conv.rev);
+  let res;
+  try {
+    res = await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body });
+  } catch (e) {
+    setSaveState(conv, 'failed', e && e.message);
+    return { ok: false, error: e };
+  }
+  if (res.status === 409) {
+    const j = await res.json().catch(() => ({}));
+    if (Number.isFinite(Number(j.rev))) conv.rev = Number(j.rev);
+    setSaveState(conv, 'conflict');
+    return { ok: false, conflict: true };
+  }
+  if (!res.ok) {
+    let msg = '保存失败（HTTP ' + res.status + '）';
+    try { const j = await res.json(); if (j && j.error) msg = j.error; } catch {}
+    setSaveState(conv, 'failed', msg);
+    return { ok: false, error: msg };
+  }
+  const j = await res.json().catch(() => ({}));
+  if (j && j.conversation) {
+    conv.rev = j.conversation.rev;
+    conv.updatedAt = j.conversation.updatedAt;
+  }
+  setSaveState(conv, 'saved');
+  return { ok: true };
 }
+
+// 点保存状态：失败重试；冲突时选「重新载入」或「强制覆盖」
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest && e.target.closest('#saveState');
+  if (!b) return;
+  const cv = current();
+  if (!cv) return;
+  const rec = saveStates.get(cv.id);
+  if (!rec) return;
+  if (rec.state === 'conflict') {
+    openListPanel('保存冲突', '这个对话在别处更新过。选择保留哪一份：', [
+      { label: '重新载入服务器版本', sub: '放弃本地未保存的改动', onClick: async () => {
+        $('#dlgList').hidden = true;
+        const r = await api('/convs/' + encodeURIComponent(cv.id));
+        if (!r.ok) { flashHint('载入失败'); return; }
+        const j = await r.json().catch(() => ({}));
+        if (j && j.conversation) {
+          const i = state.convs.findIndex(x => x.id === cv.id);
+          if (i >= 0) state.convs[i] = j.conversation;
+          saveStates.delete(cv.id);
+          renderAll();
+          flashHint('已载入服务器版本');
+        }
+      } },
+      { label: '用本地覆盖', sub: '以当前页面为准，覆盖服务器', onClick: async () => {
+        $('#dlgList').hidden = true;
+        const r = await api('/convs/' + encodeURIComponent(cv.id), { method: 'PUT', body: { ...cv, baseRev: undefined, messages: cv.messages } });
+        if (r.ok) { saveStates.delete(cv.id); flashHint('已覆盖'); renderAll(); } else flashHint('覆盖失败');
+      } },
+    ]);
+    return;
+  }
+  await saveConv(cv);
+});
 
 /* ---- 会话自带的界面状态（共享） ---- */
 let settingsTimer = null;
@@ -2214,7 +2322,7 @@ function bubble(m, idx) {
     const d = el('div', 'doc');
     d.append(el('span', 'lab', '交接文档'));
     const body = el('div');
-    body.innerHTML = md(stripMemoryMarkers(m.text)); hydrateCalcs(body);
+    body.innerHTML = md(stripMemoryMarkers(m.text)); hydrateCalcs(body, m, { readOnly: true });
     d.append(body);
     return d;
   }
@@ -2245,7 +2353,18 @@ function bubble(m, idx) {
     retry.addEventListener('click', () => regenerateFrom(idx));
     content.append(retry);
   }
-  else { content.innerHTML = md(m.text || ''); hydrateCalcs(content); }
+  else {
+    content.innerHTML = md(m.text || '');
+    hydrateCalcs(content, m);
+    if (m.interrupted || m.stopped) {
+      const note = el('div', 'msg-note', m.stopped ? '已停止，上面的内容是停止前收到的' : '连接中断，上面是已经收到的内容');
+      const retry = el('button', 'msg-more', '重试');
+      retry.type = 'button';
+      retry.addEventListener('click', () => regenerateFrom(idx));
+      note.append(retry);
+      content.append(note);
+    }
+  }
   bd.append(content);
 
   if (!isUser && Array.isArray(m.tools) && m.tools.length) {
@@ -2638,10 +2757,10 @@ function togglePin(id) {
   all = all.includes(id) ? all.filter((x) => x !== id) : [id, ...all];
   try { localStorage.setItem(PIN_KEY, JSON.stringify(all)); } catch {}
 }
-const DRAFT_KEY = 'ai.drafts';
 const DRAFT_NEW = '__new__';
+const draftKey = () => scopedKey('drafts');
 function loadDrafts() {
-  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(draftKey()) || '{}'); } catch { return {}; }
 }
 function saveDraft(convId, text, images) {
   if (!convId) return;
@@ -2653,7 +2772,7 @@ function saveDraft(convId, text, images) {
   } else {
     delete all[convId];
   }
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(all)); } catch {}
+  try { localStorage.setItem(draftKey(), JSON.stringify(all)); } catch {}
 }
 function restoreDraft(convId) {
   const all = loadDrafts();
@@ -3391,18 +3510,22 @@ function hideThinking() {
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = '';
+      let sawDone = false;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += dec.decode(value, { stream: true });
+        // 兼容 CRLF：有些中转会在 event 之间用 \r\n\n
+        buf = buf.replace(/\r\n/g, '\n');
         let idx;
         while ((idx = buf.indexOf('\n\n')) >= 0) {
           const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
           for (const line of chunk.split('\n')) {
             if (!line.startsWith('data:')) continue;
             const payload = line.slice(5).trim();
-            if (payload === '[DONE]') continue;
+            if (payload === '[DONE]') { sawDone = true; continue; }
             let ev; try { ev = JSON.parse(payload); } catch { continue; }
+            if (ev.done) sawDone = true;
             if (ev.e) throw new Error(ev.e);
             if (ev.u) cv.usage = ev.u;
             if (ev.img) {
@@ -3485,6 +3608,22 @@ function hideThinking() {
           }
         }
       }
+      // 末尾可能还有一帧没被空行收尾：按行解析一次
+      if (buf.trim()) {
+        for (const line of buf.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          let ev; try { ev = JSON.parse(payload); } catch { continue; }
+          if (ev.done) sawDone = true;
+          if (ev.t) acc += ev.t;
+        }
+      }
+      if (!sawDone) {
+        const err = new Error('连接提前中断');
+        err.interrupted = true;
+        throw err;
+      }
       paint();
     }
   };
@@ -3495,10 +3634,12 @@ function hideThinking() {
    */
   const fallbackImage = async () => {
     if (!(drawMode || gifAsk) || (reply.images || []).length) return false;
+    const sig = state.controller && state.controller.signal;
+    if (sig && sig.aborted) return false;
     try {
       if (gifAsk) {
         const r = await api('/gif', {
-          method: 'POST', timeout: 300000,
+          method: 'POST', timeout: 300000, signal: sig,
           body: { prompt: text, frames: (imageOpts && imageOpts.frame_count) || gifFrames, duration: gifDuration, image: imgs[0] },
         });
         const d = await r.json().catch(() => ({}));
@@ -3506,7 +3647,7 @@ function hideThinking() {
         return false;
       }
       const r2 = await api('/draw', {
-        method: 'POST', timeout: 300000,
+        method: 'POST', timeout: 300000, signal: sig,
         body: { prompt: text, image: imgs[0], size: LS.draw.size, quality: LS.draw.quality, format: LS.draw.format === 'gif' ? 'png' : LS.draw.format, n: Math.max(countImages(text), LS.draw.n || 1), compression: LS.draw.compression },
       });
       const d2 = await r2.json().catch(() => ({}));
@@ -3560,19 +3701,26 @@ function hideThinking() {
       reply.text = parsed.text;
       if (!reply.text) reply.text = '';
     }
-    if (host) { host.innerHTML = md(reply.text || ''); hydrateCalcs(host); }
+    if (host) { host.innerHTML = md(reply.text || ''); hydrateCalcs(host, reply); }
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
   } catch (e) {
     hideThinking();
     delete reply.streaming;
     const aborted = e && e.name === 'AbortError';
-    // 工具报错也要走兜底，否则用户只看到一段上游 JSON
+    const interrupted = !!(e && e.interrupted);
+    // 工具报错也要走兜底，否则用户只看到一段上游 JSON；中断/取消不再兜底
     let recovered = false;
-    if (!aborted) { try { recovered = await fallbackImage(); } catch { recovered = false; } }
+    if (!aborted && !interrupted) { try { recovered = await fallbackImage(); } catch { recovered = false; } }
     if (recovered) {
       reply.text = acc || '';
     } else if (aborted) {
+      // 主动停止：保留已经收到的正文
       reply.text = acc || '（已停止）';
+      if (acc) reply.stopped = true;
+    } else if (interrupted && acc) {
+      // 网络中断：保留正文，只标记状态，不覆盖成错误文字
+      reply.text = acc;
+      reply.interrupted = true;
     } else {
       reply.err = true;
       reply.text = humanError(e && e.message) || (e && e.message) || '出错了';
@@ -6115,7 +6263,7 @@ function renderDoc(body, file) {
   ta.addEventListener('input', () => {
     file.content = ta.value;
     clearTimeout(timer);
-    timer = setTimeout(() => { prev.innerHTML = md(file.content || ''); hydrateCalcs(prev); }, 250);
+    timer = setTimeout(() => { prev.innerHTML = md(file.content || ''); hydrateCalcs(prev, null, { readOnly: true }); }, 250);
   });
   ta.addEventListener('blur', () => { const cv = current(); if (cv) saveConv(cv).catch(() => {}); });
 
@@ -6970,7 +7118,8 @@ async function bootData() {
   // 先用缓存把侧栏点亮（隧道慢时不至于像“历史没了”）
   const cached = LS.convCache;
   if (cached && cached.length && !state.convs.length) {
-    state.convs = cached.map(c => ({ ...c, messages: [], files: [] }));
+    // 缓存只有元信息：打上标记，避免它被当成完整会话保存回去
+    state.convs = cached.map(c => ({ ...c, messages: [], files: [], __cacheOnly: true }));
     state.currentId = state.convs[0].id;
     renderAll();
   }
@@ -7033,8 +7182,25 @@ function layoutHomeComposer() {
   }
 }
 
+/* 会话同步：抽成幂等的 start/stop，登录后立即启动，退出停止 */
+let syncTimer = null;
+function startSync() {
+  if (syncTimer) return;
+  syncTimer = setInterval(async () => {
+    if (state.streaming || state.saving || document.hidden || !LS.token) return;
+    const before = state.convs.map(c => c.id + c.updatedAt).join('|');
+    await loadConvs();
+    const after = state.convs.map(c => c.id + c.updatedAt).join('|');
+    if (before !== after) renderAll();
+  }, 15000);
+}
+function stopSync() {
+  if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+}
+
 async function boot() {
   initTheme();
+  clearLegacyKeys();
   decorateIcons();
   // 登录页复用品牌标记
   const mk = document.querySelector('.greet .mark svg');
@@ -7066,13 +7232,7 @@ async function boot() {
   renderIdentity(); renderModels();
   await bootData();
   input.focus();
-  setInterval(async () => {
-    if (state.streaming || state.saving || document.hidden || !LS.token) return;
-    const before = state.convs.map(c => c.id + c.updatedAt).join('|');
-    await loadConvs();
-    const after = state.convs.map(c => c.id + c.updatedAt).join('|');
-    if (before !== after) renderAll();
-  }, 15000);
+  startSync();
 }
 
 boot();

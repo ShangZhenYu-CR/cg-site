@@ -2108,3 +2108,27 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .sk-card .com{font-size:12px;color:var(--dim);font-family:var(--mono)}
 .sk-card .sk-acts2{display:flex;gap:6px;margin-top:auto;padding-top:8px}
 
+
+/* 保存状态 */
+.save-state{border:0;background:none;font-size:12px;color:var(--dim);cursor:pointer;padding:2px 6px;border-radius:6px}
+.save-state:hover{background:var(--hover,rgba(0,0,0,.05))}
+.save-state[data-state="failed"]{color:#b45309}
+.save-state[data-state="conflict"]{color:#b91c1c;font-weight:600}
+.save-state[data-state="pending"]{color:var(--dim)}
+
+
+/* 计算块：默认展示源码 + 运行按钮 */
+.calc{border:1px solid var(--line);border-radius:10px;margin:10px 0;overflow:hidden;background:var(--panel,transparent)}
+.calc-bar{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-bottom:1px solid var(--line)}
+.calc-lab{font-size:11px;color:var(--dim);letter-spacing:.04em}
+.calc-run{border:1px solid var(--line);background:transparent;color:inherit;font-size:12px;border-radius:7px;padding:2px 10px;cursor:pointer}
+.calc-run:hover{background:var(--hover,rgba(0,0,0,.05))}
+.calc-src{margin:0;padding:10px 12px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;color:var(--dim)}
+.calc-out{padding:8px 12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px}
+.calc-out.calc-err{color:#b91c1c}
+
+
+/* 中断/停止提示 */
+.msg-note{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--dim)}
+.msg-note::before{content:"";width:6px;height:6px;border-radius:50%;background:#d97706}
+
