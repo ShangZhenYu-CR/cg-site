@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:48';
+const APP_BUILD = '2026-11-14 00:53';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -137,6 +137,7 @@ const isAdmin = () => LS.role === 'admin';
 const state = {
   runs: [],
   currentRunId: null,
+  bgRun: false,
   projects: [],
   convs: [],
   currentId: null,
@@ -3604,9 +3605,7 @@ function hideThinking() {
 }
   /** 真打一次 /chat；imageOpts 允许被降档重试替换 */
   const postChat = async (io) => {
-    const res = await api('/chat', {
-      method: 'POST', signal: state.controller.signal,
-      body: {
+    const reqBody = {
         model, search: state.search, convId: cv.id, projectId: cv.projectId || null, runId: runId || undefined,
         // 出图工具常开：模型自己判断要不要画
         imageTool: true,
@@ -3632,8 +3631,44 @@ function hideThinking() {
           // 只有用户消息能带图；assistant 的内容只允许 output_text / refusal
           images: m.role === 'user' ? m.images : undefined,
         })),
-      },
-    });
+    };
+
+    // 后台任务模式：服务端独立执行，前端轮询进度；关页任务继续
+    if (runId && !drawMode && !gifAsk) {
+      const started = await api('/runs/' + encodeURIComponent(runId) + '/start', { method: 'POST', body: { payload: reqBody } });
+      if (started.ok) {
+        state.bgRun = true;
+        let st = 'running';
+        let runErr = null;
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        for (;;) {
+          if (state.controller && state.controller.signal.aborted) break;
+          try {
+            const pr = await api('/runs/' + encodeURIComponent(runId) + '/progress');
+            if (pr.ok) {
+              const j = await pr.json().catch(() => ({}));
+              if (j.status) st = j.status;
+              if (j.error) runErr = j.error;
+              const o = j.output || {};
+              if (typeof o.text === 'string' && o.text !== acc) { acc = o.text; paint(); hideThinking(); }
+              if (Array.isArray(o.tools) && o.tools.length) {
+                reply.tools = o.tools.map((t) => ({ name: t.name, args: t.args, result: t.result }));
+              }
+              if (Array.isArray(o.images) && o.images.length) reply.images = o.images.slice(0, 8);
+            }
+          } catch (e) {}
+          if (['succeeded', 'failed', 'cancelled', 'interrupted'].includes(st)) break;
+          await sleep(650);
+        }
+        if (st === 'cancelled' || (state.controller && state.controller.signal.aborted)) {
+          throw Object.assign(new Error('已取消'), { name: 'AbortError' });
+        }
+        if (st === 'failed') throw new Error(runErr || '任务失败');
+        return;
+      }
+    }
+
+    const res = await api('/chat', { method: 'POST', signal: state.controller.signal, body: reqBody });
     if (!res.ok) {
       let d = null; try { d = await res.json(); } catch {}
       throw Object.assign(new Error(errText(res.status, d)), { status: res.status });
@@ -3911,12 +3946,29 @@ function hideThinking() {
       } catch (e) {}
       cv.__serverFileRev = false;
     }
-    state.finishPromise = saveConv(cv);
-    await state.finishPromise;
-    state.finishPromise = null;
     state.currentRunId = null;
-    loadRuns();
-    renderAll();
+    if (state.bgRun) {
+      // 服务端已经把 user/assistant 写回会话：重新拉取，别再用本地副本覆盖
+      state.bgRun = false;
+      try {
+        const rr = await api('/convs/' + encodeURIComponent(cv.id));
+        if (rr.ok) {
+          const jj = await rr.json();
+          if (jj.conversation) {
+            const idx = state.convs.findIndex((c) => c.id === cv.id);
+            if (idx >= 0) state.convs[idx] = jj.conversation; else state.convs.unshift(jj.conversation);
+          }
+        }
+      } catch (e) {}
+      loadRuns();
+      renderAll();
+    } else {
+      state.finishPromise = saveConv(cv);
+      await state.finishPromise;
+      state.finishPromise = null;
+      loadRuns();
+      renderAll();
+    }
     // 模型写完文件后，右侧产物面板跟着刷新
     if (!$('#artPane').hidden) renderArtifact();
     scheduleUsage();
