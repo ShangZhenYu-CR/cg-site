@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:26';
+const APP_BUILD = '2026-11-14 00:28';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3678,6 +3678,7 @@ function hideThinking() {
             }
             if (Array.isArray(ev.tool_calls)) pushToolCards(reply, ev.tool_calls);
             if (ev.tool_done) {
+              console.log('[dbg] tool_done', ev.tool_done.name, String(ev.tool_done.result || '').slice(0, 140), 'cvRev', cv && cv.rev);
               const list = reply.tools || [];
               const hit = ev.tool_done.call_id ? list.find((t) => t.call_id === ev.tool_done.call_id) : list.slice(-1)[0];
               if (hit) hit.result = String(ev.tool_done.result || '').slice(0, 300);
@@ -3842,6 +3843,7 @@ function hideThinking() {
     // 先解锁输入再落盘：收尾那一两秒里用户按发送，不该被当成「停止」
     setBusy(false);
     // 服务端写文件/附件会推进 rev；保存前拉一次最新版本，避免用旧 baseRev 撞 409
+    console.log('[dbg] pre-save rev', cv && cv.rev, 'flag', cv && cv.__serverFileRev);
     if (cv && cv.__serverFileRev) {
       try {
         const rr = await api('/convs/' + encodeURIComponent(cv.id));
