@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:20';
+const APP_BUILD = '2026-11-14 00:24';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3684,7 +3684,7 @@ function hideThinking() {
               // 工具产出的文件：立刻记进会话文件，避免保存时被旧列表覆盖
               try {
                 const raw = String(ev.tool_done.result || '');
-                const m = raw.match(/\{"ok":true,"file":\{[^}]*\}\}/);
+                const m = raw.match(/\{"ok":true,"file":\{[^}]*\}(?:,"convRev":\d+)?\}/);
                 if (m) {
                   const parsedFile = JSON.parse(m[0]);
                   const jf = parsedFile.file;
