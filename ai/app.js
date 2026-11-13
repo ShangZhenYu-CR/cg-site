@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:08';
+const APP_BUILD = '2026-11-13 22:12';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3609,6 +3609,21 @@ function hideThinking() {
               const list = reply.tools || [];
               const hit = ev.tool_done.call_id ? list.find((t) => t.call_id === ev.tool_done.call_id) : list.slice(-1)[0];
               if (hit) hit.result = String(ev.tool_done.result || '').slice(0, 300);
+              // 工具产出的文件：立刻记进会话文件，避免保存时被旧列表覆盖
+              try {
+                const raw = String(ev.tool_done.result || '');
+                const m = raw.match(/\{"ok":true,"file":\{[^}]*\}\}/);
+                if (m) {
+                  const jf = JSON.parse(m[0]).file;
+                  if (jf && jf.url) {
+                    cv.files = cv.files || [];
+                    if (!cv.files.some((x) => x.url === jf.url)) {
+                      cv.files.push({ name: jf.name || '文件', url: jf.url, kind: 'xlsx', size: jf.size || 0, content: '' });
+                      if (state.view === 'chat') { try { renderSide(); } catch (e) {} }
+                    }
+                  }
+                }
+              } catch (e) {}
             }
             if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }
             if (ev.tool_start && ev.tool_start.name) showThinking(THINK_LABELS[ev.tool_start.name] || '正在调用工具');
