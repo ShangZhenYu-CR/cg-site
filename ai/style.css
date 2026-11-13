@@ -2046,3 +2046,7 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .art-codefile .acf-head{height:34px;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--faint);font-family:var(--mono)}
 .art-codefile .acf-ta{flex:1;min-height:0;width:100%;resize:none;border:0;outline:none;padding:14px 16px;background:transparent;color:var(--text);font:13px/1.65 var(--mono);tab-size:2}
 
+
+/* 等待状态：文字 + 计时 */
+.msg.thinking .te{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+

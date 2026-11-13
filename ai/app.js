@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:54';
+const APP_BUILD = '2026-11-13 17:12';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -155,6 +155,7 @@ const el = (tag, cls, txt) => {
 };
 
 let thinkingEl = null;   // 等待首字时的占位元素
+let thinkingTimer = 0;
 const thread = $('#thread');
 const listBox = $('#list');
 const scrollBox = $('#scroll');
@@ -2806,16 +2807,40 @@ async function sendChat(text, opts = {}) {
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
 /** 等待首个字符时的「思考中」占位 */
-function showThinking() {
-  if (thinkingEl) return;
-  thinkingEl = el('div', 'msg ai thinking');
-  const bd = el('div', 'bd');
-  bd.innerHTML = '<span class="dots"><i></i><i></i><i></i></span><span class="tk">正在思考</span>';
-  thinkingEl.append(bd);
-  thread.append(thinkingEl);
+const THINK_LABELS = {
+  web_search: '正在联网搜索',
+  search: '正在联网搜索',
+  image: '正在画图',
+  generate_image: '正在画图',
+  write_file: '正在写文件',
+  calc: '正在计算',
+  python: '正在运行代码',
+};
+function showThinking(text) {
+  if (!thinkingEl) {
+    thinkingEl = el('div', 'msg ai thinking');
+    const bd = el('div', 'bd');
+    bd.innerHTML = '<span class="dots"><i></i><i></i><i></i></span><span class="tk"></span><span class="te"></span>';
+    thinkingEl.append(bd);
+    thread.append(thinkingEl);
+    thinkingEl.__t0 = Date.now();
+    thinkingEl.__label = '正在思考';
+    clearInterval(thinkingTimer);
+    thinkingTimer = setInterval(() => {
+      const te = thinkingEl && thinkingEl.querySelector('.te');
+      if (!te) return;
+      const sec = Math.round((Date.now() - thinkingEl.__t0) / 1000);
+      te.textContent = sec >= 4 ? ' · ' + sec + 's' : '';
+    }, 1000);
+  }
+  if (text) thinkingEl.__label = text;
+  const tk = thinkingEl.querySelector('.tk');
+  if (tk) tk.textContent = thinkingEl.__label;
   if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
 }
 function hideThinking() {
+  clearInterval(thinkingTimer);
+  thinkingTimer = 0;
   if (!thinkingEl) return;
   thinkingEl.remove();
   thinkingEl = null;
@@ -2860,7 +2885,7 @@ function hideThinking() {
       acc = d.text || '';
       paint();
     } else {
-      hideThinking();
+      // 注意：这里不能 hideThinking——上游可能还要思考十几秒，先留着占位
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = '';
@@ -2939,7 +2964,16 @@ function hideThinking() {
               reply.tools = reply.tools || [];
               reply.tools.push({ name: ev.tool.name || 'tool', args: ev.tool.args, result: null });
             }
-            if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }            if (ev.t) { acc += ev.t; schedule(); }
+            if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }
+            if (ev.tool_start && ev.tool_start.name) showThinking(THINK_LABELS[ev.tool_start.name] || '正在调用工具');
+            if (ev.tool_progress && ev.tool_progress.name === 'write_file') {
+              const nm2 = String(ev.tool_progress.raw || '').match(/"name"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+              let fn = '';
+              if (nm2) { try { fn = JSON.parse('"' + nm2[1] + '"'); } catch (e) {} }
+              showThinking(fn ? '正在写 ' + fn : '正在写文件');
+            }
+            if (ev.img_b64 || ev.img) showThinking('正在画图');
+            if (ev.t) { if (!acc && ev.t.trim()) hideThinking(); acc += ev.t; schedule(); }
           }
         }
       }
