@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:30';
+const APP_BUILD = '2026-11-13 16:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4583,6 +4583,7 @@ function renderSuggests(items, cv) {
   box.hidden = false;
 }
 async function maybeSuggest(cv) {
+  console.log('[suggest] start', cv && cv.messages ? cv.messages.length : -1);
   if (!cv || !cv.messages || cv.messages.length < 2) return;
   if (document.hidden) return;
   const last = cv.messages[cv.messages.length - 1];
@@ -4598,6 +4599,7 @@ async function maybeSuggest(cv) {
     const j = await r.json().catch(() => ({}));
     if (my !== suggestReqToken) return;
     const items = Array.isArray(j.items) ? j.items : [];
+    console.log('[suggest] got', JSON.stringify(items), 'cur', current() === cv, 'streaming', state.streaming);
     if (!items.length) return;
     if (current() !== cv || state.streaming) return;
     renderSuggests(items, cv);
