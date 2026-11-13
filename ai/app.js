@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:01';
+const APP_BUILD = '2026-11-13 22:03';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2987,9 +2987,9 @@ function updateCtx() {
   $('#ringArc').setAttribute('stroke-dashoffset', String(47.12 * (1 - ratio)));
   $('#ringArc').setAttribute('stroke', color);
   const num = $('#ctxNum');
-  num.textContent = used.toLocaleString() + ' / ' + (budget > 0 ? budget.toLocaleString() : '不限');
+  num.textContent = used.toLocaleString() + ' / ' + (budget > 0 ? budget.toLocaleString() : '本站不裁剪');
   num.style.color = color;
-  $('#ring').title = budget > 0 ? '上下文占用 ' + Math.round(ratio * 100) + '%' : '上下文不限（luna）';
+  $('#ring').title = budget > 0 ? '上下文占用 ' + Math.round(ratio * 100) + '%' : '本站不主动裁剪（模型自身仍有上下文上限）';
 
   const arch = $('#ctxArch');
   const cut = Number(cv && cv.cutIndex) || 0;
