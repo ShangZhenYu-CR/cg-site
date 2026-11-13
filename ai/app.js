@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 02:26';
+const APP_BUILD = '2026-11-14 02:40';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1887,6 +1887,7 @@ const SET_TABS = [
   ['keys', '快捷键'],
   ['data', '数据'],
 ];
+if (LS.role === 'admin') SET_TABS.push(['audit', '审计']);
 
 /** 把已有的小弹窗内容搬进设置面板（保留原有事件） */
 const SET_SRC = { ins: 'dlgIns', users: 'dlgUsers', cfg: 'dlgCfg', usage: 'dlgUsage' };
@@ -2412,6 +2413,29 @@ function mountPane(key) {
         row.append(move, del);
         box.append(row);
       });
+    })();
+    return;
+  }
+  if (key === 'audit') {
+    pane.append(el('h3', null, '审计日志'));
+    pane.append(el('p', 'set-hint', '最近 50 条技能/工具/分享变更，只有管理员能看。'));
+    const box = el('div', 'audit-list');
+    pane.append(box);
+    box.append(el('div', 'set-hint', '读取中…'));
+    (async () => {
+      const r = await api('/audit?limit=50');
+      const j = await r.json().catch(() => ({ items: [] }));
+      box.textContent = '';
+      const items = j.items || [];
+      if (!items.length) { box.append(el('div', 'set-hint', '还没有记录')); return; }
+      for (const it of items) {
+        const row = el('div', 'audit-row');
+        row.append(el('span', 'audit-time', new Date(it.at).toLocaleString()));
+        row.append(el('span', 'audit-act', it.action || ''));
+        row.append(el('span', 'audit-target', it.target || ''));
+        row.append(el('span', 'audit-actor', it.actor || ''));
+        box.append(row);
+      }
     })();
     return;
   }

@@ -777,6 +777,10 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* ---------- 第 8 轮：附件条 / 停止按钮 / 滚动渐隐 ---------- */
 .attach{width:min(672px,100%);gap:8px}
 .attach .chip{border-radius:10px}.composer.is-busy .send{display:grid}
+.audit-list{margin-top:10px;font-size:12px}
+.audit-row{display:grid;grid-template-columns:150px 110px 1fr 80px;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.audit-act{font-weight:600}
+.audit-target,.audit-time,.audit-actor{color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mem-main{flex:1;min-width:0}
 .mem-src{font-size:11px;color:var(--faint);margin-top:2px}
 .asset-report{margin:10px 0;max-height:300px;overflow:auto;font-size:13px}
