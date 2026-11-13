@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 19:44';
+const APP_BUILD = '2026-11-13 19:46';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -6995,14 +6995,17 @@ function showSlashTip(row, item) {
 function slashItemsAll() {
   // 内置命令 + 服务器上的技能（所有人共享，作者可改）
   const mine = (state.skills || []).filter((s) => s && s.enabled !== false).map((s) => ({
-    group: 'skill',
+    group: 'shared',
     label: s.name,
     en: '/' + s.cmd,
     icon: s.icon || 'skill',
     detail: (s.desc || '') + '（作者 ' + (s.author || '—') + (s.uses ? ' · 用过 ' + s.uses + ' 次' : '') + '）',
     skill: s,
   }));
-  return SLASH_ITEMS.concat(mine);
+  // 顺序：添加类 → 共享技能 → 内置技能
+  const adds = SLASH_ITEMS.filter((s) => s.group === 'add');
+  const builtinSkills = SLASH_ITEMS.filter((s) => s.group !== 'add');
+  return adds.concat(mine, builtinSkills);
 }
 function renderSlash(q) {
   const key = String(q || '').toLowerCase();
@@ -7019,6 +7022,7 @@ function renderSlash(q) {
   slashList.forEach((s, i) => {
     if (s.group !== lastGroup) {
       if (lastGroup) slashEl.append(el('div', 'slash-sep'));
+      if (s.group === 'shared') slashEl.append(el('div', 'slash-label', '共享技能'));
       if (s.group === 'skill') slashEl.append(el('div', 'slash-label', '技能'));
       lastGroup = s.group;
     }
