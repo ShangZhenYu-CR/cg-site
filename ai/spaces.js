@@ -329,6 +329,13 @@ export function mountSpaces(ctx) {
         }
         box.append(row);
       }
+      if (['owner', 'admin'].includes(sp.role)) {
+        const inv = el('button', 'ghost', '生成邀请码');
+        inv.type = 'button';
+        inv.style.marginTop = '10px';
+        inv.addEventListener('click', () => inviteToSpace());
+        box.append(inv);
+      }
       return;
     }
     if (!S.resource) { box.append(el('div', 'set-hint', '先打开一个页面。')); return; }
@@ -412,6 +419,27 @@ export function mountSpaces(ctx) {
     flashHint('扩展已生成，点「打开」试试');
   }
 
+
+  async function joinSpace() {
+    const code = (prompt('输入空间邀请码') || '').trim();
+    if (!code) return;
+    const r = await api('/spaces/join', { method: 'POST', body: { code } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { flashHint(j.error || '加入失败'); return; }
+    S.spaces = null;
+    await loadSpaces(true);
+    await openSpace(j.spaceId);
+    flashHint('已加入空间');
+  }
+  async function inviteToSpace() {
+    if (!S.space) return;
+    const role = (prompt('邀请角色：editor / commenter / viewer', 'editor') || 'editor').trim();
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/invites', { method: 'POST', body: { role } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { flashHint(j.error || '生成失败'); return; }
+    prompt('邀请码（7 天有效，可发给同事）', j.invite.code);
+  }
+
   async function addMember() {
     if (!S.space) return;
     const name = (prompt('成员昵称（需已登录过本站）') || '').trim();
@@ -468,6 +496,7 @@ export function mountSpaces(ctx) {
     render();
   });
   $('#newSpaceBtn').addEventListener('click', () => createSpace());
+  $('#joinSpaceBtn').addEventListener('click', () => joinSpace());
   $('#spaceBack').addEventListener('click', () => { S.space = null; S.resource = null; render(); });
   $('#newResourceBtn').addEventListener('click', () => createPage());
   $('#spaceNotif').addEventListener('click', () => showNotifications());
