@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 20:20';
+const APP_BUILD = '2026-11-13 20:22';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1686,7 +1686,7 @@ function toolForm(pane, tool) {
   const pkgs = el('input');
   pkgs.type = 'text';
   pkgs.value = tool && tool.packages ? tool.packages.join(',') : '';
-  pkgs.placeholder = '仅 Python：额外允许的库，逗号分隔（默认只允许 math/json/re 等标准库）';
+  pkgs.placeholder = '仅 Python：额外依赖，逗号分隔（服务器已安装才可用；os/socket 等已禁用）';
   mk('允许的库', pkgs);
   mk('代码', code);
   const row = el('div', 'set-row');
