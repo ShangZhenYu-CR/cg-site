@@ -301,7 +301,12 @@ export function mountSpaces(ctx) {
         add.type = 'button';
         add.style.marginTop = '10px';
         add.addEventListener('click', () => installExtension());
-        box.append(add);
+        const gen = el('button', 'ghost', 'AI 生成扩展');
+        gen.type = 'button';
+        gen.style.marginTop = '10px';
+        gen.style.marginLeft = '6px';
+        gen.addEventListener('click', () => generateExtension());
+        box.append(add, gen);
       }
       return;
     }
@@ -389,6 +394,22 @@ export function mountSpaces(ctx) {
     $('#tabApps').classList.add('on'); $('#tabComments').classList.remove('on'); $('#tabMembers').classList.remove('on');
     renderSide();
     flashHint('扩展已安装');
+  }
+
+
+  async function generateExtension() {
+    if (!S.space) return;
+    const promptText = (prompt('描述你要的扩展（例如：一个字帖小工具）', '') || '').trim();
+    if (!promptText) return;
+    flashHint('AI 正在生成扩展…');
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/extensions/generate', { method: 'POST', timeout: 120000, body: { prompt: promptText } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { flashHint(j.error || '生成失败'); return; }
+    await openSpace(S.space.id);
+    S.tab = 'apps';
+    $('#tabApps').classList.add('on'); $('#tabComments').classList.remove('on'); $('#tabMembers').classList.remove('on');
+    renderSide();
+    flashHint('扩展已生成，点「打开」试试');
   }
 
   async function addMember() {
