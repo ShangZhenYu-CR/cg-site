@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 18:05';
+const APP_BUILD = '2026-11-13 18:30';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -989,11 +989,17 @@ const RETIRED_DEFAULT_RE = /gpt-5\.6-(terra|luna)/i;
 
 function applyConvSettings(cv) {
   // 这个会话带产物（文档/幻灯片/设计）就顺手把右侧面板打开
+  // 手机上不自动铺开：整屏面板会把刚点开的对话盖住，底部的「产物」按钮仍可手动打开
+  const narrow = window.innerWidth < 900;
   if (cv && cv.artifact && cv.artifact.kind) {
     const pane = $('#artPane');
     // 换会话时按它自己的产物类型重开，避免沿用上一个面板
-    if (pane && (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name)) {
+    if (!narrow && pane && (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name)) {
       openArtifactPane(cv.artifact.kind, cv.artifact.name);
+    } else if (narrow) {
+      closeArtifactPane();
+      artKind = cv.artifact.kind;
+      artName = cv.artifact.name;
     }
   } else if (cv && !cv.artifact) {
     closeArtifactPane();
