@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 05:13';
+const APP_BUILD = '2026-11-14 05:18';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2376,10 +2376,24 @@ function mountPane(key) {
     const out = el('button', 'set-chip', '退出登录');
     out.type = 'button';
     out.addEventListener('click', () => { $('#dlgSet').hidden = true; $('#logoutBtn').click(); });
-    acts.append(rename, out);
+    const pwd = el('button', 'set-chip', '设置个人密码');
+    pwd.type = 'button';
+    pwd.addEventListener('click', async () => {
+      const p1 = prompt('设置个人密码（至少 8 位；设置后共享口令不能再登录这个名字）');
+      if (!p1) return;
+      if (p1.length < 8) { flashHint('至少 8 位'); return; }
+      const p2 = prompt('再输一次');
+      if (p2 !== p1) { flashHint('两次不一样'); return; }
+      const r = await api('/account/password', { method: 'POST', body: { password: p1 } });
+      const j = await r.json().catch(() => ({}));
+      flashHint(r.ok ? '已设置个人密码' : (j.error || '设置失败'));
+    });
+    acts.append(rename, pwd, out);
     const about = el('p', 'set-hint', '毛豆 · 自建小站：聊天、看图、画图、动图、联网、写代码。数据存在自己的服务器。');
+    const idHint = el('p', 'set-hint', '空间协作会用稳定 userId 记录作者：' + (LS.name || '') + '。设置个人密码后，知道共享口令的人也不能再冒用这个名字登录。');
+    idHint.style.marginTop = '10px';
     about.style.marginTop = '18px';
-    pane.append(h, row, row2, row3, acts, about);
+    pane.append(h, row, row2, row3, acts, idHint, about);
     return;
   }
   if (key === 'skills') {
