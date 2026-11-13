@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:57';
+const APP_BUILD = '2026-11-13 22:59';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1046,7 +1046,8 @@ function setSaveState(conv, state, error) {
 async function saveConv(conv, extra) {
   if (!conv || !conv.id) return { ok: false, error: '没有会话' };
   // 冲突未解决：暂停这个会话的保存队列，绝不自动提交旧内容
-  if (conv.__conflict) {
+  const rec0 = saveStates.get(conv.id);
+  if (conv.__conflict || (rec0 && rec0.state === 'conflict')) {
     setSaveState(conv, 'conflict');
     return { ok: false, conflict: true };
   }
@@ -1068,7 +1069,8 @@ async function doSaveConv(conv, extra) {
     // 还没从服务器载入正文，不能拿空的 messages 覆盖
     return { ok: false, error: '缓存占位，未保存' };
   }
-  if (conv.__conflict) {
+  const rec0 = saveStates.get(conv.id);
+  if (conv.__conflict || (rec0 && rec0.state === 'conflict')) {
     setSaveState(conv, 'conflict');
     return { ok: false, conflict: true };
   }
@@ -1156,6 +1158,7 @@ document.addEventListener('click', async (e) => {
         cv.__conflict = false;
         if (Number.isFinite(Number(cv.__serverRev))) cv.rev = Number(cv.__serverRev);
         saveStates.delete(cv.id);
+        saveStates.set(cv.id, { state: 'pending', at: Date.now(), error: '' });
         const r = await saveConv(cv);
         if (r.ok) { flashHint('已覆盖'); renderAll(); }
         else flashHint('覆盖失败，仍未保存');
