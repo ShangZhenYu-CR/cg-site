@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:40';
+const APP_BUILD = '2026-11-13 17:49';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1738,6 +1738,11 @@ async function mountUsersPane(pane) {
   }
 }
 function openSettings(tab) {
+  // 「用量」没有独立的设置面板，真正的明细在 #dlgUsage 里；直接打开那个对话框
+  if (tab === 'usage') {
+    Promise.resolve(refreshUsage()).then(() => { renderUsageDialog(); $('#dlgUsage').hidden = false; }).catch(() => {});
+    return;
+  }
   const ov = $('#dlgSet');
   ov.hidden = false;
   const key = SET_TABS.some(([k]) => k === tab) ? tab : 'appearance';
