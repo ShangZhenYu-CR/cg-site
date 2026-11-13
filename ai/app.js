@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 23:51';
+const APP_BUILD = '2026-11-14 00:20';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3686,14 +3686,19 @@ function hideThinking() {
                 const raw = String(ev.tool_done.result || '');
                 const m = raw.match(/\{"ok":true,"file":\{[^}]*\}\}/);
                 if (m) {
-                  const jf = JSON.parse(m[0]).file;
-                  if (jf && jf.url) {
-                    try { const rev = JSON.parse(m[0]).convRev; if (Number.isFinite(Number(rev))) cv.rev = Number(rev); } catch (e) {}
+                  const parsedFile = JSON.parse(m[0]);
+                  const jf = parsedFile.file;
+                  if (jf) {
+                    // 服务端写文件会推进 rev，客户端必须同步，否则下一次保存会 409
+                    try { const rev = parsedFile.convRev; if (Number.isFinite(Number(rev))) cv.rev = Number(rev); } catch (e) {}
                     cv.files = cv.files || [];
-                    if (!cv.files.some((x) => x.url === jf.url)) {
-                      cv.files.push({ name: jf.name || '文件', url: jf.url, kind: 'xlsx', size: jf.size || 0, content: '' });
-                      if (state.view === 'chat') { try { renderSide(); } catch (e) {} }
+                    const byName = cv.files.find((x) => x.name === jf.name);
+                    if (jf.url && !cv.files.some((x) => x.url === jf.url)) {
+                      cv.files.push({ name: jf.name || '文件', url: jf.url, kind: (typeof kindOfFile === 'function' ? kindOfFile(jf.name) : 'doc'), size: jf.size || 0, content: '' });
+                    } else if (byName && jf.size) {
+                      byName.size = jf.size;
                     }
+                    if (state.view === 'chat') { try { renderSide(); } catch (e) {} }
                   }
                 }
               } catch (e) {}
