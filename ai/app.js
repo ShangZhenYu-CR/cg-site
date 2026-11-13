@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:54';
+const APP_BUILD = '2026-11-13 22:57';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1002,6 +1002,7 @@ async function createConv(opts = {}) {
 /* ---------------- 保存：状态、串行化、版本冲突 ---------------- */
 const saveQueues = new Map();
 const saveStates = new Map(); // convId -> { state, at, error }
+const SAVE_LABEL = { pending: '保存中…', saved: '已保存', failed: '未保存', conflict: '有冲突' };
 
 /** 保存用的快照：成功时只有这份内容被确认，不能顺带把更新标成已保存 */
 function convSnapshot(conv, extra) {
