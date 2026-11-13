@@ -2028,3 +2028,15 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 .suggests .sg-x:hover{background:var(--panel2);color:var(--text)}
 .suggests .sg-tip{font-size:12px;color:var(--faint)}
 
+
+/* 产物头部：对话内文件切换 */
+.art-files-btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 8px;border-radius:8px;font-size:12px;color:var(--dim);border:1px solid var(--line);background:var(--bg);flex:none}
+.art-files-btn:hover{color:var(--text);border-color:color-mix(in srgb,var(--text) 22%,var(--line))}
+.art-files-btn .at-chev{font-style:normal;font-size:10px;color:var(--faint)}
+.art-file-menu{position:fixed;z-index:141;min-width:240px;max-width:340px;max-height:320px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);padding:6px}
+.art-file-menu .afm-row{display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 8px;border-radius:8px;font-size:13px;color:var(--text);text-align:left}
+.art-file-menu .afm-row:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
+.art-file-menu .afm-row.on{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.art-file-menu .afm-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.art-file-menu .afm-size{font-size:11px;color:var(--faint);flex:none}
+

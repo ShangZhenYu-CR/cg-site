@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:02';
+const APP_BUILD = '2026-11-13 16:10';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5338,6 +5338,49 @@ function closeArtifactPane() {
   const btn = $('#artExpand'); if (btn) { btn.textContent = '⤢'; btn.title = '放大'; }
 }
 
+
+/* ---------------- 产物面板：对话内文件切换 ---------------- */
+function kindOfFile(name) {
+  const n = String(name || '');
+  if (/deck\.json$/i.test(n)) return 'deck';
+  if (/\.html?$/i.test(n)) return 'design';
+  if (/\.(md|markdown|txt)$/i.test(n)) return 'doc';
+  return 'doc';
+}
+function closeFileMenu() {
+  const m = $('#artFileMenu');
+  if (m) m.remove();
+}
+function toggleFileMenu() {
+  if ($('#artFileMenu')) { closeFileMenu(); return; }
+  const cv = current();
+  if (!cv) return;
+  const files = (cv.files || []).slice();
+  if (!files.length) { flashHint('这个对话还没有产物'); return; }
+  const btn = $('#artFiles');
+  const menu = el('div', 'art-file-menu');
+  menu.id = 'artFileMenu';
+  for (const fl of files) {
+    const row = el('button', 'afm-row' + (fl.name === artName ? ' on' : ''));
+    row.type = 'button';
+    const nm = el('span', 'afm-name', fl.name);
+    const sz = el('span', 'afm-size', (String(fl.content || '').length / 1024).toFixed(1) + 'K');
+    row.append(nm, sz);
+    row.addEventListener('click', () => {
+      closeFileMenu();
+      openArtifactPane(kindOfFile(fl.name), fl.name);
+    });
+    menu.append(row);
+  }
+  document.body.append(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.left = Math.round(Math.min(r.left, window.innerWidth - 350)) + 'px';
+  menu.style.top = Math.round(r.bottom + 6) + 'px';
+}
+$('#artFiles').addEventListener('click', (e) => { e.stopPropagation(); toggleFileMenu(); });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#artFileMenu') && !e.target.closest('#artFiles')) closeFileMenu();
+});
 function renderArtifact() {
   const body = $('#artBody');
   if (!body) return;
@@ -5350,6 +5393,14 @@ function renderArtifact() {
   const file = currentArtifactFile();
   const hint = $('#artHint');
   if (hint) hint.textContent = file ? (ART_KINDS[artKind] || {}).label + ' · ' + artName : '';
+  const filesBtn = $('#artFiles');
+  if (filesBtn) {
+    const cvNow = current();
+    const n = cvNow ? (cvNow.files || []).length : 0;
+    filesBtn.hidden = n <= 1;
+    const cnt = $('#artFilesCount');
+    if (cnt) cnt.textContent = n + ' 个文件';
+  }
   const bar = $('#artBar');
   // 画布工具条只属于幻灯片；文档/设计不显示（避免盖住预览/源码切换）
   if (bar) bar.hidden = !file || artKind !== 'deck';
