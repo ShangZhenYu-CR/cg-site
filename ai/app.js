@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 01:25';
+const APP_BUILD = '2026-11-14 01:41';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2993,9 +2993,13 @@ function renderThread() {
 
   thread.textContent = '';
   const cv = current();
-  const msgs = cv ? cv.messages : [];
-  $('#empty').hidden = !!msgs.length;
-  if (!msgs.length) renderRecentArtifacts();
+  const allMsgs = cv ? cv.messages : [];
+  // 长对话只渲染最近一窗，避免一次铺几千个 DOM 节点
+  const win = Math.max(100, Number(cv && cv.__window) || 300);
+  const winStart = Math.max(0, allMsgs.length - win);
+  const msgs = allMsgs.slice(winStart);
+  $('#empty').hidden = !!allMsgs.length;
+  if (!allMsgs.length) renderRecentArtifacts();
   layoutHomeComposer();
   // 日期分隔线：和 Claude 一样按天分段（今天 / 昨天 / 更早显示具体日期）
   let lastDayKey = '';
@@ -3013,13 +3017,23 @@ function renderThread() {
     if (that === today - 172800000) return '前天';
     return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
   };
+  if (winStart > 0) {
+    const more = el('button', 'load-earlier', '加载更早的 ' + winStart + ' 条消息');
+    more.type = 'button';
+    more.addEventListener('click', () => {
+      if (!cv) return;
+      cv.__window = win + 300;
+      renderThread();
+    });
+    thread.append(more);
+  }
   msgs.forEach((m, i) => {
     const dk = String(dayStartOf(m.ts));
     if (dk !== lastDayKey) {
       lastDayKey = dk;
       thread.append(el('div', 'day-sep', dayLabelOf(m.ts)));
     }
-    thread.append(bubble(m, i));
+    thread.append(bubble(m, winStart + i));
   });
   const viewName = { projects: '项目', files: '文件', gallery: '图库', plugins: '插件' }[state.view];
   $('#titleBtn').textContent = viewName || (cv ? cv.title : '新对话');
