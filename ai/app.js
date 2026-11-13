@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:52';
+const APP_BUILD = '2026-11-13 16:53';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5420,6 +5420,17 @@ document.addEventListener('click', (e) => {
 function renderArtifact() {
   const body = $('#artBody');
   if (!body) return;
+  // 老数据里 .py/.json 可能被标成「文档」：按文件名重新判断，避免渲染器和标签对不上
+  if (artName) {
+    const guess = kindOfFile(artName);
+    if (guess !== artKind) {
+      const cv = current();
+      if (guess === 'code' || (cv && cv.artifact && cv.artifact.name === artName)) {
+        artKind = guess;
+        if (cv && cv.artifact) cv.artifact.kind = guess;
+      }
+    }
+  }
   body.textContent = '';
   // 头部只保留属于当前产物的控件
   if (artKind !== 'design') {
