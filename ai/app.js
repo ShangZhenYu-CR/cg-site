@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:28';
+const APP_BUILD = '2026-11-13 17:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -128,6 +128,7 @@ const state = {
   currentId: null,
   streaming: false,
   finishPromise: null,
+  editing: null,
   waitingUpload: false,
   imageMode: false,
   gifMode: false,
@@ -1217,13 +1218,14 @@ function startEdit(idx) {
   const m = (cv.messages || [])[idx];
   if (!m || m.role !== 'user') return;
   const text = m.text || '';
-  cv.messages.splice(idx, cv.messages.length - idx);
-  saveConv(cv);
-  renderAll();
+  // 只记录「正在编辑哪一条」，不改动已保存的消息；
+  // 真正截断发生在用户按发送时——否则点一下「编辑」就把后面的回答删了，误触就没了
+  state.editing = { convId: cv.id, idx, text };
   input.value = text;
   input.dispatchEvent(new Event('input'));
   input.focus();
   input.setSelectionRange(text.length, text.length);
+  flashHint('正在编辑：发送后会从这条重新开始，不发送不会有任何改动');
 }
 
 /** 从某条 AI 回答处重新生成 */
@@ -4698,6 +4700,18 @@ $('#composer').addEventListener('submit', async (e) => {
   const hasAttach = state.attachments.length > 0;
   if (!text && !hasAttach) return;
 
+  // 编辑重发：到这一步才真的截断（之前只是把原文放回输入框）
+  const ed = state.editing;
+  if (ed && ed.convId === state.currentId) {
+    const cvNow = current();
+    if (cvNow && Array.isArray(cvNow.messages) && cvNow.messages[ed.idx] && cvNow.messages[ed.idx].role === 'user') {
+      cvNow.messages.splice(ed.idx, cvNow.messages.length - ed.idx);
+      cvNow.cutIndex = null;
+      saveConv(cvNow).catch(() => {});
+    }
+  }
+  state.editing = null;
+
   const attachUrls = state.attachments.map((a) => a.url);
   const decision = decideRoute({
     text,
@@ -4836,6 +4850,7 @@ $('#newChat').addEventListener('click', async () => {
   }
   state.currentId = null;
   state.pendingPrivate = false;
+  state.editing = null;
   // 在项目页点「新建」时也要切回对话视图，否则页面停在项目页、输入框都看不到
   // 并且这条新对话要落在这个项目里（Claude 的项目内新建也是这样）
   if (state.view === 'project' && state.projectId) state.projectFilter = state.projectId;
