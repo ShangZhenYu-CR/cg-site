@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 10:42';
+const APP_BUILD = '2026-11-13 15:05';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2238,6 +2238,7 @@ function syncDraftSwitch() {
   const cv = current();
   const id = cv ? cv.id : DRAFT_NEW;
   if (id === lastDraftConv) return;
+  hideSuggests();
   if (lastDraftConv) saveDraft(lastDraftConv, input.value, state.attachments);
   lastDraftConv = id;
   restoreDraft(id);
@@ -3039,6 +3040,7 @@ function hideThinking() {
     if (!$('#artPane').hidden) renderArtifact();
     scheduleUsage();
     if (stickBottom) scrollBox.scrollTop = scrollBox.scrollHeight;
+    if (!reply.err) setTimeout(() => maybeSuggest(cv), 400);
   }
 }
 
@@ -4503,6 +4505,63 @@ function gifSizeForFrames(n, want) {
 /** 单条消息最多带几张参考图（上游允许 1500 张/512MB，这里只做交互上的合理上限） */
 const MAX_REF_IMAGES = 10;
 
+
+/* ---------------- 建议下一句 ---------------- */
+const SUGGEST_MODEL = 'gpt-6-luna';
+let suggestReqToken = 0;
+let suggestKey = '';
+function hideSuggests() {
+  const box = $('#suggests');
+  if (!box) return;
+  box.hidden = true;
+  box.textContent = '';
+  suggestKey = '';
+}
+function renderSuggests(items, cv) {
+  const box = $('#suggests');
+  if (!box || !items || !items.length) { hideSuggests(); return; }
+  box.textContent = '';
+  for (const text of items) {
+    const b = el('button', 'sg-btn', text);
+    b.type = 'button';
+    b.title = '点击直接发送';
+    b.addEventListener('click', () => {
+      hideSuggests();
+      input.value = text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      $('#composer').requestSubmit();
+    });
+    box.append(b);
+  }
+  const x = el('button', 'sg-x', '✕');
+  x.type = 'button';
+  x.title = '不看了';
+  x.addEventListener('click', hideSuggests);
+  box.append(x);
+  box.hidden = false;
+}
+async function maybeSuggest(cv) {
+  if (!cv || !cv.messages || cv.messages.length < 2) return;
+  if (document.hidden) return;
+  const last = cv.messages[cv.messages.length - 1];
+  if (!last || last.role === 'user' || last.err) return;
+  const key = cv.id + ':' + cv.messages.length;
+  if (key === suggestKey) return;
+  suggestKey = key;
+  const my = ++suggestReqToken;
+  try {
+    const r = await api('/suggest', { method: 'POST', body: { model: SUGGEST_MODEL, messages: cv.messages } });
+    if (my !== suggestReqToken) return;      // 已经切走/又发了一条
+    if (!r.ok) return;
+    const j = await r.json().catch(() => ({}));
+    if (my !== suggestReqToken) return;
+    const items = Array.isArray(j.items) ? j.items : [];
+    if (!items.length) return;
+    if (current() !== cv || state.streaming) return;
+    renderSuggests(items, cv);
+  } catch {}
+}
+
 /**
  * 决定这条消息走哪条路（纯函数，便于测试）
  * 规则：动图模式 > 关键词动图 > 画图模式 > 普通聊天
@@ -4588,6 +4647,7 @@ function syncSendVisible() {
 }
 
 input.addEventListener('input', () => {
+  if (suggestReqToken) { suggestReqToken++; hideSuggests(); }
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 170) + 'px';
   sendBtn.disabled = !input.value.trim() && !state.attachments.length;
