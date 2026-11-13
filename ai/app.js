@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 03:13';
+const APP_BUILD = '2026-11-14 03:16';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2105,6 +2105,7 @@ function toolForm(pane, tool) {
   }
   runtime.value = tool ? (tool.runtime || 'node') : 'node';
   const timeout = document.createElement('input'); timeout.type = 'text'; timeout.value = String(tool ? (tool.timeoutMs || 5000) : 5000);
+  const authReq = document.createElement('input'); authReq.type = 'checkbox'; authReq.checked = !!(tool && tool.requiresAuth);
   const code = document.createElement('textarea'); code.value = tool ? (tool.code || '') : "const fs = require('fs');\nconst args = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');\nconsole.log('hello ' + (args.text || ''));";
   code.style.minHeight = '150px';
   code.style.fontFamily = 'ui-monospace, monospace';
@@ -2113,6 +2114,7 @@ function toolForm(pane, tool) {
   mk('参数（逗号分隔）', params);
   const rtWrap = el('div'); rtWrap.append(runtime); mk('运行时', rtWrap);
   mk('超时（毫秒，最多 8000）', timeout);
+  if (isAdmin()) mk('需要管理员授权（外部服务/凭据）', authReq);
   const pkgs = el('input');
   pkgs.type = 'text';
   pkgs.value = tool && tool.packages ? tool.packages.join(',') : '';
@@ -2127,6 +2129,7 @@ function toolForm(pane, tool) {
       name: name.value.trim(), desc: desc.value.trim(), runtime: runtime.value,
       params: params.value.split(',').map(s => s.trim()).filter(Boolean),
       timeoutMs: Number(timeout.value) || 5000, code: code.value,
+      requiresAuth: !!(authReq && authReq.checked && isAdmin()),
       packages: pkgs.value.split(',').map(s => s.trim()).filter(Boolean),
     };
     const r = tool ? await api('/tools/' + encodeURIComponent(tool.id), { method: 'PUT', body }) : await api('/tools', { method: 'POST', body });
