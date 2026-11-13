@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 15:53';
+const APP_BUILD = '2026-11-13 15:55';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5512,11 +5512,11 @@ function renderDesign(body, file) {
   let frameEscapeGuard = 0;
   frame.addEventListener('load', () => {
     frameEscapeGuard += 1;
+    frame.dataset.loads = String(frameEscapeGuard);   // 便于排查
     if (frameEscapeGuard !== 2) return;
-    try {
-      frame.srcdoc = designDoc(file);
-      flashHint('预览页试图跳转，已拉回');
-    } catch (e) {}
+    frame.dataset.escaped = '1';
+    flashHint('预览页试图跳转，已拉回');
+    setTimeout(() => { try { renderArtifact(); } catch (e) {} }, 50);
   });
 
   const ta = el('textarea', 'design-src');
