@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 18:35';
+const APP_BUILD = '2026-11-13 18:43';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -444,9 +444,13 @@ function md(src) {
       }
       else {
         const code = buf.join('\n');
+        // 行号：每行拆成「序号 + 内容」，复制按钮仍然复制纯代码
+        const codeHtml = esc(code).split('\n').map((ln, idx) =>
+          '<span class="cl"><span class="cn">' + (idx + 1) + '</span><span class="ct">' + (ln || ' ') + '</span></span>'
+        ).join('');
         out.push('<div class="pre-wrap"><div class="pre-head"><span class="pre-lang">' + esc(lang || 'text') + '</span>'
           + '<button type="button" class="pre-copy" data-code="' + encodeURIComponent(code).replace(/"/g, '&quot;') + '">复制</button></div>'
-          + '<pre><code>' + esc(code) + '</code></pre></div>');
+          + '<pre class="with-ln"><code>' + codeHtml + '</code></pre></div>');
       }
       continue;
     }
@@ -1131,7 +1135,12 @@ function renderSkeleton() {
 function renderSide() {
   const q = $('#q').value.trim().toLowerCase();
   listBox.textContent = '';
-  const matches = (cv) => !q || String(cv.title || '').toLowerCase().includes(q);
+  // 搜索同时匹配标题和正文（Claude 的侧栏搜索也搜内容）
+  const matches = (cv) => {
+    if (!q) return true;
+    if (String(cv.title || '').toLowerCase().includes(q)) return true;
+    return (cv.messages || []).some((m) => String((m && m.text) || '').toLowerCase().includes(q));
+  };
   const pinnedIds = new Set((state.convs || []).filter((cv) => isPinned(cv.id)).map((cv) => cv.id));
 
   // 项目过滤视图（从项目页返回时用）
@@ -2305,7 +2314,30 @@ function renderThread() {
   $('#empty').hidden = !!msgs.length;
   if (!msgs.length) renderRecentArtifacts();
   layoutHomeComposer();
-  msgs.forEach((m, i) => thread.append(bubble(m, i)));
+  // 日期分隔线：和 Claude 一样按天分段（今天 / 昨天 / 更早显示具体日期）
+  let lastDayKey = '';
+  const dayStartOf = (ts) => {
+    const d = ts ? new Date(ts) : new Date();
+    return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  };
+  const dayLabelOf = (ts) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const d = ts ? new Date(ts) : now;
+    const that = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    if (that === today) return '今天';
+    if (that === today - 86400000) return '昨天';
+    if (that === today - 172800000) return '前天';
+    return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  };
+  msgs.forEach((m, i) => {
+    const dk = String(dayStartOf(m.ts));
+    if (dk !== lastDayKey) {
+      lastDayKey = dk;
+      thread.append(el('div', 'day-sep', dayLabelOf(m.ts)));
+    }
+    thread.append(bubble(m, i));
+  });
   const viewName = { projects: '项目', files: '文件', gallery: '图库', plugins: '插件' }[state.view];
   $('#titleBtn').textContent = viewName || (cv ? cv.title : '新对话');
   const chev = $('#titleBtn').querySelector('.tchev');

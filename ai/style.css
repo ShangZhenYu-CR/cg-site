@@ -2069,3 +2069,14 @@ body.noside #side .nav-row svg{width:20px;height:20px}
 /* 图表：文字和网格跟随主题，饼图图例不再压到图上 */
 .chart-svg text{font-family:var(--font-sans)}
 
+
+/* 日期分隔线 */
+.day-sep{display:flex;align-items:center;gap:12px;margin:18px 0 6px;color:var(--faint);font-size:12px;justify-content:center}
+.day-sep::before,.day-sep::after{content:"";flex:1;height:1px;background:var(--line)}
+/* 代码块行号 */
+.pre-wrap pre.with-ln{display:block;padding:10px 0}
+.pre-wrap pre.with-ln code{display:block}
+.pre-wrap pre.with-ln .cl{display:flex;line-height:1.65}
+.pre-wrap pre.with-ln .cn{width:2.4em;flex:none;text-align:right;padding-right:10px;color:var(--faint);user-select:none;font-size:12px}
+.pre-wrap pre.with-ln .ct{white-space:pre;flex:1;min-width:0;overflow-wrap:normal}
+
