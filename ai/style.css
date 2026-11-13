@@ -704,6 +704,10 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* 项目页：标题居中 + 右上深色按钮（对齐 Claude projects 页） */
 
 /* 空间（多人协作） */
+.space-selbar{position:fixed;z-index:9999;display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.space-selbar button{border:0;background:transparent;color:var(--text);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer}
+.space-selbar button:hover{background:rgba(0,0,0,.06)}
+
 .spaces-page{width:100%;max-width:1200px;margin:0 auto;padding:20px 24px 32px;align-self:center;text-align:left}
 .spaces-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
 .spaces-head h1{font-family:var(--font-serif);font-size:28px;font-weight:400;margin:0;flex:1;min-width:140px}

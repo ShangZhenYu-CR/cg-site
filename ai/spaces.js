@@ -305,5 +305,99 @@ export function mountSpaces(ctx) {
   $('#spaceResTitle').addEventListener('input', () => scheduleSave());
   $('#tabComments').addEventListener('click', () => { S.tab = 'comments'; $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on'); renderSide(); });
   $('#tabMembers').addEventListener('click', () => { S.tab = 'members'; $('#tabMembers').classList.add('on'); $('#tabComments').classList.remove('on'); renderSide(); });
+
+  let selBar = null, selTarget = null;
+  function ensureSelBar() {
+    if (selBar) return selBar;
+    selBar = document.createElement('div');
+    selBar.className = 'space-selbar';
+    const ask = document.createElement('button'); ask.type = 'button'; ask.textContent = '问 AI';
+    const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = '修改';
+    const cmt = document.createElement('button'); cmt.type = 'button'; cmt.textContent = '评论';
+    ask.addEventListener('click', () => runSelectionAction('ask'));
+    edit.addEventListener('click', () => runSelectionAction('edit'));
+    cmt.addEventListener('click', () => {
+      S.tab = 'comments';
+      $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on');
+      renderSide();
+      const ta = document.querySelector('.space-cmt-form textarea');
+      if (ta) ta.focus();
+      hideSelBar();
+    });
+    selBar.append(ask, edit, cmt);
+    selBar.addEventListener('mousedown', (e) => e.preventDefault());
+    document.body.append(selBar);
+    return selBar;
+  }
+  function hideSelBar() { if (selBar) selBar.hidden = true; selTarget = null; }
+  function readSelection(ta) {
+    const from = ta.selectionStart, to = ta.selectionEnd;
+    if (from == null || to == null || to <= from) return null;
+    const text = ta.value.slice(from, to);
+    if (!text.trim()) return null;
+    return { from, to, text, id: ta.dataset.eid, revision: Number(ta.dataset.rev) || 0, ta };
+  }
+  function showSelBar(ta) {
+    const sel = readSelection(ta);
+    if (!sel) { hideSelBar(); return; }
+    selTarget = sel;
+    const bar = ensureSelBar();
+    bar.hidden = false;
+    const r = ta.getBoundingClientRect();
+    bar.style.left = Math.max(8, Math.min(window.innerWidth - bar.offsetWidth - 8, r.left + 8)) + 'px';
+    bar.style.top = Math.max(8, r.top - 40) + 'px';
+    bar.hidden = false;
+  }
+  async function runSelectionAction(action) {
+    const sel = selTarget;
+    if (!sel || !S.resource || !S.space) return;
+    const label = action === 'ask' ? '问 AI：想了解这段什么？' : '修改：希望怎么改？';
+    const instruction = (prompt(label, action === 'ask' ? '解释这段内容' : '润色这段文字') || '').trim();
+    if (!instruction) return;
+    hideSelBar();
+    $('#spaceSaveState').textContent = action === 'ask' ? 'AI 思考中…' : 'AI 修改中…';
+    try {
+      const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/ai', {
+        method: 'POST',
+        timeout: 90000,
+        body: { action, entityId: sel.id, expectedRevision: sel.revision, from: sel.from, to: sel.to, instruction },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { $('#spaceSaveState').textContent = ''; flashHint(j.error || 'AI 调用失败'); return; }
+      if (action === 'ask') {
+        $('#spaceSaveState').textContent = '';
+        openListPanel('选区问答', '只回答，不改原文', [{ label: (j.answer || '').slice(0, 2000), sub: 'AI 回答' }]);
+        return;
+      }
+      S.resource = j.resource || S.resource;
+      renderEditor();
+      renderTree();
+      $('#spaceSaveState').textContent = 'AI 已修改';
+      openListPanel('AI 修改已应用', '只改了选中的范围', [{
+        label: '撤销这次修改',
+        sub: '如果之后又有人改过这段，会提示冲突',
+        onClick: async () => {
+          const rr = await api('/spaces/' + encodeURIComponent(S.space.id) + '/changes/' + encodeURIComponent(j.changeId) + '/undo', { method: 'POST', body: {} });
+          const jj = await rr.json().catch(() => ({}));
+          if (!rr.ok) { flashHint(jj.error || '撤销失败'); return; }
+          await openResource(S.resource.id);
+          flashHint('已撤销这次 AI 修改');
+        },
+      }]);
+    } catch (e) {
+      $('#spaceSaveState').textContent = '';
+      flashHint('AI 调用失败：' + String((e && e.message) || e));
+    }
+  }
+  function bindSelection() {
+    const editor = $('#pageEditor');
+    if (!editor) return;
+    editor.addEventListener('mouseup', (e) => { if (e.target && e.target.tagName === 'TEXTAREA') showSelBar(e.target); });
+    editor.addEventListener('keyup', (e) => { if (e.target && e.target.tagName === 'TEXTAREA' && (e.shiftKey || e.key === 'Shift')) showSelBar(e.target); });
+    editor.addEventListener('blur', () => setTimeout(() => { if (selBar && !selBar.matches(':hover')) hideSelBar(); }, 200), true);
+  }
+  document.addEventListener('mousedown', (e) => { if (selBar && !selBar.hidden && !selBar.contains(e.target)) hideSelBar(); });
+  bindSelection();
+
   return { render, openSpace };
 }
