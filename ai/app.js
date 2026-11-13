@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 19:41';
+const APP_BUILD = '2026-11-13 19:44';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -7086,21 +7086,15 @@ function useSkill(sk) {
   state.pendingSkill = sk;
   applySkillModes(sk);
   renderSkillChip();
-  if (String(sk.prompt || '').includes('{input}')) {
-    const text = String(sk.prompt).replace(/\{input\}/g, '');
-    input.value = text;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.focus();
-    const at = text.length;
-    input.setSelectionRange(at, at);
-    flashHint('已套用技能「' + sk.name + '」，补充内容后发送');
-    return;
-  }
-  input.value = '';
+  // 统一行为：把技能提示词放进输入框（{input} 留空给你补），按 Enter 才真正执行
+  const hasSlot = String(sk.prompt || '').includes('{input}');
+  const text = String(sk.prompt || '').replace(/\{input\}/g, '');
+  input.value = text;
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.focus();
-  flashHint('正在执行技能「' + sk.name + '」');
-  $('#composer').requestSubmit();
+  const at = text.length;
+  input.setSelectionRange(at, at);
+  flashHint(hasSlot ? '已套用技能「' + sk.name + '」，补充内容后按 Enter' : '已套用技能「' + sk.name + '」，按 Enter 运行');
 }
 
 function chooseSlash(i) {
