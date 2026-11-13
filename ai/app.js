@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 19:46';
+const APP_BUILD = '2026-11-13 19:48';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -7005,7 +7005,9 @@ function slashItemsAll() {
   // 顺序：添加类 → 共享技能 → 内置技能
   const adds = SLASH_ITEMS.filter((s) => s.group === 'add');
   const builtinSkills = SLASH_ITEMS.filter((s) => s.group !== 'add');
-  return adds.concat(mine, builtinSkills);
+  // 同名以内置为准去重：共享技能里已有同名项时，不再重复显示内置的那条
+  const sharedNames = new Set(mine.map((m) => m.label));
+  return adds.concat(mine, builtinSkills.filter((s) => !sharedNames.has(s.label)));
 }
 function renderSlash(q) {
   const key = String(q || '').toLowerCase();
