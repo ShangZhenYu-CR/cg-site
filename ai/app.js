@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 19:53';
+const APP_BUILD = '2026-11-13 19:56';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1823,6 +1823,12 @@ function mountPane(key) {
     listBox.style.marginTop = '12px';
     pane.append(listBox);
     mountSkillList(listBox);
+    // 从技能市场点「编辑」进来时直接打开这条的编辑表单
+    if (state.editSkillId) {
+      const sk = (state.skills || []).find((x) => x.id === state.editSkillId);
+      state.editSkillId = null;
+      if (sk) skillForm(pane, sk);
+    }
     return;
   }
   if (key === 'memory') {
@@ -6333,7 +6339,11 @@ async function renderSkillsPage() {
     if (s.mine) {
       const ed = el('button', 'set-chip', '编辑');
       ed.type = 'button';
-      ed.addEventListener('click', () => { $('#plusBtn').click(); setTimeout(() => { document.getElementById('setOpenBtn').click(); setTimeout(() => openSettings('skills'), 300); }, 100); });
+      ed.addEventListener('click', () => {
+        state.editSkillId = s.id;
+        $('#plusBtn').click();
+        setTimeout(() => { document.getElementById('setOpenBtn').click(); setTimeout(() => openSettings('skills'), 300); }, 100);
+      });
       const del = el('button', 'set-chip', '删除');
       del.type = 'button';
       del.addEventListener('click', async () => {
