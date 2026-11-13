@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:20';
+const APP_BUILD = '2026-11-13 16:30';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -127,6 +127,7 @@ const state = {
   convs: [],
   currentId: null,
   streaming: false,
+  finishPromise: null,
   waitingUpload: false,
   imageMode: false,
   gifMode: false,
@@ -2832,6 +2833,12 @@ function hideThinking() {
           : { effort }),
         codeMode: state.codeMode || !!cv.artifact,
         fileNames: (cv.files || []).map(f => f.name),
+        artifactContent: (() => {
+          const art = cv.artifact;
+          if (!art) return undefined;
+          const hit = (cv.files || []).find(x => x.name === art.name);
+          return hit ? String(hit.content || '').slice(0, 24000) : undefined;
+        })(),
         artifact: cv.artifact || undefined,
         design: cv.artifact && cv.artifact.kind === 'design' ? (cv.design || undefined) : undefined,
         messages: sentMessages(cv).map(m => ({
@@ -2885,7 +2892,7 @@ function hideThinking() {
                 try { name = JSON.parse('"' + nm[1] + '"'); } catch (e) {}
                 try { content = JSON.parse('"' + cm[1].replace(/\\$/, '') + '"'); } catch (e) { content = cm[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'); }
                 if (name) {
-                  applyFiles(cv, [{ name, content }]);
+                  applyFiles(cv, [{ name, content }], { backup: false });
                   if (!cv.artifact) cv.artifact = { kind: 'doc', name };
                   const kind = cv.artifact.kind || 'doc';
                   if (kind === 'doc') {
@@ -3033,8 +3040,11 @@ function hideThinking() {
     if (reply && typeof reply.text === 'string') reply.text = collectMemories(reply.text);
     hideThinking();
     state.controller = null;
-    await saveConv(cv);
+    // 先解锁输入再落盘：收尾那一两秒里用户按发送，不该被当成「停止」
     setBusy(false);
+    state.finishPromise = saveConv(cv);
+    await state.finishPromise;
+    state.finishPromise = null;
     renderAll();
     // 模型写完文件后，右侧产物面板跟着刷新
     if (!$('#artPane').hidden) renderArtifact();
@@ -3453,15 +3463,17 @@ function backupName(name, n) {
   const ext = dot > 0 ? name.slice(dot) : '';
   return base + '（旧版' + n + '）' + ext;
 }
-function applyFiles(cv, incoming) {
+function applyFiles(cv, incoming, opts = {}) {
   cv.files = cv.files || [];
+  const keepBackup = opts.backup !== false;
   for (const f of incoming) {
     const i = cv.files.findIndex(x => x.name === f.name);
     if (i >= 0) {
       const old = cv.files[i];
       const oldLen = String(old.content || '').length;
-      // 覆盖前留一份旧版，避免「刚开始做的游戏被后来的文档冲掉」
-      if (oldLen > 200 && String(old.content || '') !== String(f.content || '')) {
+      // 覆盖前留一份旧版；流式半成品不留（opts.backup=false），同内容不留第二份
+      if (keepBackup && oldLen > 200 && String(old.content || '') !== String(f.content || '')
+        && !cv.files.some(x => x.name !== f.name && x.content === old.content && /（旧版\d+）/.test(x.name))) {
         let n = 1;
         while (cv.files.some(x => x.name === backupName(f.name, n))) n += 1;
         if (n <= 2) cv.files.push({ name: backupName(f.name, n), content: old.content, updatedAt: Date.now() });
@@ -4617,9 +4629,13 @@ $('#composer').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (state.streaming) {
     if (state.controller) { state.controller.abort(); return; }
-    // 出图/动图没有可中断的流，直接提示，别把输入吞掉
-    flashHint('正在生成，稍等下再发；想取消等它结束');
-    return;
+    // 流已经结束、只是在收尾落盘：等它写完再发，别把这条消息吞掉
+    if (state.finishPromise) { try { await state.finishPromise; } catch {} }
+    if (state.streaming) {
+      // 出图/动图没有可中断的流，直接提示，别把输入吞掉
+      flashHint('正在生成，稍等下再发；想取消等它结束');
+      return;
+    }
   }
 
   // 还有图片在上传：等它们完成，再连图一起发（别发出去才发现图没了）
