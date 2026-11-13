@@ -1,5 +1,5 @@
 export function mountSpaces(ctx) {
-  const { api, el, $, state, renderAll, openListPanel, flashHint } = ctx;
+  const { api, el, $, state, renderAll, openListPanel, flashHint, openPluginViewer, base } = ctx;
   const S = { spaces: null, space: null, resource: null, tab: 'comments', activeEntity: null, saveTimer: null, saving: false, conflict: false, comments: [] };
   function roleLabel(role) { return { owner: '所有者', editor: '编辑', commenter: '评论者', viewer: '只读', admin: '管理员' }[role] || role; }
   async function loadSpaces(force) {
@@ -62,6 +62,8 @@ export function mountSpaces(ctx) {
     S.resource = null;
     S.activeEntity = null;
     S.comments = [];
+    S.extensions = [];
+    try { const er = await api('/spaces/' + encodeURIComponent(id) + '/extensions'); const ej = await er.json().catch(() => ({})); S.extensions = Array.isArray(ej.extensions) ? ej.extensions : []; } catch (e) {}
     if (j.space.resources && j.space.resources.length) await openResource(j.space.resources[0].id);
     else { S.resource = null; render(); }
   }
@@ -264,6 +266,45 @@ export function mountSpaces(ctx) {
     const box = $('#spaceSideBody');
     if (!box) return;
     box.textContent = '';
+    if (S.tab === 'apps') {
+      const sp = S.space;
+      const list = el('div');
+      for (const x of (S.extensions || [])) {
+        const row = el('div', 'space-member');
+        const nm = el('span', null, x.name || x.id);
+        nm.title = 'v' + (x.version || 1) + (x.enabled === false ? ' · 已禁用' : '');
+        row.append(nm);
+        const open = el('button', 'set-chip', '打开');
+        open.type = 'button';
+        open.style.cssText = 'border:0;background:none;color:var(--accent);cursor:pointer;font-size:12px';
+        open.addEventListener('click', () => {
+          if (x.enabled === false) { flashHint('这个扩展已禁用'); return; }
+          openPluginViewer({ name: x.name || '扩展', slug: x.id, url: base() + '/extensions/' + encodeURIComponent(x.id) + '/entry' });
+        });
+        row.append(open);
+        if (['owner', 'admin'].includes(sp.role)) {
+          const del = el('button', null, '删除');
+          del.type = 'button';
+          del.addEventListener('click', async () => {
+            if (!confirm('删除扩展「' + (x.name || x.id) + '」？')) return;
+            const rr = await api('/spaces/' + encodeURIComponent(sp.id) + '/extensions/' + encodeURIComponent(x.id), { method: 'DELETE' });
+            if (rr.ok) { await openSpace(sp.id); flashHint('已删除'); } else flashHint('删除失败');
+          });
+          row.append(del);
+        }
+        list.append(row);
+      }
+      if (!(S.extensions || []).length) list.append(el('div', 'set-hint', '还没有扩展。'));
+      box.append(list);
+      if (['owner', 'admin'].includes(sp.role)) {
+        const add = el('button', 'ghost', '＋ 安装扩展');
+        add.type = 'button';
+        add.style.marginTop = '10px';
+        add.addEventListener('click', () => installExtension());
+        box.append(add);
+      }
+      return;
+    }
     if (S.tab === 'members') {
       const sp = S.space;
       for (const m of (sp.members || [])) {
@@ -333,6 +374,23 @@ export function mountSpaces(ctx) {
     form.append(ta, sel, btn);
     box.append(form);
   }
+
+  async function installExtension() {
+    if (!S.space) return;
+    const name = (prompt('扩展名称', '新扩展') || '').trim();
+    if (!name) return;
+    const html = (prompt('粘贴扩展的 HTML（内联脚本可用，禁止外部资源）') || '').trim();
+    if (!html) return;
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/extensions', { method: 'POST', body: { name, html, manifest: { name, apiVersion: 1 } } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { flashHint(j.error || '安装失败'); return; }
+    await openSpace(S.space.id);
+    S.tab = 'apps';
+    $('#tabApps').classList.add('on'); $('#tabComments').classList.remove('on'); $('#tabMembers').classList.remove('on');
+    renderSide();
+    flashHint('扩展已安装');
+  }
+
   async function addMember() {
     if (!S.space) return;
     const name = (prompt('成员昵称（需已登录过本站）') || '').trim();
@@ -412,8 +470,9 @@ export function mountSpaces(ctx) {
     if (tas.length) tas[tas.length - 1].focus();
   });
   $('#spaceResTitle').addEventListener('input', () => scheduleSave());
-  $('#tabComments').addEventListener('click', () => { S.tab = 'comments'; $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on'); renderSide(); });
-  $('#tabMembers').addEventListener('click', () => { S.tab = 'members'; $('#tabMembers').classList.add('on'); $('#tabComments').classList.remove('on'); renderSide(); });
+  $('#tabComments').addEventListener('click', () => { S.tab = 'comments'; $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on'); $('#tabApps').classList.remove('on'); renderSide(); });
+  $('#tabMembers').addEventListener('click', () => { S.tab = 'members'; $('#tabMembers').classList.add('on'); $('#tabComments').classList.remove('on'); $('#tabApps').classList.remove('on'); renderSide(); });
+  $('#tabApps').addEventListener('click', () => { S.tab = 'apps'; $('#tabApps').classList.add('on'); $('#tabComments').classList.remove('on'); $('#tabMembers').classList.remove('on'); renderSide(); });
 
   let selBar = null, selTarget = null;
   function ensureSelBar() {
@@ -455,7 +514,6 @@ export function mountSpaces(ctx) {
     const r = ta.getBoundingClientRect();
     bar.style.left = Math.max(8, Math.min(window.innerWidth - bar.offsetWidth - 8, r.left + 8)) + 'px';
     bar.style.top = Math.max(8, r.top - 40) + 'px';
-    bar.hidden = false;
   }
   async function runSelectionAction(action) {
     const sel = selTarget;
@@ -467,8 +525,7 @@ export function mountSpaces(ctx) {
     $('#spaceSaveState').textContent = action === 'ask' ? 'AI 思考中…' : 'AI 修改中…';
     try {
       const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/ai', {
-        method: 'POST',
-        timeout: 90000,
+        method: 'POST', timeout: 90000,
         body: { action, entityId: sel.id, expectedRevision: sel.revision, from: sel.from, to: sel.to, instruction },
       });
       const j = await r.json().catch(() => ({}));
@@ -507,6 +564,5 @@ export function mountSpaces(ctx) {
   }
   document.addEventListener('mousedown', (e) => { if (selBar && !selBar.hidden && !selBar.contains(e.target)) hideSelBar(); });
   bindSelection();
-
   return { render, openSpace };
 }
