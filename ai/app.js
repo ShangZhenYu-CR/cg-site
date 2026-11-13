@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:15';
+const APP_BUILD = '2026-11-13 22:54';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1002,7 +1002,23 @@ async function createConv(opts = {}) {
 /* ---------------- 保存：状态、串行化、版本冲突 ---------------- */
 const saveQueues = new Map();
 const saveStates = new Map(); // convId -> { state, at, error }
-const SAVE_LABEL = { pending: '保存中…', saved: '已保存', failed: '未保存', conflict: '有冲突' };
+
+/** 保存用的快照：成功时只有这份内容被确认，不能顺带把更新标成已保存 */
+function convSnapshot(conv, extra) {
+  return JSON.stringify({
+    title: conv.title,
+    messages: conv.messages,
+    projectId: conv.projectId || null,
+    private: !!conv.private,
+    files: conv.files || [],
+    settings: conv.settings || {},
+    archived: !!conv.archived,
+    artifact: conv.artifact || null,
+    design: conv.design || null,
+    cutIndex: (typeof conv.cutIndex === 'number' && conv.cutIndex >= 0) ? conv.cutIndex : null,
+    extra: extra || null,
+  });
+}
 
 function paintSaveState() {
   const elc = $('#saveState');
@@ -1028,6 +1044,11 @@ function setSaveState(conv, state, error) {
 
 async function saveConv(conv, extra) {
   if (!conv || !conv.id) return { ok: false, error: '没有会话' };
+  // 冲突未解决：暂停这个会话的保存队列，绝不自动提交旧内容
+  if (conv.__conflict) {
+    setSaveState(conv, 'conflict');
+    return { ok: false, conflict: true };
+  }
   const prev = saveQueues.get(conv.id) || Promise.resolve();
   const run = prev.catch(() => {}).then(() => doSaveConv(conv, extra));
   saveQueues.set(conv.id, run);
@@ -1046,6 +1067,10 @@ async function doSaveConv(conv, extra) {
     // 还没从服务器载入正文，不能拿空的 messages 覆盖
     return { ok: false, error: '缓存占位，未保存' };
   }
+  if (conv.__conflict) {
+    setSaveState(conv, 'conflict');
+    return { ok: false, conflict: true };
+  }
   setSaveState(conv, 'pending');
   const body = {
     title: conv.title,
@@ -1061,6 +1086,7 @@ async function doSaveConv(conv, extra) {
     ...(extra || {}),
   };
   if (Number.isFinite(Number(conv.rev))) body.baseRev = Number(conv.rev);
+  const snapshot = convSnapshot(conv, extra);
   let res;
   try {
     res = await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body });
@@ -1070,7 +1096,9 @@ async function doSaveConv(conv, extra) {
   }
   if (res.status === 409) {
     const j = await res.json().catch(() => ({}));
-    if (Number.isFinite(Number(j.rev))) conv.rev = Number(j.rev);
+    // 只记录服务器版本，不把它当作本地已确认版本；否则下一次保存会带着旧内容覆盖
+    conv.__conflict = true;
+    conv.__serverRev = Number.isFinite(Number(j.rev)) ? Number(j.rev) : null;
     setSaveState(conv, 'conflict');
     return { ok: false, conflict: true };
   }
@@ -1085,6 +1113,13 @@ async function doSaveConv(conv, extra) {
     conv.rev = j.conversation.rev;
     conv.updatedAt = j.conversation.updatedAt;
   }
+  conv.__lastSaved = snapshot;
+  // 保存期间又有新改动：只确认这份快照，剩下的继续排队
+  if (convSnapshot(conv, extra) !== snapshot) {
+    setSaveState(conv, 'pending');
+    setTimeout(() => { if (!conv.__conflict) saveConv(conv); }, 30);
+    return { ok: true, more: true };
+  }
   setSaveState(conv, 'saved');
   return { ok: true };
 }
@@ -1097,7 +1132,7 @@ document.addEventListener('click', async (e) => {
   if (!cv) return;
   const rec = saveStates.get(cv.id);
   if (!rec) return;
-  if (rec.state === 'conflict') {
+  if (rec.state === 'conflict' || cv.__conflict) {
     openListPanel('保存冲突', '这个对话在别处更新过。选择保留哪一份：', [
       { label: '重新载入服务器版本', sub: '放弃本地未保存的改动', onClick: async () => {
         $('#dlgList').hidden = true;
@@ -1107,6 +1142,8 @@ document.addEventListener('click', async (e) => {
         if (j && j.conversation) {
           const i = state.convs.findIndex(x => x.id === cv.id);
           if (i >= 0) state.convs[i] = j.conversation;
+          cv.__conflict = false;
+          cv.__serverRev = null;
           saveStates.delete(cv.id);
           renderAll();
           flashHint('已载入服务器版本');
@@ -1114,8 +1151,13 @@ document.addEventListener('click', async (e) => {
       } },
       { label: '用本地覆盖', sub: '以当前页面为准，覆盖服务器', onClick: async () => {
         $('#dlgList').hidden = true;
-        const r = await api('/convs/' + encodeURIComponent(cv.id), { method: 'PUT', body: { ...cv, baseRev: undefined, messages: cv.messages } });
-        if (r.ok) { saveStates.delete(cv.id); flashHint('已覆盖'); renderAll(); } else flashHint('覆盖失败');
+        // 明确覆盖：以服务器最新版本为 baseRev，提交当前本地内容
+        cv.__conflict = false;
+        if (Number.isFinite(Number(cv.__serverRev))) cv.rev = Number(cv.__serverRev);
+        saveStates.delete(cv.id);
+        const r = await saveConv(cv);
+        if (r.ok) { flashHint('已覆盖'); renderAll(); }
+        else flashHint('覆盖失败，仍未保存');
       } },
     ]);
     return;
