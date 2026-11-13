@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>毛豆 · 大肥鱼的小站</title>
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="style.css?v=202611132033">
+<link rel="stylesheet" href="style.css?v=202611132035">
   <link rel="stylesheet" href="vendor/katex/katex.min.css">
   <script defer src="vendor/katex/katex.min.js"></script>
 </head>
@@ -126,7 +126,11 @@
       </div>
       <div class="proj-page" id="skillsPage" hidden>
         <div class="pp-head"><h1>技能</h1><span class="pp-count" id="skCount"></span></div>
-        <p class="pp-sub">技能 = 斜杠指令 + 提示词 + 能力声明。所有公开技能大家都能用，点「用一次」直接套用；自己做的那几条可以改。</p>
+        <p class="pp-sub">技能 = 斜杠指令 + 提示词 + 能力声明；工具 = 跑在沙箱里的代码。公开的大家都能用，点「用一次 / 复制为我的」。</p>
+        <div class="pp-tabs" id="mkTabs">
+          <button class="pp-tab on" data-tab="skills" type="button">技能</button>
+          <button class="pp-tab" data-tab="tools" type="button">工具</button>
+        </div>
         <div class="pp-grid" id="skGrid"></div>
       </div>
       <div class="proj-page" id="pluginsPage" hidden>
@@ -725,6 +729,6 @@
   </div>
 </div>
 
-<script src="app.js?v=202611132033" type="module"></script>
+<script src="app.js?v=202611132035" type="module"></script>
 </body>
 </html>

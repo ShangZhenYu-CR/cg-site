@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 20:33';
+const APP_BUILD = '2026-11-13 20:35';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1611,6 +1611,11 @@ async function mountToolsPane(pane) {
   await loadTools();
   box.textContent = '';
   const tools = state.tools || [];
+  if (state.toolEditId) {
+    const one = tools.find((x) => x.id === state.toolEditId);
+    state.toolEditId = null;
+    if (one) { toolForm(pane, one); return; }
+  }
   if (!tools.length) { box.append(el('div', 'set-hint', '还没有工具。新建一个 Node/Python 脚本试试。')); return; }
   for (const t of tools) {
     const r = el('div', 'skill-row');
@@ -6477,14 +6482,64 @@ function renderGallery() {
 }
 
 
+/* ---------------- 工具市场（浏览 / 复制） ---------------- */
+async function renderToolsMarket(grid) {
+  await loadTools();
+  grid.textContent = '';
+  const cnt = $('#skCount');
+  const list = (state.tools || []).slice().sort((a, b) => (b.uses || 0) - (a.uses || 0));
+  if (cnt) cnt.textContent = list.length ? list.length + ' 个工具' : '';
+  if (!list.length) {
+    grid.append(el('div', 'pp-empty', '还没有工具。在 设置 → 工具 里新建。'));
+    return;
+  }
+  for (const t of list) {
+    const card = el('div', 'plug-card sk-card');
+    const head = el('div', 'sk-head');
+    head.append(el('div', 'plug-n', t.name));
+    head.append(el('div', 'com', t.runtime === 'python' ? 'python' : 'node'));
+    card.append(head);
+    if (t.desc) card.append(el('div', 'plug-d', t.desc));
+    const meta = el('div', 'plug-m');
+    if (t.params && t.params.length) meta.append(el('span', 'plug-tag', '参数 ' + t.params.join(',')));
+    if (t.uses) meta.append(el('span', 'plug-tag', '用过 ' + t.uses));
+    if (t.author) meta.append(el('span', null, t.author));
+    card.append(meta);
+    const acts = el('div', 'sk-acts2');
+    if (!t.mine) {
+      const clone = el('button', 'set-chip', '复制为我的');
+      clone.type = 'button';
+      clone.addEventListener('click', async () => {
+        const r = await api('/tools/' + encodeURIComponent(t.id) + '/clone', { method: 'POST' });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { flashHint(j.error || '复制失败'); return; }
+        flashHint('已复制到我的工具（私有）');
+        await loadTools();
+        renderSkillsPage();
+      });
+      acts.append(clone);
+    } else {
+      const use = el('button', 'set-chip', '在设置里编辑');
+      use.type = 'button';
+      use.addEventListener('click', () => { state.toolEditId = t.id; $('#plusBtn').click(); setTimeout(() => { document.getElementById('setOpenBtn').click(); setTimeout(() => openSettings('tools'), 300); }, 100); });
+      acts.append(use);
+    }
+    card.append(acts);
+    grid.append(card);
+  }
+}
+
 /* ---------------- 技能市场 ---------------- */
 function showSkillsPage() {
   state.view = 'skills';
   renderAll();
 }
+let marketTab = 'skills';
 async function renderSkillsPage() {
   const grid = $('#skGrid');
   if (!grid) return;
+  for (const b of document.querySelectorAll('#mkTabs .pp-tab')) b.classList.toggle('on', b.dataset.tab === marketTab);
+  if (marketTab === 'tools') return renderToolsMarket(grid);
   await loadSkills();
   const stats = await (async () => {
     try { const r = await api('/skills/stats'); return r.ok ? await r.json() : null; } catch (e) { return null; }
@@ -6695,6 +6750,12 @@ $('#navFiles').addEventListener('click', showFilesPage);
 $('#navGallery').addEventListener('click', showGalleryPage);
 $('#navSkills').addEventListener('click', () => { state.view = 'skills'; renderAll(); });
 $('#navPlugins').addEventListener('click', () => { state.view = 'plugins'; renderAll(); });
+document.getElementById('mkTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('.pp-tab');
+  if (!b) return;
+  marketTab = b.dataset.tab;
+  renderSkillsPage();
+});
 $('#plugClose').addEventListener('click', () => { $('#plugView').hidden = true; $('#plugFrame').src = 'about:blank'; });
 $('#navPrefs').addEventListener('click', () => { openInstructions(); });
 $('#listClose').addEventListener('click', () => { $('#dlgList').hidden = true; });
