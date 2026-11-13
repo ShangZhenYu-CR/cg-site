@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 20:10';
+const APP_BUILD = '2026-11-13 20:16';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1667,6 +1667,11 @@ function toolForm(pane, tool) {
   mk('参数（逗号分隔）', params);
   const rtWrap = el('div'); rtWrap.append(runtime); mk('运行时', rtWrap);
   mk('超时（毫秒，最多 8000）', timeout);
+  const pkgs = el('input');
+  pkgs.type = 'text';
+  pkgs.value = tool && tool.packages ? tool.packages.join(',') : '';
+  pkgs.placeholder = '仅 Python：额外允许的库，逗号分隔（默认只允许 math/json/re 等标准库）';
+  mk('允许的库', pkgs);
   mk('代码', code);
   const row = el('div', 'set-row');
   const save = el('button', 'set-chip', '保存');
@@ -1676,6 +1681,7 @@ function toolForm(pane, tool) {
       name: name.value.trim(), desc: desc.value.trim(), runtime: runtime.value,
       params: params.value.split(',').map(s => s.trim()).filter(Boolean),
       timeoutMs: Number(timeout.value) || 5000, code: code.value,
+      packages: pkgs.value.split(',').map(s => s.trim()).filter(Boolean),
     };
     const r = tool ? await api('/tools/' + encodeURIComponent(tool.id), { method: 'PUT', body }) : await api('/tools', { method: 'POST', body });
     const j = await r.json().catch(() => ({}));
@@ -3343,6 +3349,24 @@ function hideThinking() {
       let d = null; try { d = await res.json(); } catch {}
       throw Object.assign(new Error(errText(res.status, d)), { status: res.status });
     }
+
+    // 服务端执行过的自定义工具：画成工具卡片
+    try {
+      const rawCalls = res.headers.get('x-tool-calls');
+      if (rawCalls) {
+        const calls = JSON.parse(atob(rawCalls));
+        if (Array.isArray(calls) && calls.length) {
+          reply.tools = reply.tools || [];
+          for (const c of calls) {
+            reply.tools.push({
+              name: String(c.name || 'tool'),
+              args: c.args || {},
+              result: c.ok ? String(c.output || '').slice(0, 300) : ('失败：' + String(c.err || '').slice(0, 120)),
+            });
+          }
+        }
+      }
+    } catch (e) {}
 
     const type = res.headers.get('content-type') || '';
     if (type.includes('application/json')) {
