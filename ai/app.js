@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 18:30';
+const APP_BUILD = '2026-11-13 18:31';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2334,6 +2334,13 @@ function syncArtifactPane() {
   if (!pane) return;
   if (state.view !== 'chat' || !cv || !cv.artifact || !cv.artifact.kind) {
     if (!pane.hidden) closeArtifactPane();
+    return;
+  }
+  // 手机上不自动铺开整屏产物面板（会把刚点开的对话盖住）；底部「产物」按钮仍可打开
+  if (window.innerWidth < 900) {
+    if (!pane.hidden) closeArtifactPane();
+    artKind = cv.artifact.kind;
+    artName = cv.artifact.name;
     return;
   }
   if (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name) {
