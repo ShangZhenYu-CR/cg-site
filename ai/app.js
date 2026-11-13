@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:10';
+const APP_BUILD = '2026-11-13 16:11';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3447,12 +3447,29 @@ function extractFiles(text) {
   const cleaned = text.replace(FILE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
   return { files, text: cleaned };
 }
+function backupName(name, n) {
+  const dot = String(name).lastIndexOf('.');
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : '';
+  return base + '（旧版' + n + '）' + ext;
+}
 function applyFiles(cv, incoming) {
   cv.files = cv.files || [];
   for (const f of incoming) {
     const i = cv.files.findIndex(x => x.name === f.name);
-    if (i >= 0) cv.files[i] = { ...f, updatedAt: Date.now() };
-    else cv.files.push({ ...f, updatedAt: Date.now() });
+    if (i >= 0) {
+      const old = cv.files[i];
+      const oldLen = String(old.content || '').length;
+      // 覆盖前留一份旧版，避免「刚开始做的游戏被后来的文档冲掉」
+      if (oldLen > 200 && String(old.content || '') !== String(f.content || '')) {
+        let n = 1;
+        while (cv.files.some(x => x.name === backupName(f.name, n))) n += 1;
+        if (n <= 2) cv.files.push({ name: backupName(f.name, n), content: old.content, updatedAt: Date.now() });
+      }
+      cv.files[i] = { ...f, updatedAt: Date.now() };
+    } else {
+      cv.files.push({ ...f, updatedAt: Date.now() });
+    }
   }
 }
 
