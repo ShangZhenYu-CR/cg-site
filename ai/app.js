@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 01:06';
+const APP_BUILD = '2026-11-14 01:11';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1043,6 +1043,36 @@ async function cancelRun(id, refresh = true) {
   try { await api('/runs/' + encodeURIComponent(id) + '/cancel', { method: 'POST' }); } catch (e) {}
   if (refresh) await loadRuns();
 }
+async function openRunDetail(id) {
+  let run = null;
+  try {
+    const r = await api('/runs/' + encodeURIComponent(id));
+    if (r.ok) { const j = await r.json(); run = j.run; }
+  } catch (e) {}
+  if (!run) { flashHint('读不到任务详情'); return; }
+  const rows = [];
+  if (['failed', 'interrupted', 'cancelled'].includes(run.status)) {
+    rows.push({
+      label: '重试这个任务',
+      sub: '用同样的请求再跑一次',
+      onClick: async () => {
+        try {
+          const r = await api('/runs/' + encodeURIComponent(id) + '/retry', { method: 'POST' });
+          const j = await r.json().catch(() => ({}));
+          flashHint(r.ok ? '已重试，任务面板可看进度' : (j.error || '重试失败'));
+        } catch (e) { flashHint('重试失败'); }
+        await loadRuns();
+        openRunsPanel();
+      },
+    });
+  }
+  const evs = (run.events || []).slice(-12).reverse();
+  for (const e of evs) {
+    rows.push({ label: e.type, sub: new Date(e.at || Date.now()).toLocaleTimeString('zh-CN', { hour12: false }) + (e.data && e.data.error ? ' · ' + String(e.data.error).slice(0, 50) : '') });
+  }
+  rows.push({ label: '返回任务列表', sub: '刷新并回到列表', onClick: async () => { await loadRuns(); openRunsPanel(); } });
+  openListPanel('任务详情', (RUN_STATUS[run.status] || run.status) + ' · ' + (run.title || run.id), rows);
+}
 function openRunsPanel() {
   const list = [...(state.runs || [])].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 10);
   const rows = [{
@@ -1054,7 +1084,7 @@ function openRunsPanel() {
     rows.push({
       label: (RUN_STATUS[r.status] || r.status) + ' · ' + (r.title || r.id),
       sub: when + (r.costUsd ? ' · $' + Number(r.costUsd).toFixed(4) : '') + (active ? ' · 点一下取消' : (r.error ? ' · ' + String(r.error).slice(0, 40) : '')),
-      onClick: active ? async () => { await cancelRun(r.id); openRunsPanel(); } : undefined,
+      onClick: active ? async () => { await cancelRun(r.id); openRunsPanel(); } : async () => { openRunDetail(r.id); },
     });
   }
   openListPanel('任务', list.length ? '最近 10 个任务；运行中的点一下取消' : '还没有任务', rows);
