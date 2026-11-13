@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:24';
+const APP_BUILD = '2026-11-14 00:26';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -3690,7 +3690,7 @@ function hideThinking() {
                   const jf = parsedFile.file;
                   if (jf) {
                     // 服务端写文件会推进 rev，客户端必须同步，否则下一次保存会 409
-                    try { const rev = parsedFile.convRev; if (Number.isFinite(Number(rev))) cv.rev = Number(rev); } catch (e) {}
+                    try { const rev = parsedFile.convRev; if (Number.isFinite(Number(rev))) { cv.rev = Number(rev); cv.__serverFileRev = true; } } catch (e) {}
                     cv.files = cv.files || [];
                     const byName = cv.files.find((x) => x.name === jf.name);
                     if (jf.url && !cv.files.some((x) => x.url === jf.url)) {
@@ -3841,6 +3841,14 @@ function hideThinking() {
     state.controller = null;
     // 先解锁输入再落盘：收尾那一两秒里用户按发送，不该被当成「停止」
     setBusy(false);
+    // 服务端写文件/附件会推进 rev；保存前拉一次最新版本，避免用旧 baseRev 撞 409
+    if (cv && cv.__serverFileRev) {
+      try {
+        const rr = await api('/convs/' + encodeURIComponent(cv.id));
+        if (rr.ok) { const jj = await rr.json(); if (jj.conversation && Number.isFinite(Number(jj.conversation.rev))) cv.rev = Number(jj.conversation.rev); }
+      } catch (e) {}
+      cv.__serverFileRev = false;
+    }
     state.finishPromise = saveConv(cv);
     await state.finishPromise;
     state.finishPromise = null;
