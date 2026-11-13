@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 23:02';
+const APP_BUILD = '2026-11-13 23:51';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -126,6 +126,9 @@ const ANON_KEYS = ['ai.anon.drafts', 'ai.anon.convs.cache'];
 function clearLegacyKeys() {
   for (const k of LEGACY_KEYS.concat(ANON_KEYS)) { try { localStorage.removeItem(k); } catch {} }
 }
+
+// 账号生命周期：换账号后所有旧请求/旧保存/旧缓存写入都要失效
+let sessionEpoch = 0;
 
 const RANK = { user: 1, astra: 2, admin: 3 };
 const canAstra = () => (RANK[LS.role] || 0) >= 2;
@@ -590,6 +593,7 @@ $('#loginOk').addEventListener('click', async () => {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { $('#loginErr').textContent = errText(res.status, data); return; }
+    sessionEpoch += 1;
     LS.token = data.token; LS.name = data.name; LS.role = data.role;
     $('#dlgLogin').hidden = true;
     renderIdentity(); renderModels();
@@ -600,6 +604,7 @@ $('#loginOk').addEventListener('click', async () => {
 });
 
 function logout() {
+  sessionEpoch += 1;
   stopSync();
   try { if (state.controller) state.controller.abort(); } catch {}
   try { localStorage.removeItem(draftKey()); localStorage.removeItem(scopedKey('convs.cache')); } catch {}
@@ -936,12 +941,15 @@ async function loadProjects() {
 }
 
 async function loadConvs() {
+  const epoch = sessionEpoch;
   let r;
   try { r = await api('/convs'); } catch { return false; }   // 超时/断网保留缓存
+  if (epoch !== sessionEpoch) return false;                  // 账号已切换：丢弃旧响应
   if (r.status === 401) { logout(); return false; }
   if (!r.ok) return false;
   const data = await r.json().catch(() => null);
   if (!data) return false;
+  if (epoch !== sessionEpoch) return false;
   const before = state.convs.slice();
   state.convs = (data.conversations || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   for (const cv of state.convs) if (!Array.isArray(cv.files)) cv.files = [];
@@ -949,12 +957,18 @@ async function loadConvs() {
   // 本地有更新但还没写完的会话，别被服务端旧数据盖掉（否则刚发的消息会“消失”）
   const localNewer = new Map();
   for (const c of before) if ((c.updatedAt || 0) > 0) localNewer.set(c.id, c);
+  const isDirty = (id) => {
+    const rec = saveStates.get(id);
+    return !!((rec && ['pending', 'failed', 'conflict'].includes(rec.state)) || saveQueues.has(id));
+  };
   state.convs = state.convs.map((s) => {
     const l = localNewer.get(s.id);
-    if (l && (l.updatedAt || 0) > (s.updatedAt || 0) + 800 && Array.isArray(l.messages) && l.messages.length) {
-      return { ...s, messages: l.messages, files: l.files || s.files, settings: l.settings || s.settings, updatedAt: l.updatedAt };
-    }
-    return s;
+    if (!l) return s;
+    const dirty = isDirty(s.id);
+    const newer = (l.updatedAt || 0) > (s.updatedAt || 0) + 800 && Array.isArray(l.messages) && l.messages.length;
+    if (!dirty && !newer) return s;
+    // 有未解决编辑/冲突/正在保存：保留本地工作副本（标题/正文/文件/版本），不被轮询覆盖
+    return { ...s, title: l.title, messages: l.messages, files: l.files || s.files, settings: l.settings || s.settings, rev: l.rev, updatedAt: l.updatedAt };
   });
   // 一次性把会话里记录的 5.6 Terra / Luna 升到 6.1 Terra（中等思考）
   if (!localStorage.getItem('ai.convModelMigrated61')) {
@@ -1092,12 +1106,17 @@ async function doSaveConv(conv, extra) {
   };
   if (Number.isFinite(Number(conv.rev))) body.baseRev = Number(conv.rev);
   const snapshot = convSnapshot(conv, extra);
+  const epoch = sessionEpoch;
   let res;
   try {
     res = await api('/convs/' + encodeURIComponent(conv.id), { method: 'PUT', body });
   } catch (e) {
     setSaveState(conv, 'failed', e && e.message);
     return { ok: false, error: e };
+  }
+  if (epoch !== sessionEpoch) {
+    // 保存发出后切换了账号：结果不属于当前身份，丢弃
+    return { ok: false, stale: true };
   }
   if (res.status === 409) {
     const j = await res.json().catch(() => ({}));
@@ -3669,6 +3688,7 @@ function hideThinking() {
                 if (m) {
                   const jf = JSON.parse(m[0]).file;
                   if (jf && jf.url) {
+                    try { const rev = JSON.parse(m[0]).convRev; if (Number.isFinite(Number(rev))) cv.rev = Number(rev); } catch (e) {}
                     cv.files = cv.files || [];
                     if (!cv.files.some((x) => x.url === jf.url)) {
                       cv.files.push({ name: jf.name || '文件', url: jf.url, kind: 'xlsx', size: jf.size || 0, content: '' });
