@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 20:18';
+const APP_BUILD = '2026-11-13 20:20';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -187,6 +187,22 @@ function inline(s) {
   s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
   return s;
+}
+
+/* ---------------- 工具卡片（自定义工具执行结果） ---------------- */
+function pushToolCards(reply, calls) {
+  if (!Array.isArray(calls) || !calls.length) return;
+  reply.tools = reply.tools || [];
+  const sig = (t) => String(t && t.name) + ':' + JSON.stringify((t && t.args) || {});
+  for (const c of calls) {
+    const card = {
+      name: String(c.name || 'tool'),
+      args: c.args || {},
+      result: c.ok ? String(c.output || '').slice(0, 300) : ('失败：' + String(c.err || '').slice(0, 120)),
+    };
+    if (reply.tools.some((t) => sig(t) === sig(card))) continue;
+    reply.tools.push(card);
+  }
 }
 
 /* ---------------- 长期记忆（前端收集） ---------------- */
@@ -3355,16 +3371,7 @@ function hideThinking() {
       const rawCalls = res.headers.get('x-tool-calls');
       if (rawCalls) {
         const calls = JSON.parse(atob(rawCalls));
-        if (Array.isArray(calls) && calls.length) {
-          reply.tools = reply.tools || [];
-          for (const c of calls) {
-            reply.tools.push({
-              name: String(c.name || 'tool'),
-              args: c.args || {},
-              result: c.ok ? String(c.output || '').slice(0, 300) : ('失败：' + String(c.err || '').slice(0, 120)),
-            });
-          }
-        }
+        pushToolCards(reply, calls);
       }
     } catch (e) {}
 
@@ -3453,16 +3460,7 @@ function hideThinking() {
               reply.tools = reply.tools || [];
               reply.tools.push({ name: ev.tool.name || 'tool', args: ev.tool.args, result: null });
             }
-            if (Array.isArray(ev.tool_calls)) {
-              reply.tools = reply.tools || [];
-              for (const c of ev.tool_calls) {
-                reply.tools.push({
-                  name: String(c.name || 'tool'),
-                  args: c.args || {},
-                  result: c.ok ? String(c.output || '').slice(0, 300) : ('失败：' + String(c.err || '').slice(0, 120)),
-                });
-              }
-            }
+            if (Array.isArray(ev.tool_calls)) pushToolCards(reply, ev.tool_calls);
             if (ev.tool_result) { const last = (reply.tools || []).slice(-1)[0]; if (last) last.result = ev.tool_result; }
             if (ev.tool_start && ev.tool_start.name) showThinking(THINK_LABELS[ev.tool_start.name] || '正在调用工具');
             if (ev.tool_progress && ev.tool_progress.name === 'write_file') {
