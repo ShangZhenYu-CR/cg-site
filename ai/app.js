@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:52';
+const APP_BUILD = '2026-11-13 17:54';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -410,7 +410,7 @@ function chartSVG(specText) {
     });
   }
   series.forEach((s, si) => {
-    if (!s.name) return;
+    if (!s.name || isPie) return;
     parts.push('<rect x="' + (padL + si * 90) + '" y="4" width="8" height="8" rx="2" fill="' + colors[si % colors.length] + '"/>');
     parts.push('<text x="' + (padL + si * 90 + 12) + '" y="11" font-size="11" fill="var(--dim)">' + esc(String(s.name)) + '</text>');
   });
