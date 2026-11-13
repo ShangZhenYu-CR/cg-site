@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 19:56';
+const APP_BUILD = '2026-11-13 20:10';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -130,6 +130,7 @@ const state = {
   finishPromise: null,
   editing: null,
   skills: [],
+  tools: [],
   pendingSkill: null,
   waitingUpload: false,
   imageMode: false,
@@ -889,6 +890,14 @@ async function loadSkills() {
     state.skills = Array.isArray(j.skills) ? j.skills : [];
   } catch (e) { /* 技能加载失败不影响聊天 */ }
 }
+async function loadTools() {
+  try {
+    const r = await api('/tools');
+    if (!r.ok) return;
+    const j = await r.json().catch(() => ({}));
+    state.tools = Array.isArray(j.tools) ? j.tools : [];
+  } catch (e) {}
+}
 function skillById(id) {
   return (state.skills || []).find((s) => s.id === id || s.cmd === String(id || '').replace(/^\//, '')) || null;
 }
@@ -1488,6 +1497,7 @@ const SET_TABS = [
   ['appearance', '外观'],
   ['ins', '自定义指令'],
   ['skills', '技能'],
+  ['tools', '工具'],
   ['users', '成员'],
   ['cfg', '接口'],
   ['usage', '用量'],
@@ -1567,6 +1577,121 @@ function renderSetNav(active) {
 
 /* ---------------- 设置 · 技能 ---------------- */
 const SKILL_PERM_LABEL = { search: '联网搜索', image: '画图', gif: '动图', code: '代码文件', chart: '图表', calc: '计算', artifact: '产物' };
+
+/* ---------------- 设置 · 工具（代码沙箱） ---------------- */
+async function mountToolsPane(pane) {
+  pane.textContent = '';
+  const h = el('h3', null, '工具');
+  pane.append(h, el('p', 'set-hint', '工具是一段跑在服务器沙箱里的代码：无网络、非 root、限时间/内存。模型可以通过技能调用它，结果会带回对话。'));
+  const row = el('div', 'set-row');
+  const add = el('button', 'set-chip', '＋ 新建工具');
+  add.type = 'button';
+  add.addEventListener('click', () => toolForm(pane, null));
+  row.append(add);
+  pane.append(row);
+  const box = el('div', 'skill-list');
+  box.style.marginTop = '12px';
+  pane.append(box);
+  await loadTools();
+  box.textContent = '';
+  const tools = state.tools || [];
+  if (!tools.length) { box.append(el('div', 'set-hint', '还没有工具。新建一个 Node/Python 脚本试试。')); return; }
+  for (const t of tools) {
+    const r = el('div', 'skill-row');
+    const main = el('div', 'sk-main');
+    const head = el('div');
+    head.append(el('span', 'sk-name', t.name));
+    head.append(el('span', 'sk-cmd', t.runtime === 'python' ? 'python' : 'node'));
+    main.append(head);
+    if (t.desc) main.append(el('div', 'sk-desc', t.desc));
+    const perms = el('div', 'sk-perms');
+    if (t.params && t.params.length) perms.append(el('span', 'sk-p', '参数：' + t.params.join(', ')));
+    perms.append(el('span', 'sk-p', (t.timeoutMs || 5000) + 'ms'));
+    perms.append(el('span', 'sk-p', '作者 ' + (t.author || '—')));
+    if (t.uses) perms.append(el('span', 'sk-p', '用过 ' + t.uses));
+    main.append(perms);
+    const acts = el('div', 'sk-acts');
+    const test = el('button', 'set-chip', '测试');
+    test.type = 'button';
+    test.addEventListener('click', async () => {
+      const argsRaw = prompt('传参数（JSON，传给 stdin）', '{}');
+      if (argsRaw === null) return;
+      let args = {};
+      try { args = JSON.parse(argsRaw || '{}'); } catch (e) { flashHint('参数不是合法 JSON'); return; }
+      flashHint('运行中…');
+      const rr = await api('/tools/' + encodeURIComponent(t.id) + '/test', { method: 'POST', body: { args } });
+      const j = await rr.json().catch(() => ({}));
+      openListPanel('工具输出 · ' + t.name, j.ok ? ('用时 ' + j.ms + 'ms') : (j.error || '失败'), [
+        { label: (j.stdout || j.stderr || '(无输出)').slice(0, 1200), sub: '标准输出 / 错误' },
+      ]);
+    });
+    acts.append(test);
+    if (t.mine) {
+      const ed = el('button', 'set-chip', '编辑');
+      ed.type = 'button';
+      ed.addEventListener('click', () => toolForm(pane, t));
+      const del = el('button', 'set-chip', '删除');
+      del.type = 'button';
+      del.addEventListener('click', async () => {
+        if (!confirm('删除工具「' + t.name + '」？')) return;
+        const rr = await api('/tools/' + encodeURIComponent(t.id), { method: 'DELETE' });
+        if (rr.ok) { flashHint('已删除'); mountToolsPane(pane); }
+      });
+      acts.append(ed, del);
+    }
+    r.append(main, acts);
+    box.append(r);
+  }
+}
+
+function toolForm(pane, tool) {
+  pane.textContent = '';
+  const h = el('h3', null, tool ? '编辑工具' : '新建工具');
+  pane.append(h, el('p', 'set-hint', '代码从 stdin 读 JSON 参数（例如 {"text":"..."}），把结果打印到 stdout。沙箱里没有网络，读不到服务器文件。'));
+  const form = el('div', 'skill-form');
+  const mk = (label, node) => { form.append(el('label', null, label), node); };
+  const name = el('input'); name.type = 'text'; name.value = tool ? tool.name : ''; name.placeholder = '英文名，例如 charcount';
+  const desc = el('input'); desc.type = 'text'; desc.value = tool ? (tool.desc || '') : ''; desc.placeholder = '给模型看的说明：这个工具做什么、什么时候用';
+  const params = el('input'); params.type = 'text'; params.value = tool && tool.params ? tool.params.join(',') : ''; params.placeholder = '参数名，逗号分隔，例如 text,limit';
+  const runtime = document.createElement('select');
+  for (const [v, label] of [['node', 'Node.js'], ['python', 'Python 3']]) {
+    const o = document.createElement('option'); o.value = v; o.textContent = label; runtime.append(o);
+  }
+  runtime.value = tool ? (tool.runtime || 'node') : 'node';
+  const timeout = document.createElement('input'); timeout.type = 'text'; timeout.value = String(tool ? (tool.timeoutMs || 5000) : 5000);
+  const code = document.createElement('textarea'); code.value = tool ? (tool.code || '') : "const fs = require('fs');\nconst args = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');\nconsole.log('hello ' + (args.text || ''));";
+  code.style.minHeight = '150px';
+  code.style.fontFamily = 'ui-monospace, monospace';
+  mk('工具名', name);
+  mk('说明', desc);
+  mk('参数（逗号分隔）', params);
+  const rtWrap = el('div'); rtWrap.append(runtime); mk('运行时', rtWrap);
+  mk('超时（毫秒，最多 8000）', timeout);
+  mk('代码', code);
+  const row = el('div', 'set-row');
+  const save = el('button', 'set-chip', '保存');
+  save.type = 'button';
+  save.addEventListener('click', async () => {
+    const body = {
+      name: name.value.trim(), desc: desc.value.trim(), runtime: runtime.value,
+      params: params.value.split(',').map(s => s.trim()).filter(Boolean),
+      timeoutMs: Number(timeout.value) || 5000, code: code.value,
+    };
+    const r = tool ? await api('/tools/' + encodeURIComponent(tool.id), { method: 'PUT', body }) : await api('/tools', { method: 'POST', body });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { flashHint(j.error || '保存失败'); return; }
+    flashHint(tool ? '已保存' : '已创建工具');
+    await loadTools();
+    mountToolsPane(pane);
+  });
+  const back = el('button', 'set-chip', '取消');
+  back.type = 'button';
+  back.addEventListener('click', () => mountToolsPane(pane));
+  row.append(save, back);
+  form.append(row);
+  pane.append(form);
+}
+
 async function mountSkillList(box) {
   box.textContent = '';
   box.append(el('div', 'set-hint', '读取中…'));
@@ -1588,6 +1713,7 @@ async function mountSkillList(box) {
     const perms = el('div', 'sk-perms');
     for (const k of ['search', 'image', 'gif', 'code', 'chart', 'calc']) if (s.perms && s.perms[k]) perms.append(el('span', 'sk-p', SKILL_PERM_LABEL[k]));
     if (s.perms && s.perms.artifact) perms.append(el('span', 'sk-p', '产物：' + ({ doc: '文档', deck: '幻灯片', design: '设计稿' }[s.perms.artifact] || s.perms.artifact)));
+    if (s.perms && Array.isArray(s.perms.tools) && s.perms.tools.length) perms.append(el('span', 'sk-p', '工具 ' + s.perms.tools.length));
     if (!perms.children.length) perms.append(el('span', 'sk-p', '只用对话'));
     perms.append(el('span', 'sk-p', '作者 ' + (s.author || '—')));
     if (s.uses) perms.append(el('span', 'sk-p', '用过 ' + s.uses + ' 次'));
@@ -1645,6 +1771,21 @@ function skillForm(pane, skill) {
     checks.append(lab);
   }
   mk('允许使用的能力（没勾的不会开放给模型）', checks);
+  // 自定义工具（代码沙箱）：勾了就允许这个技能调用
+  const toolWrap = el('div', 'sk-checks');
+  const toolBoxes = {};
+  (state.tools || []).forEach((t) => {
+    const lab = el('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!(skill && skill.perms && Array.isArray(skill.perms.tools) && skill.perms.tools.includes(t.id));
+    toolBoxes[t.id] = cb;
+    lab.append(cb, document.createTextNode(' ' + t.name));
+    toolWrap.append(lab);
+  });
+  if (!(state.tools || []).length) toolWrap.append(el('span', 'set-hint', '还没有自定义工具，可在「工具」页新建'));
+  mk('可用工具（代码沙箱）', toolWrap);
+
   const artWrap = el('div');
   const art = document.createElement('select');
   for (const [v, label] of [['', '不写产物'], ['doc', '写成文档'], ['deck', '写成幻灯片'], ['design', '写成网页']]) {
@@ -1675,7 +1816,7 @@ function skillForm(pane, skill) {
       desc: desc.value.trim(),
       prompt: prompt.value,
       visibility: vis.value,
-      perms: { search: boxes.search.checked, image: boxes.image.checked, gif: boxes.gif.checked, code: boxes.code.checked, chart: boxes.chart.checked, calc: boxes.calc.checked, artifact: art.value || null },
+      perms: { search: boxes.search.checked, image: boxes.image.checked, gif: boxes.gif.checked, code: boxes.code.checked, chart: boxes.chart.checked, calc: boxes.calc.checked, artifact: art.value || null, tools: Object.keys(toolBoxes).filter((id) => toolBoxes[id].checked) },
     };
     const r = skill ? await api('/skills/' + encodeURIComponent(skill.id), { method: 'PUT', body }) : await api('/skills', { method: 'POST', body });
     const j = await r.json().catch(() => ({}));
@@ -1829,6 +1970,10 @@ function mountPane(key) {
       state.editSkillId = null;
       if (sk) skillForm(pane, sk);
     }
+    return;
+  }
+  if (key === 'tools') {
+    mountToolsPane(pane);
     return;
   }
   if (key === 'memory') {
@@ -6328,6 +6473,7 @@ async function renderSkillsPage() {
     const pl = { search: '联网', image: '画图', gif: '动图', code: '代码', calc: '计算', chart: '图表' };
     for (const k of Object.keys(pl)) if (s.perms && s.perms[k]) meta.append(el('span', 'plug-tag', pl[k]));
     if (s.perms && s.perms.artifact) meta.append(el('span', 'plug-tag', '产物'));
+    if (s.perms && Array.isArray(s.perms.tools) && s.perms.tools.length) meta.append(el('span', 'plug-tag', '工具 ' + s.perms.tools.length));
     if (s.uses) meta.append(el('span', 'plug-tag', '用过 ' + s.uses));
     if (s.author) meta.append(el('span', null, s.author));
     card.append(meta);
@@ -6730,7 +6876,7 @@ async function bootData() {
     renderAll();
   }
 
-  await Promise.all([loadProjects(), loadConvs(), loadSkills()]);
+  await Promise.all([loadProjects(), loadConvs(), loadSkills(), loadTools()]);
   if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
     state.currentId = state.convs[0] ? state.convs[0].id : null;
   }
