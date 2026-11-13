@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 17:58';
+const APP_BUILD = '2026-11-13 18:03';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5027,8 +5027,12 @@ async function renameArtifact() {
   if (!cv) return;
   const f = currentArtifactFile();
   if (!f) return;
-  const next = (prompt('重命名产物', artName) || '').trim();
-  if (!next || next === artName) return;
+  const next0 = (prompt('重命名产物', artName) || '').trim();
+  if (!next0 || next0 === artName) return;
+  // 用户只改名字不写扩展名时保留原扩展名，否则 .html 变「无后缀」→ 类型判断成代码
+  const oldExt = (String(artName).match(/\.[A-Za-z0-9]+$/) || [''])[0];
+  const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(next0);
+  const next = hasExt || !oldExt ? next0 : next0 + oldExt;
   f.name = next;
   artName = next;
   cv.artifact = { kind: artKind, name: next };
@@ -5093,8 +5097,10 @@ function buildArtMenu() {
     const copyName = dot > 0 ? src.name.slice(0, dot) + ' 副本' + src.name.slice(dot) : src.name + ' 副本';
     c.files = c.files || [];
     c.files.push({ name: copyName, content: src.content, updatedAt: Date.now() });
+    c.artifact = { kind: kindOfFile(copyName), name: copyName };
     await saveConv(c);
     artName = copyName;
+    artKind = kindOfFile(copyName);
     $('#artTitle').textContent = copyName;
     renderArtifact();
     flashHint('已创建副本');
