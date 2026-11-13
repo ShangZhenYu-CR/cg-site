@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 03:17';
+const APP_BUILD = '2026-11-14 03:19';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2663,7 +2663,14 @@ async function mountUsersPane(pane) {
     box.append(row);
   }
 }
+let settingsReturnFocus = null;
+function closeSettings() {
+  const d = $('#dlgSet');
+  if (d) d.hidden = true;
+  if (settingsReturnFocus && settingsReturnFocus.focus) { try { settingsReturnFocus.focus(); } catch (e) {} }
+}
 function openSettings(tab) {
+  if (document.activeElement && document.activeElement !== document.body) settingsReturnFocus = document.activeElement;
   // 「用量」没有独立的设置面板，真正的明细在 #dlgUsage 里；直接打开那个对话框
   if (tab === 'usage') {
     Promise.resolve(refreshUsage()).then(() => { renderUsageDialog(); $('#dlgUsage').hidden = false; }).catch(() => {});
@@ -2681,8 +2688,8 @@ function openSettings(tab) {
   if (firstNav) setTimeout(() => firstNav.focus(), 30);
 }
 
-$('#setClose').addEventListener('click', () => { $('#dlgSet').hidden = true; });
-$('#dlgSet').addEventListener('click', (e) => { if (e.target.id === 'dlgSet') $('#dlgSet').hidden = true; });
+$('#setClose').addEventListener('click', () => closeSettings());
+$('#dlgSet').addEventListener('click', (e) => { if (e.target.id === 'dlgSet') closeSettings(); });
 
 /* 线程 */
 /** 把结果里的链接变成可点的（下载文件尤其需要） */
@@ -7500,7 +7507,11 @@ document.addEventListener('keydown', (e) => {
     if (!$('#findBar').hidden) { closeFind(); return; }
     if (!$('#dlgPal').hidden) { closePalette(); return; }
     const openDlg = [...document.querySelectorAll('.overlay')].find((o) => !o.hidden && o.id !== 'dlgLogin');
-    if (openDlg) { openDlg.hidden = true; return; }
+    if (openDlg) {
+      if (openDlg.id === 'dlgSet') closeSettings();
+      else openDlg.hidden = true;
+      return;
+    }
     if (document.body.classList.contains('artfull')) { toggleArtFull(); return; }
   if (document.body.classList.contains('coding') && !$('#codepane').hidden) { setCap('code', false); return; }
     closePops();
