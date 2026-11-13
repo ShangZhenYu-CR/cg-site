@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 03:01';
+const APP_BUILD = '2026-11-14 03:06';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2014,6 +2014,10 @@ async function mountToolsPane(pane) {
       ]);
     });
     acts.append(test);
+    const runBtn = el('button', 'set-chip', '运行');
+    runBtn.type = 'button';
+    runBtn.addEventListener('click', () => openToolRun(t));
+    acts.append(runBtn);
     if (t.mine) {
       const ed = el('button', 'set-chip', '编辑');
       ed.type = 'button';
@@ -2031,6 +2035,56 @@ async function mountToolsPane(pane) {
     box.append(r);
   }
 }
+
+
+function openToolRun(t) {
+  const dlg = $('#dlgTool');
+  if (!dlg) return;
+  $('#toolRunTitle').textContent = '运行 · ' + (t.name || '工具');
+  $('#toolRunDesc').textContent = t.desc || '';
+  const box = $('#toolRunFields');
+  box.textContent = '';
+  const params = Array.isArray(t.params) ? t.params : [];
+  if (!params.length) box.append(el('div', 'set-hint', '这个工具不需要参数。'));
+  for (const p of params) {
+    const lab = el('label', 'field', p);
+    const inp = el('input');
+    inp.type = 'text';
+    inp.dataset.arg = p;
+    inp.placeholder = p;
+    lab.append(inp);
+    box.append(lab);
+  }
+  const out = $('#toolRunOut');
+  out.hidden = true;
+  out.textContent = '';
+  dlg.hidden = false;
+  dlg.dataset.toolId = t.id;
+}
+document.addEventListener('click', async (e) => {
+  if (e.target.closest && e.target.closest('#toolRunClose')) { const d = $('#dlgTool'); if (d) d.hidden = true; return; }
+  if (!e.target.closest || !e.target.closest('#toolRunGo')) return;
+  const dlg = $('#dlgTool');
+  const id = dlg && dlg.dataset.toolId;
+  if (!id) return;
+  const args = {};
+  for (const inp of document.querySelectorAll('#toolRunFields input[data-arg]')) args[inp.dataset.arg] = inp.value;
+  const out = $('#toolRunOut');
+  const btn = $('#toolRunGo');
+  btn.disabled = true;
+  out.hidden = false;
+  out.textContent = '运行中…';
+  try {
+    const r = await api('/tools/' + encodeURIComponent(id) + '/run', { method: 'POST', timeout: 60000, body: { args } });
+    const j = await r.json().catch(() => ({}));
+    const text = [j.stdout, j.stderr, j.error].filter(Boolean).join('\n').slice(0, 6000);
+    out.textContent = (j.ok ? '' : '（失败）') + (text || '(无输出)') + (j.ms != null ? '\n\n[' + j.ms + 'ms]' : '');
+  } catch (err) {
+    out.textContent = '运行失败：' + String((err && err.message) || err);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 function toolForm(pane, tool) {
   pane.textContent = '';

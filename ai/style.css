@@ -789,6 +789,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .audit-target,.audit-time,.audit-actor{color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mem-main{flex:1;min-width:0}
 .mem-src{font-size:11px;color:var(--faint);margin-top:2px}
+.tool-out{margin:10px 0;padding:10px;background:rgba(0,0,0,.04);border-radius:8px;font:12px/1.6 ui-monospace,monospace;white-space:pre-wrap;max-height:240px;overflow:auto}
 .asset-report{margin:10px 0;max-height:300px;overflow:auto;font-size:13px}
 .asset-report table{width:100%;border-collapse:collapse}
 .asset-report th,.asset-report td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;white-space:nowrap}

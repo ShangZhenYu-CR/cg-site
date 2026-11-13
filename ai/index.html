@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>毛豆 · 大肥鱼的小站</title>
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="style.css?v=202611140301">
+<link rel="stylesheet" href="style.css?v=202611140306">
   <link rel="stylesheet" href="vendor/katex/katex.min.css">
   <script defer src="vendor/katex/katex.min.js"></script>
 </head>
@@ -411,6 +411,20 @@
   </div>
 </div>
 
+<!-- 工具运行 -->
+<div class="overlay" id="dlgTool" hidden>
+  <div class="card">
+    <h2 id="toolRunTitle">运行工具</h2>
+    <p id="toolRunDesc"></p>
+    <div id="toolRunFields"></div>
+    <pre class="tool-out" id="toolRunOut" hidden></pre>
+    <div class="btn-row">
+      <button class="ghost" style="flex:1" id="toolRunClose">关闭</button>
+      <button class="primary" style="flex:1" id="toolRunGo">运行</button>
+    </div>
+  </div>
+</div>
+
 <!-- 设备资产检查 -->
 <div class="overlay" id="dlgAsset" hidden>
   <div class="card">
@@ -751,6 +765,6 @@
   </div>
 </div>
 
-<script src="app.js?v=202611140301" type="module"></script>
+<script src="app.js?v=202611140306" type="module"></script>
 </body>
 </html>
