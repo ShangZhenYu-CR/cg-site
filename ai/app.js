@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 01:44';
+const APP_BUILD = '2026-11-14 01:54';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -520,13 +520,34 @@ function md(src) {
     }
     if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
       flush();
-      const ordered = /^\s*\d+\./.test(line);
-      const items = [];
+      const nodes = [];
+      const stack = [];
+      let baseIndent = null;
       while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*([-*]|\d+\.)\s+/, '')); i++;
+        const m = /^(\s*)([-*]|\d+\.)\s+(.*)$/.exec(lines[i]);
+        const indent = String(m[1] || '').replace(/\t/g, '  ').length;
+        if (baseIndent == null) baseIndent = indent;
+        const depth = Math.min(5, Math.max(0, Math.round((indent - baseIndent) / 2)));
+        const node = { type: /\d+\./.test(m[2]) ? 'ol' : 'ul', text: m[3], children: [] };
+        while (stack.length > depth) stack.pop();
+        const parent = stack.length ? stack[stack.length - 1] : null;
+        if (parent) parent.children.push(node); else nodes.push(node);
+        stack.push(node);
+        i++;
       }
-      const tag = ordered ? 'ol' : 'ul';
-      out.push('<' + tag + '>' + items.map(t => '<li>' + inline(esc(t)) + '</li>').join('') + '</' + tag + '>');
+      const renderLi = (n) => '<li>' + inline(esc(n.text)) + (n.children.length ? renderList(n.children) : '') + '</li>';
+      const renderList = (list) => {
+        let html = '';
+        for (let k = 0; k < list.length;) {
+          const tag = list[k].type;
+          let j = k;
+          while (j < list.length && list[j].type === tag) j++;
+          html += '<' + tag + '>' + list.slice(k, j).map(renderLi).join('') + '</' + tag + '>';
+          k = j;
+        }
+        return html;
+      };
+      out.push(renderList(nodes));
       continue;
     }
     para.push(line); i++;

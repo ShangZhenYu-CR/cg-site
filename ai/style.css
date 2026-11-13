@@ -781,6 +781,8 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .lk-row[role=button]{cursor:pointer}
 .lk-row[role=button]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
+.bd li>ul,.bd li>ol{margin:4px 0 4px 18px}
+
 /* 长对话：加载更早消息 */
 .load-earlier{display:block;margin:14px auto 6px;padding:6px 14px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:999px;font-size:12px;cursor:pointer}
 .load-earlier:hover{color:var(--fg);border-color:var(--accent)}
