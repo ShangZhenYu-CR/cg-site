@@ -742,7 +742,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .msg.user .bd{font-family:var(--font-sans)}
 /* 命令面板：对齐 Claude 的居中搜索面板 */
 .pal-ov{align-items:flex-start;padding-top:14vh}
-.pal{width:485px;max-width:94vw;border-radius:12px;box-shadow:0 12px 40px rgba(16,16,16,.16)}
+.pal{width:672px;max-width:94vw;border-radius:12px;box-shadow:0 12px 40px rgba(16,16,16,.16)}
 .pal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px;font-size:12px;color:var(--faint)}
 .pal-head button{width:22px;height:22px;border-radius:6px;color:var(--faint);display:grid;place-items:center}
 .pal-head button:hover{background:var(--panel2);color:var(--text)}
