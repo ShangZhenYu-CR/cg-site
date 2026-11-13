@@ -137,7 +137,16 @@ export function mountSpaces(ctx) {
       card.style.height = (p.h || 160) + 'px';
       card.dataset.eid = e.id || '';
       card.dataset.rev = String(e.revision || 0);
-      const head = el('div', 'cc-head', p.type === 'image' ? '图片卡' : '文本卡');
+      const label = { text: '文本卡', image: '图片卡', file: '文件卡', page: '页面卡' }[p.type] || '卡片';
+      const head = el('div', 'cc-head');
+      head.append(el('span', null, label));
+      const acts = el('div', 'cc-acts');
+      if (e.id) {
+        const ai = el('button', 'cc-ai', 'AI');
+        ai.type = 'button'; ai.title = '用 AI 修改这张卡的文字';
+        ai.addEventListener('click', () => aiEditCard(e));
+        acts.append(ai);
+      }
       const del = el('button', 'cc-del', '×');
       del.type = 'button';
       del.title = '删除卡片';
@@ -146,13 +155,20 @@ export function mountSpaces(ctx) {
         renderEditor();
         scheduleSave();
       });
-      head.append(del);
-      const ta = document.createElement('textarea');
-      ta.value = p.text || '';
-      ta.placeholder = '卡片内容…';
-      ta.addEventListener('focus', () => { S.activeEntity = e.id; });
-      ta.addEventListener('input', () => { e.payload = { ...(e.payload || {}), text: ta.value }; scheduleSave(); });
-      card.append(head, ta);
+      acts.append(del);
+      head.append(acts);
+      if (p.type === 'image' && p.url) {
+        const img = document.createElement('img');
+        img.src = p.url; img.loading = 'lazy'; img.style.cssText = 'width:100%;height:calc(100% - 26px);object-fit:cover;display:block';
+        card.append(head, img);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = p.text || '';
+        ta.placeholder = p.type === 'file' ? ('文件：' + (p.ref || '未命名')) : p.type === 'page' ? ('页面：' + (p.ref || '未命名')) : '卡片内容…';
+        ta.addEventListener('focus', () => { S.activeEntity = e.id; });
+        ta.addEventListener('input', () => { e.payload = { ...(e.payload || {}), text: ta.value }; scheduleSave(); });
+        card.append(head, ta);
+      }
       card.addEventListener('pointerdown', (ev) => {
         if (ev.target.closest('textarea,button')) return;
         S.activeEntity = e.id;
@@ -178,6 +194,26 @@ export function mountSpaces(ctx) {
     if (!(res.entities || []).length) box.append(el('div', 'set-hint', '画布还是空的，点下面「＋ 文本卡」。'));
     $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
   }
+
+  async function aiEditCard(e) {
+    if (!S.space || !S.resource) return;
+    const text = String((e.payload && e.payload.text) || '');
+    if (!text.trim()) { flashHint('这张卡还没有文字'); return; }
+    const instruction = (prompt('用 AI 修改这张卡：希望怎么改？', '润色这段文字') || '').trim();
+    if (!instruction) return;
+    $('#spaceSaveState').textContent = 'AI 修改中…';
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/ai', {
+      method: 'POST', timeout: 90000,
+      body: { action: 'edit', entityId: e.id, expectedRevision: e.revision, from: 0, to: text.length, instruction },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $('#spaceSaveState').textContent = ''; flashHint(j.error || 'AI 修改失败'); return; }
+    S.resource = j.resource || S.resource;
+    renderEditor();
+    $('#spaceSaveState').textContent = 'AI 已修改';
+    flashHint('AI 已修改这张卡');
+  }
+
   function scheduleSave() {
     if (S.saveTimer) clearTimeout(S.saveTimer);
     $('#spaceSaveState').textContent = '未保存…';
@@ -361,7 +397,12 @@ export function mountSpaces(ctx) {
     if (!S.resource) return;
     if (S.resource.type === 'canvas') {
       const n = (S.resource.entities || []).length;
-      S.resource.entities = (S.resource.entities || []).concat([{ id: '', payload: { text: '', x: 20 + (n % 5) * 30, y: 20 + (n % 4) * 30, w: 240, h: 160, type: 'text' }, revision: 0 }]);
+      const kind = (prompt('卡片类型：text / image / file / page', 'text') || 'text').trim();
+      const type = ['text', 'image', 'file', 'page'].includes(kind) ? kind : 'text';
+      let payload = { text: '', x: 20 + (n % 5) * 30, y: 20 + (n % 4) * 30, w: 240, h: 160, type };
+      if (type === 'image') { const url = (prompt('图片 URL（可粘贴站内 /files/... 或 https://...）') || '').trim(); if (!url) return; payload = { ...payload, url, w: 280, h: 200 }; }
+      if (type === 'file' || type === 'page') { const ref = (prompt(type === 'file' ? '文件名' : '页面名') || '').trim(); if (!ref) return; payload = { ...payload, ref, text: ref }; }
+      S.resource.entities = (S.resource.entities || []).concat([{ id: '', payload, revision: 0 }]);
     } else {
       S.resource.entities = (S.resource.entities || []).concat([{ id: '', payload: { text: '' }, revision: 0 }]);
     }
