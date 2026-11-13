@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 16:11';
+const APP_BUILD = '2026-11-13 16:20';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -2910,12 +2910,12 @@ function hideThinking() {
               const content = String(a.content || '');
               applyFiles(cv, [{ name, content }]);
               reply.wrote = [name];
-              if (!cv.artifact) cv.artifact = { kind: 'doc', name };
-              cv.artifact.name = name;
+              // 产物类型跟着文件名走：写成 .md 就是文档，写成 .html 就是设计稿
+              const nk = kindOfFile(name);
+              cv.artifact = { kind: nk, name };
               reply.tools = reply.tools || [];
               reply.tools.push({ name: 'write_file', args: { name }, result: '已写入' });
-              if ($('#artPane').hidden) openArtifactPane(cv.artifact.kind, name);
-              else renderArtifact();
+              openArtifactPane(nk, name);
             } else if (ev.tool && ev.tool.name === 'publish_plugin') {
               const a = ev.tool.args || {};
               reply.tools = reply.tools || [];
