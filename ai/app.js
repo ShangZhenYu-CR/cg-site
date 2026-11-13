@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 22:59';
+const APP_BUILD = '2026-11-13 23:01';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1036,9 +1036,9 @@ function paintSaveState() {
   elc.title = rec.error ? String(rec.error).slice(0, 200) : (rec.state === 'conflict' ? '服务器上这个对话更新过，点这里处理' : '');
 }
 
-function setSaveState(conv, state, error) {
+function setSaveState(conv, state, error, extra) {
   if (!conv || !conv.id) return;
-  saveStates.set(conv.id, { state, at: Date.now(), error: error || '' });
+  saveStates.set(conv.id, { state, at: Date.now(), error: error || '', ...(extra || {}) });
   paintSaveState();
   if (state === 'saved') setTimeout(paintSaveState, 2600);
 }
@@ -1102,7 +1102,7 @@ async function doSaveConv(conv, extra) {
     // 只记录服务器版本，不把它当作本地已确认版本；否则下一次保存会带着旧内容覆盖
     conv.__conflict = true;
     conv.__serverRev = Number.isFinite(Number(j.rev)) ? Number(j.rev) : null;
-    setSaveState(conv, 'conflict');
+    setSaveState(conv, 'conflict', '', { serverRev: conv.__serverRev });
     return { ok: false, conflict: true };
   }
   if (!res.ok) {
@@ -1156,7 +1156,9 @@ document.addEventListener('click', async (e) => {
         $('#dlgList').hidden = true;
         // 明确覆盖：以服务器最新版本为 baseRev，提交当前本地内容
         cv.__conflict = false;
-        if (Number.isFinite(Number(cv.__serverRev))) cv.rev = Number(cv.__serverRev);
+        const rec2 = saveStates.get(cv.id) || {};
+        const srvRev = Number(cv.__serverRev) || Number(rec2.serverRev);
+        if (Number.isFinite(srvRev) && srvRev > 0) cv.rev = srvRev;
         saveStates.delete(cv.id);
         saveStates.set(cv.id, { state: 'pending', at: Date.now(), error: '' });
         const r = await saveConv(cv);
