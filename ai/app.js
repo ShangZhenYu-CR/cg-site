@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 18:43';
+const APP_BUILD = '2026-11-13 19:41';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -129,6 +129,8 @@ const state = {
   streaming: false,
   finishPromise: null,
   editing: null,
+  skills: [],
+  pendingSkill: null,
   waitingUpload: false,
   imageMode: false,
   gifMode: false,
@@ -878,6 +880,19 @@ function renderUsageDialog() {
 }
 
 /* ---------------- 数据 ---------------- */
+/* ---------------- 技能（万物皆插件） ---------------- */
+async function loadSkills() {
+  try {
+    const r = await api('/skills');
+    if (!r.ok) return;
+    const j = await r.json().catch(() => ({}));
+    state.skills = Array.isArray(j.skills) ? j.skills : [];
+  } catch (e) { /* 技能加载失败不影响聊天 */ }
+}
+function skillById(id) {
+  return (state.skills || []).find((s) => s.id === id || s.cmd === String(id || '').replace(/^\//, '')) || null;
+}
+
 async function loadProjects() {
   let r;
   try { r = await api('/projects'); } catch { return; }
@@ -1472,6 +1487,7 @@ $('#brandMenu').addEventListener('click', (e) => {
 const SET_TABS = [
   ['appearance', '外观'],
   ['ins', '自定义指令'],
+  ['skills', '技能'],
   ['users', '成员'],
   ['cfg', '接口'],
   ['usage', '用量'],
@@ -1548,6 +1564,163 @@ function renderSetNav(active) {
   }
 }
 
+
+/* ---------------- 设置 · 技能 ---------------- */
+const SKILL_PERM_LABEL = { search: '联网搜索', image: '画图', gif: '动图', code: '代码文件', artifact: '产物' };
+async function mountSkillList(box) {
+  box.textContent = '';
+  box.append(el('div', 'set-hint', '读取中…'));
+  await loadSkills();
+  box.textContent = '';
+  const skills = state.skills || [];
+  if (!skills.length) {
+    box.append(el('div', 'set-hint', '还没有技能。点上面的「新建技能」，或者导入别人给的 JSON。'));
+    return;
+  }
+  for (const s of skills) {
+    const row = el('div', 'skill-row');
+    const main = el('div', 'sk-main');
+    const head = el('div');
+    head.append(el('span', 'sk-name', s.name));
+    head.append(el('span', 'sk-cmd', '/' + s.cmd));
+    main.append(head);
+    if (s.desc) main.append(el('div', 'sk-desc', s.desc));
+    const perms = el('div', 'sk-perms');
+    for (const k of ['search', 'image', 'gif', 'code']) if (s.perms && s.perms[k]) perms.append(el('span', 'sk-p', SKILL_PERM_LABEL[k]));
+    if (s.perms && s.perms.artifact) perms.append(el('span', 'sk-p', '产物：' + ({ doc: '文档', deck: '幻灯片', design: '设计稿' }[s.perms.artifact] || s.perms.artifact)));
+    if (!perms.children.length) perms.append(el('span', 'sk-p', '只用对话'));
+    perms.append(el('span', 'sk-p', '作者 ' + (s.author || '—')));
+    if (s.uses) perms.append(el('span', 'sk-p', '用过 ' + s.uses + ' 次'));
+    main.append(perms);
+    const acts = el('div', 'sk-acts');
+    const use = el('button', 'set-chip', '用一次');
+    use.type = 'button';
+    use.addEventListener('click', () => { $('#dlgSet').hidden = true; useSkill(s); });
+    acts.append(use);
+    if (s.mine) {
+      const ed = el('button', 'set-chip', '编辑');
+      ed.type = 'button';
+      ed.addEventListener('click', () => skillForm(document.querySelector('.set-pane[data-pane="skills"]'), s));
+      const del = el('button', 'set-chip', '删除');
+      del.type = 'button';
+      del.addEventListener('click', async () => {
+        if (!confirm('删除技能「' + s.name + '」？')) return;
+        const r = await api('/skills/' + encodeURIComponent(s.id), { method: 'DELETE' });
+        if (!r.ok) { flashHint('删除失败'); return; }
+        flashHint('已删除');
+        mountSkillList(box);
+      });
+      acts.append(ed, del);
+    }
+    row.append(main, acts);
+    box.append(row);
+  }
+}
+
+function skillForm(pane, skill) {
+  if (!pane) return;
+  pane.textContent = '';
+  const h = el('h3', null, skill ? '编辑技能' : '新建技能');
+  pane.append(h);
+  const form = el('div', 'skill-form');
+  const mk = (label, node) => { const l = el('label', null, label); form.append(l, node); };
+  const name = el('input'); name.type = 'text'; name.value = skill ? skill.name : ''; name.placeholder = '例如：深度研究';
+  const cmd = el('input'); cmd.type = 'text'; cmd.value = skill ? skill.cmd : ''; cmd.placeholder = '英文指令，例如 research（调用时 /research）';
+  const desc = el('input'); desc.type = 'text'; desc.value = skill ? (skill.desc || '') : ''; desc.placeholder = '一句话说明它做什么';
+  const prompt = el('textarea'); prompt.value = skill ? skill.prompt : ''; prompt.placeholder = '提示词。想留空让用户补充，就写 {input} 占位，例如：围绕 {input} 做一次深度研究，给出带来源的结论。';
+  mk('名称', name);
+  mk('指令（不需要写 /）', cmd);
+  mk('说明', desc);
+  mk('提示词', prompt);
+  const checks = el('div', 'sk-checks');
+  const permDefs = [['search', '联网搜索'], ['image', '画图'], ['gif', '动图'], ['code', '代码文件']];
+  const boxes = {};
+  for (const [k, label] of permDefs) {
+    const lab = el('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!(skill && skill.perms && skill.perms[k]);
+    boxes[k] = cb;
+    lab.append(cb, document.createTextNode(' ' + label));
+    checks.append(lab);
+  }
+  mk('允许使用的能力（没勾的不会开放给模型）', checks);
+  const artWrap = el('div');
+  const art = document.createElement('select');
+  for (const [v, label] of [['', '不写产物'], ['doc', '写成文档'], ['deck', '写成幻灯片'], ['design', '写成网页']]) {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = label;
+    art.append(o);
+  }
+  art.value = (skill && skill.perms && skill.perms.artifact) ? skill.perms.artifact : '';
+  artWrap.append(art);
+  mk('产物', artWrap);
+  const visWrap = el('div');
+  const vis = document.createElement('select');
+  for (const [v, label] of [['public', '所有人可用'], ['private', '只有我能用']]) {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = label;
+    vis.append(o);
+  }
+  vis.value = skill ? (skill.visibility || 'public') : 'public';
+  visWrap.append(vis);
+  mk('可见性', visWrap);
+  const row = el('div', 'set-row');
+  const save = el('button', 'set-chip', '保存');
+  save.type = 'button';
+  save.addEventListener('click', async () => {
+    const body = {
+      name: name.value.trim(),
+      cmd: cmd.value.trim().replace(/^\/+/, ''),
+      desc: desc.value.trim(),
+      prompt: prompt.value,
+      visibility: vis.value,
+      perms: { search: boxes.search.checked, image: boxes.image.checked, gif: boxes.gif.checked, code: boxes.code.checked, artifact: art.value || null },
+    };
+    const r = skill ? await api('/skills/' + encodeURIComponent(skill.id), { method: 'PUT', body }) : await api('/skills', { method: 'POST', body });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { flashHint(j.error || '保存失败'); return; }
+    flashHint(skill ? '已保存' : '已创建技能 /' + (j.skill && j.skill.cmd));
+    await loadSkills();
+    mountPane('skills');
+  });
+  const back = el('button', 'set-chip', '取消');
+  back.type = 'button';
+  back.addEventListener('click', () => mountPane('skills'));
+  row.append(save, back);
+  form.append(row);
+  pane.append(form);
+}
+
+function exportSkills() {
+  const mine = (state.skills || []).filter((s) => s.mine);
+  if (!mine.length) { flashHint('没有你自己做的技能'); return; }
+  const payload = { version: 1, exportedAt: Date.now(), skills: mine.map((s) => ({ name: s.name, cmd: s.cmd, desc: s.desc, prompt: s.prompt, perms: s.perms, visibility: s.visibility, icon: s.icon })) };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'skills-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  flashHint('已导出 ' + mine.length + ' 个技能');
+}
+
+async function importSkills(file) {
+  if (!file) return;
+  let data = null;
+  try { data = JSON.parse(await file.text()); } catch { flashHint('不是有效的 JSON'); return; }
+  const list = Array.isArray(data) ? data : (Array.isArray(data && data.skills) ? data.skills : []);
+  if (!list.length) { flashHint('文件里没有技能'); return; }
+  let ok = 0, skip = 0;
+  for (const s of list.slice(0, 50)) {
+    const r = await api('/skills', { method: 'POST', body: { name: s.name, cmd: s.cmd, desc: s.desc, prompt: s.prompt, perms: s.perms, visibility: s.visibility || 'public', icon: s.icon } });
+    if (r.ok) ok += 1; else skip += 1;
+  }
+  await loadSkills();
+  mountPane('skills');
+  flashHint('导入 ' + ok + ' 个' + (skip ? '，跳过 ' + skip + ' 个（指令重复或格式不对）' : ''));
+}
+
 function mountPane(key) {
   const pane = document.querySelector('.set-pane[data-pane="' + key + '"]');
   if (!pane) return;
@@ -1610,6 +1783,34 @@ function mountPane(key) {
     const about = el('p', 'set-hint', '毛豆 · 自建小站：聊天、看图、画图、动图、联网、写代码。数据存在自己的服务器。');
     about.style.marginTop = '18px';
     pane.append(h, row, row2, row3, acts, about);
+    return;
+  }
+  if (key === 'skills') {
+    pane.textContent = '';
+    const h = el('h3', null, '技能');
+    h.style.marginBottom = '6px';
+    pane.append(h, el('p', 'set-hint', '技能就是「斜杠命令 + 提示词 + 能力声明」。做好后所有人都能用：在输入框敲 / 就能选到。'));
+    const row = el('div', 'set-row');
+    const add = el('button', 'set-chip', '＋ 新建技能');
+    add.type = 'button';
+    add.addEventListener('click', () => skillForm(pane, null));
+    const exp = el('button', 'set-chip', '导出技能');
+    exp.type = 'button';
+    exp.addEventListener('click', exportSkills);
+    const imp = el('button', 'set-chip', '导入技能');
+    imp.type = 'button';
+    const fi = document.createElement('input');
+    fi.type = 'file';
+    fi.accept = 'application/json';
+    fi.hidden = true;
+    fi.addEventListener('change', () => importSkills(fi.files && fi.files[0]));
+    imp.addEventListener('click', () => fi.click());
+    row.append(add, exp, imp);
+    pane.append(row, fi);
+    const listBox = el('div', 'skill-list');
+    listBox.style.marginTop = '12px';
+    pane.append(listBox);
+    mountSkillList(listBox);
     return;
   }
   if (key === 'memory') {
@@ -2950,6 +3151,8 @@ function hideThinking() {
           ? { imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wantN }
           : { effort }),
         codeMode: state.codeMode || !!cv.artifact,
+        // 技能：服务端据此注入说明并只放开技能声明的工具
+        skill: state.pendingSkill ? state.pendingSkill.id : undefined,
         fileNames: (cv.files || []).map(f => f.name),
         artifactContent: (() => {
           const art = cv.artifact;
@@ -3164,6 +3367,7 @@ function hideThinking() {
       if (e && e.status === 401) logout();
     }
   } finally {
+    if (state.pendingSkill) { state.pendingSkill = null; renderSkillChip(); }
     if (reply && typeof reply.text === 'string') reply.text = collectMemories(reply.text);
     hideThinking();
     state.controller = null;
@@ -6436,7 +6640,7 @@ async function bootData() {
     renderAll();
   }
 
-  await Promise.all([loadProjects(), loadConvs()]);
+  await Promise.all([loadProjects(), loadConvs(), loadSkills()]);
   if (!state.currentId || !state.convs.some(c => c.id === state.currentId)) {
     state.currentId = state.convs[0] ? state.convs[0].id : null;
   }
@@ -6788,9 +6992,21 @@ function showSlashTip(row, item) {
   slashTip.style.top = Math.max(8, Math.min(rr.top, window.innerHeight - 120)) + 'px';
 }
 
+function slashItemsAll() {
+  // 内置命令 + 服务器上的技能（所有人共享，作者可改）
+  const mine = (state.skills || []).filter((s) => s && s.enabled !== false).map((s) => ({
+    group: 'skill',
+    label: s.name,
+    en: '/' + s.cmd,
+    icon: s.icon || 'skill',
+    detail: (s.desc || '') + '（作者 ' + (s.author || '—') + (s.uses ? ' · 用过 ' + s.uses + ' 次' : '') + '）',
+    skill: s,
+  }));
+  return SLASH_ITEMS.concat(mine);
+}
 function renderSlash(q) {
   const key = String(q || '').toLowerCase();
-  slashList = SLASH_ITEMS.filter((s) => !key || s.label.includes(key) || s.en.toLowerCase().includes(key) || (s.detail || '').includes(key));
+  slashList = slashItemsAll().filter((s) => !key || s.label.toLowerCase().includes(key) || s.en.toLowerCase().includes(key) || (s.detail || '').toLowerCase().includes(key));
   if (!slashList.length) { closeSlash(); return; }
   if (!slashEl) {
     slashEl = el('div', 'slash-menu');
@@ -6839,10 +7055,59 @@ function createSlashArtifact(kind) {
   input.focus();
 }
 
+function applySkillModes(sk) {
+  const perms = (sk && sk.perms) || {};
+  setCap('search', !!perms.search);
+  setCap('image', !!perms.image);
+  setCap('gif', !!perms.gif);
+  setCap('code', !!perms.code);
+}
+
+function renderSkillChip() {
+  let chip = document.querySelector('#skillChip');
+  if (!state.pendingSkill) { if (chip) chip.remove(); return; }
+  if (!chip) {
+    chip = el('div', 'skill-chip');
+    chip.id = 'skillChip';
+    const x = el('button', 'sc-x', '✕');
+    x.type = 'button';
+    x.title = '取消这个技能';
+    x.addEventListener('click', () => { state.pendingSkill = null; renderSkillChip(); });
+    chip.append(el('span', 'sc-n', ''), x);
+    const box = $('#composer');
+    if (box && box.parentElement) box.parentElement.insertBefore(chip, box);
+  }
+  const n = chip.querySelector('.sc-n');
+  if (n) n.textContent = '技能 /' + state.pendingSkill.cmd + ' · ' + state.pendingSkill.name;
+}
+
+function useSkill(sk) {
+  if (!sk) return;
+  state.pendingSkill = sk;
+  applySkillModes(sk);
+  renderSkillChip();
+  if (String(sk.prompt || '').includes('{input}')) {
+    const text = String(sk.prompt).replace(/\{input\}/g, '');
+    input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    const at = text.length;
+    input.setSelectionRange(at, at);
+    flashHint('已套用技能「' + sk.name + '」，补充内容后发送');
+    return;
+  }
+  input.value = '';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.focus();
+  flashHint('正在执行技能「' + sk.name + '」');
+  $('#composer').requestSubmit();
+}
+
 function chooseSlash(i) {
   const s = slashList[i];
   if (!s) return;
   closeSlash();
+  if (s.skill) { useSkill(s.skill); return; }
   if (s.insert) {
     input.value = s.insert;
     input.dispatchEvent(new Event('input', { bubbles: true }));
