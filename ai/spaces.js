@@ -283,6 +283,30 @@ export function mountSpaces(ctx) {
         });
         row.append(open);
         if (['owner', 'admin'].includes(sp.role)) {
+          const hist = el('button', 'set-chip', '历史');
+          hist.type = 'button';
+          hist.style.cssText = 'border:0;background:none;color:var(--faint);cursor:pointer;font-size:12px';
+          hist.addEventListener('click', async () => {
+            const vr = await api('/spaces/' + encodeURIComponent(sp.id) + '/extensions/' + encodeURIComponent(x.id) + '/versions');
+            const vj = await vr.json().catch(() => ({}));
+            const rows2 = (vj.versions || []).map((v) => ({
+              label: 'v' + v.version + (v.version === x.version ? '（当前）' : ''),
+              sub: new Date(v.createdAt).toLocaleString(),
+              onClick: async () => {
+                if (v.version === x.version) return;
+                if (!confirm('回滚到 v' + v.version + '？会生成新版本。')) return;
+                const rr = await api('/spaces/' + encodeURIComponent(sp.id) + '/extensions/' + encodeURIComponent(x.id) + '/rollback', { method: 'POST', body: { version: v.version } });
+                const jj = await rr.json().catch(() => ({}));
+                if (!rr.ok) { flashHint(jj.error || '回滚失败'); return; }
+                await openSpace(sp.id);
+                flashHint('已回滚到 v' + v.version);
+              },
+            }));
+            openListPanel('扩展版本 · ' + (x.name || x.id), '回滚会保留历史并生成新版本', rows2.length ? rows2 : [{ label: '没有历史版本', sub: '' }]);
+          });
+          row.append(hist);
+        }
+        if (['owner', 'admin'].includes(sp.role)) {
           const del = el('button', null, '删除');
           del.type = 'button';
           del.addEventListener('click', async () => {
