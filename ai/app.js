@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 00:32';
+const APP_BUILD = '2026-11-14 00:33';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1060,7 +1060,6 @@ function setSaveState(conv, state, error, extra) {
 }
 
 async function saveConv(conv, extra) {
-  console.log('[dbg] saveConv', conv && conv.rev, 'streaming', state.streaming, new Error().stack.split('\n').slice(2, 5).join(' | '));
   if (!conv || !conv.id) return { ok: false, error: '没有会话' };
   // 冲突未解决：暂停这个会话的保存队列，绝不自动提交旧内容
   const rec0 = saveStates.get(conv.id);
@@ -6387,12 +6386,19 @@ function renderDoc(body, file) {
   const prev = el('div', 'art-preview bd');
   prev.innerHTML = md(file.content || '');
   let timer = 0;
+  let docDirty = false;
   ta.addEventListener('input', () => {
+    docDirty = true;
     file.content = ta.value;
     clearTimeout(timer);
     timer = setTimeout(() => { prev.innerHTML = md(file.content || ''); hydrateCalcs(prev, null, { readOnly: true }); }, 250);
   });
-  ta.addEventListener('blur', () => { const cv = current(); if (cv) saveConv(cv).catch(() => {}); });
+  ta.addEventListener('blur', () => {
+    // 流式期间重渲染会把 textarea 拿掉触发 blur；此时保存会拿旧 rev 撞 409
+    if (!docDirty || state.streaming) return;
+    docDirty = false;
+    const cv = current(); if (cv) saveConv(cv).catch(() => {});
+  });
 
   const apply = (edit) => {
     docEditPref = edit;
