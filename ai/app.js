@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 15:11';
+const APP_BUILD = '2026-11-13 15:25';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -4511,15 +4511,27 @@ const SUGGEST_MODEL = 'gpt-6.1-terra';
 const SUGGEST_EFFORT = 'low';
 let suggestReqToken = 0;
 let suggestKey = '';
+function ensureSuggestsBox() {
+  let box = $('#suggests');
+  if (box) return box;
+  // HTML 可能是旧缓存（没有这个容器）：自己补一个，功能就不会因为缓存静默失效
+  const form = $('#composer');
+  if (!form || !form.parentElement) return null;
+  box = el('div', 'suggests');
+  box.id = 'suggests';
+  box.hidden = true;
+  form.parentElement.insertBefore(box, form);
+  return box;
+}
 function hideSuggests() {
-  const box = $('#suggests');
+  const box = ensureSuggestsBox();
   if (!box) return;
   box.hidden = true;
   box.textContent = '';
   suggestKey = '';
 }
 function renderSuggests(items, cv) {
-  const box = $('#suggests');
+  const box = ensureSuggestsBox();
   if (!box || !items || !items.length) { hideSuggests(); return; }
   box.textContent = '';
   for (const text of items) {
