@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 01:11';
+const APP_BUILD = '2026-11-14 01:19';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1228,6 +1228,7 @@ async function doSaveConv(conv, extra) {
     return { ok: true, more: true };
   }
   setSaveState(conv, 'saved');
+  pingTabs();
   return { ok: true };
 }
 
@@ -1383,11 +1384,13 @@ function convRow(cv) {
     row.append(own);
   }
 
-  row.addEventListener('click', () => {
+  row.addEventListener('click', async () => {
     if (state.streaming) return;
+    if (cv.__stale) await ensureFreshConv(cv);
     state.view = 'chat';
     state.currentId = cv.id;
-    applyConvSettings(cv);
+    const cur = state.convs.find((c) => c.id === cv.id) || cv;
+    applyConvSettings(cur);
     renderAll();
     closeNav();
   });
@@ -3988,6 +3991,7 @@ function hideThinking() {
             const idx = state.convs.findIndex((c) => c.id === cv.id);
             if (idx >= 0) state.convs[idx] = jj.conversation; else state.convs.unshift(jj.conversation);
             setSaveState(jj.conversation, 'saved');
+            pingTabs();
           }
         }
       } catch (e) {}
@@ -7466,16 +7470,80 @@ function layoutHomeComposer() {
 
 /* 会话同步：抽成幂等的 start/stop，登录后立即启动，退出停止 */
 let syncTimer = null;
+async function ensureFreshConv(cv) {
+  if (!cv || !cv.__stale) return cv;
+  try {
+    const r = await api('/convs/' + encodeURIComponent(cv.id));
+    if (r.ok) {
+      const j = await r.json();
+      if (j.conversation) {
+        const idx = state.convs.findIndex((c) => c.id === cv.id);
+        if (idx >= 0) state.convs[idx] = j.conversation;
+        return j.conversation;
+      }
+    }
+  } catch (e) {}
+  delete cv.__stale;
+  return cv;
+}
+
+async function loadConvsMeta() {
+  let r;
+  try { r = await api('/convs?meta=1'); } catch (e) { return false; }
+  if (!r.ok) return false;
+  const j = await r.json().catch(() => null);
+  if (!j) return false;
+  const list = Array.isArray(j.conversations) ? j.conversations : [];
+  const before = new Map(state.convs.map((c) => [c.id, c]));
+  const curId = state.currentId;
+  let changed = false;
+  const next = list.map((s) => {
+    const old = before.get(s.id);
+    if (!old) { changed = true; return { ...s, messages: [], files: s.files || [] }; }
+    const revChanged = Number(s.rev || 0) !== Number(old.rev || 0);
+    const merged = { ...old, ...s, messages: old.messages || [], files: s.files && s.files.length ? s.files : (old.files || []) };
+    if (revChanged) { merged.__stale = true; changed = true; }
+    return merged;
+  });
+  if (next.length !== state.convs.length) changed = true;
+  state.convs = next;
+  const cur = next.find((c) => c.id === curId);
+  if (cur && cur.__stale) {
+    const fresh = await ensureFreshConv(cur);
+    if (fresh) { delete fresh.__stale; changed = true; }
+  }
+  return changed;
+}
+
+let syncChannel = null;
+try {
+  if (typeof BroadcastChannel === 'function') {
+    syncChannel = new BroadcastChannel('ai-sync');
+    syncChannel.onmessage = () => {
+      if (state.streaming || state.saving || document.hidden) return;
+      loadConvsMeta().then((changed) => { if (changed) renderAll(); }).catch(() => {});
+    };
+  }
+} catch (e) {}
+function pingTabs() { try { if (syncChannel) syncChannel.postMessage({ t: 'conv', at: Date.now() }); } catch (e) {} }
+
 function startSync() {
   if (syncTimer) return;
+  let tick = 0;
   syncTimer = setInterval(async () => {
     if (state.streaming || state.saving || document.hidden || !LS.token) return;
-    const before = state.convs.map(c => c.id + c.updatedAt).join('|');
-    await loadConvs();
-    loadRuns();
-    const after = state.convs.map(c => c.id + c.updatedAt).join('|');
-    if (before !== after) renderAll();
-  }, 15000);
+    tick += 1;
+    if (tick % 6 === 0) {
+      const before = state.convs.map(c => c.id + c.updatedAt).join('|');
+      await loadConvs();
+      const after = state.convs.map(c => c.id + c.updatedAt).join('|');
+      if (before !== after) renderAll();
+      loadRuns();
+      return;
+    }
+    const changed = await loadConvsMeta();
+    if (changed) { renderAll(); loadRuns(); }
+  }, 2500);
 }
 function stopSync() {
   if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
