@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 01:56';
+const APP_BUILD = '2026-11-14 02:17';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -646,6 +646,8 @@ function logout() {
 
 function renderIdentity() {
   $('#meName').textContent = LS.name || '未登录';
+  const assetBtn = $('#assetBtn');
+  if (assetBtn) assetBtn.hidden = LS.role !== 'admin';
   $('#meAvatar').textContent = (LS.name || '?').slice(0, 1);
   const r = { astra: 'Astra', admin: '管理员' }[LS.role] || '';
   $('#meRole').textContent = r; $('#meRole').hidden = !r;
@@ -1037,6 +1039,76 @@ async function createConv(opts = {}) {
   return conversation;
 }
 
+
+
+/* ---------------- 设备资产检查（C2/C3 UI） ---------------- */
+function assetReportHTML(job) {
+  if (!job) return '';
+  if (job.status === 'queued' || job.status === 'running') return '<p>检查中…（' + (job.status === 'queued' ? '排队' : '执行') + '）</p>';
+  if (job.status === 'failed') return '<p class="warn">检查失败：' + esc(job.error || '未知错误') + '</p>';
+  const rep = job.report || {};
+  const rows = Array.isArray(rep.objects) ? rep.objects : [];
+  let html = '<table><thead><tr><th>对象</th><th>面数</th><th>材质</th><th>UV</th><th>贴图</th></tr></thead><tbody>';
+  for (const o of rows) {
+    html += '<tr><td>' + esc(String(o.name || '')) + '</td><td>' + esc(String(o.faces == null ? '' : o.faces)) + '</td><td>' + esc(String(o.materials == null ? '' : o.materials)) + '</td><td>' + esc(o.uv ? '有' : '无') + '</td><td>' + esc(String(o.textures == null ? 0 : o.textures)) + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  if (Array.isArray(rep.warnings) && rep.warnings.length) html += '<div class="warn">' + rep.warnings.map((w) => esc(String(w))).join('<br>') + '</div>';
+  return html;
+}
+async function openAssetDialog() {
+  const dlg = $('#dlgAsset');
+  const sel = $('#assetDevice');
+  const rep = $('#assetReport');
+  if (!dlg || !sel) return;
+  sel.textContent = '';
+  rep.textContent = '';
+  dlg.hidden = false;
+  const opt = (val, text) => { const o = document.createElement('option'); o.value = val; o.textContent = text; sel.append(o); };
+  try {
+    const r = await api('/devices');
+    const j = await r.json().catch(() => ({}));
+    const devs = Array.isArray(j.devices) ? j.devices : [];
+    if (!devs.length) opt('', '没有已配对设备');
+    for (const d of devs) opt(d.id, d.name + (d.online ? '（在线）' : '（离线）'));
+  } catch (e) {
+    opt('', '读取设备失败');
+  }
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest && e.target.closest('#assetBtn');
+  if (b) { closePops(); openAssetDialog(); return; }
+  if (e.target.closest && e.target.closest('#assetClose')) { const d = $('#dlgAsset'); if (d) d.hidden = true; return; }
+  if (e.target.closest && e.target.closest('#assetRun')) {
+    const btn = $('#assetRun');
+    const dev = $('#assetDevice').value;
+    const pth = $('#assetPath').value.trim();
+    const rep = $('#assetReport');
+    if (!dev) { flashHint('先选一台设备'); return; }
+    if (!pth) { flashHint('填一下 .blend 路径'); return; }
+    btn.disabled = true;
+    rep.innerHTML = '<p>提交中…</p>';
+    try {
+      const r = await api('/assets/inspect', { method: 'POST', body: { deviceId: dev, path: pth } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.job) { rep.innerHTML = '<p class="warn">' + esc((j && j.error) || '提交失败') + '</p>'; return; }
+      let job = j.job;
+      rep.innerHTML = assetReportHTML(job);
+      for (let i = 0; i < 40; i++) {
+        await new Promise((res) => setTimeout(res, 800));
+        const rr = await api('/assets/jobs/' + encodeURIComponent(job.id));
+        const jj = await rr.json().catch(() => ({}));
+        job = jj.job || job;
+        rep.innerHTML = assetReportHTML(job);
+        if (job.status === 'done' || job.status === 'failed') break;
+      }
+    } catch (err) {
+      rep.innerHTML = '<p class="warn">' + esc(String((err && err.message) || err)) + '</p>';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+});
 
 /* ---------------- 任务（runs）：创建 / 取消 / 面板 ---------------- */
 const RUN_STATUS = { queued: '排队', running: '运行中', cancelling: '取消中', succeeded: '已完成', failed: '失败', cancelled: '已取消', interrupted: '已中断' };

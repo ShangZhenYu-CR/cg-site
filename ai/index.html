@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>毛豆 · 大肥鱼的小站</title>
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="style.css?v=202611140156">
+<link rel="stylesheet" href="style.css?v=202611140217">
   <link rel="stylesheet" href="vendor/katex/katex.min.css">
   <script defer src="vendor/katex/katex.min.js"></script>
 </head>
@@ -350,6 +350,7 @@
   <button class="opt" id="pinBtn">置顶对话</button>
   <button class="opt" id="exportMdBtn">导出为 Markdown</button>
   <button class="opt" id="archiveBtn">归档对话</button>
+  <button class="opt" id="assetBtn">资产检查…</button>
   <button class="opt" id="deleteBtn" style="color:var(--danger)">删除对话</button>
   <div class="sep"></div>
   <button class="opt" id="newPrivateBtn">新建私人对话</button>
@@ -407,6 +408,21 @@
       <button class="primary" style="flex:1" id="projSave">保存</button>
     </div>
     <button class="ghost" style="width:100%;margin-top:8px;color:var(--danger)" id="projDelete" hidden>删除这个项目</button>
+  </div>
+</div>
+
+<!-- 设备资产检查 -->
+<div class="overlay" id="dlgAsset" hidden>
+  <div class="card">
+    <h2>设备资产检查</h2>
+    <p>选择一台已配对的本地设备，读取 .blend 的命名、面数、材质、UV 与贴图。</p>
+    <label class="field">设备<select id="assetDevice"></select></label>
+    <label class="field">文件路径<input id="assetPath" placeholder="例如 /Users/me/场景.blend"></label>
+    <div class="asset-report" id="assetReport"></div>
+    <div class="btn-row">
+      <button class="ghost" style="flex:1" id="assetClose">关闭</button>
+      <button class="primary" style="flex:1" id="assetRun">开始检查</button>
+    </div>
   </div>
 </div>
 
@@ -733,6 +749,6 @@
   </div>
 </div>
 
-<script src="app.js?v=202611140156" type="module"></script>
+<script src="app.js?v=202611140217" type="module"></script>
 </body>
 </html>

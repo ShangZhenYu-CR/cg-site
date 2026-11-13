@@ -777,6 +777,10 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* ---------- 第 8 轮：附件条 / 停止按钮 / 滚动渐隐 ---------- */
 .attach{width:min(672px,100%);gap:8px}
 .attach .chip{border-radius:10px}.composer.is-busy .send{display:grid}
+.asset-report{margin:10px 0;max-height:300px;overflow:auto;font-size:13px}
+.asset-report table{width:100%;border-collapse:collapse}
+.asset-report th,.asset-report td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;white-space:nowrap}
+.asset-report .warn{color:var(--danger);margin-top:8px}
 .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .lk-row[role=button]{cursor:pointer}
 .lk-row[role=button]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
