@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-13 18:33';
+const APP_BUILD = '2026-11-13 18:35';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -6510,7 +6510,7 @@ initSideResizer();
 setTimeout(initArtResizer, 300);
 
 
-const FEATURES_FB = { feedback: true, readAloud: true };
+const FEATURES_FB = { feedback: false, readAloud: false };
 /* 代码块复制（事件委托，流式重绘也能用） */
 document.addEventListener('click', async (e) => {
   const btn = e.target && e.target.closest && e.target.closest('.pre-copy');
