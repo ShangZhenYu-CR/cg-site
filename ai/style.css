@@ -721,6 +721,17 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 /* 项目页：标题居中 + 右上深色按钮（对齐 Claude projects 页） */
 
 /* 空间（多人协作） */
+
+/* 画布专注/全屏 */
+#canvasFullBtn{width:auto;height:30px;padding:0 10px;font-size:12px;flex:0 0 auto}
+#spacesPage.canvas-focus{position:fixed;inset:0;z-index:80;width:100vw;height:100vh;max-width:none;margin:0;padding:0;background:var(--bg);display:flex;flex-direction:column}
+#spacesPage.canvas-focus .spaces-head,#spacesPage.canvas-focus .spaces-sub,#spacesPage.canvas-focus .spaces-list{display:none}
+#spacesPage.canvas-focus .space-work{grid-template-columns:1fr;height:100vh;margin:0;gap:0}
+#spacesPage.canvas-focus .space-tree,#spacesPage.canvas-focus .space-side{display:none}
+#spacesPage.canvas-focus .space-main{height:100vh;border:0;border-radius:0;padding:8px}
+#spacesPage.canvas-focus .canvas-board{min-height:calc(100vh - 96px);height:calc(100vh - 96px)}
+#spacesPage:fullscreen{background:var(--bg)}
+
 .canvas-board{position:relative;display:block!important;min-height:560px;border:1px dashed var(--line);border-radius:10px;background-image:radial-gradient(rgba(0,0,0,.12) 1px,transparent 1px);background-size:20px 20px;overflow:auto}
 .canvas-edges{position:absolute;left:0;top:0;pointer-events:none;z-index:0}
 .canvas-card.link-from{outline:2px solid var(--accent)}

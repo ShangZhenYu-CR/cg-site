@@ -55,6 +55,7 @@ export function mountSpaces(ctx) {
     }
   }
   async function openSpace(id) {
+    await clearCanvasFocus();
     const r = await api('/spaces/' + encodeURIComponent(id));
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '打不开空间'); return; }
@@ -63,9 +64,10 @@ export function mountSpaces(ctx) {
     S.activeEntity = null;
     S.comments = [];
     S.extensions = [];
-    try { const er = await api('/spaces/' + encodeURIComponent(id) + '/extensions'); const ej = await er.json().catch(() => ({})); S.extensions = Array.isArray(ej.extensions) ? ej.extensions : []; } catch (e) {}
+    const extP = api('/spaces/' + encodeURIComponent(id) + '/extensions').then((er) => er.json()).then((ej) => { S.extensions = Array.isArray(ej.extensions) ? ej.extensions : []; }).catch(() => {});
     if (j.space.resources && j.space.resources.length) await openResource(j.space.resources[0].id);
     else { S.resource = null; render(); }
+    await extP;
   }
   async function openResource(rid) {
     if (!S.space) return;
@@ -104,6 +106,8 @@ export function mountSpaces(ctx) {
     box.classList.toggle('canvas-board', isCanvas);
     $('#addBlockBtn').textContent = isCanvas ? '＋ 文本卡' : '＋ 添加文本块';
     $('#linkCardsBtn').hidden = !isCanvas;
+    $('#canvasFullBtn').hidden = !isCanvas;
+    $('#canvasFullBtn').textContent = S.canvasFocus ? '退出全屏' : '⤢ 全屏';
     if (isCanvas) { renderCanvas(box, res); return; }
     for (const e of (res.entities || [])) {
       const row = el('div', 'page-block');
@@ -131,6 +135,18 @@ export function mountSpaces(ctx) {
     $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
   }
   function renderCanvas(box, res) {
+    const edgeEls = [];
+    function syncEdges() {
+      for (const it of edgeEls) {
+        const a = (res.entities || []).find((x) => x.id === it.from);
+        const b = (res.entities || []).find((x) => x.id === it.to);
+        if (!a || !b) continue;
+        it.line.setAttribute('x1', (a.payload.x || 0) + (a.payload.w || 240) / 2);
+        it.line.setAttribute('y1', (a.payload.y || 0) + (a.payload.h || 160) / 2);
+        it.line.setAttribute('x2', (b.payload.x || 0) + (b.payload.w || 240) / 2);
+        it.line.setAttribute('y2', (b.payload.y || 0) + (b.payload.h || 160) / 2);
+      }
+    }
     for (const e of (res.entities || [])) {
       const p = e.payload || {};
       const card = el('div', 'canvas-card');
@@ -190,6 +206,7 @@ export function mountSpaces(ctx) {
           const nx = Math.max(0, ox + m.clientX - sx), ny = Math.max(0, oy + m.clientY - sy);
           card.style.left = nx + 'px'; card.style.top = ny + 'px';
           e.payload = { ...(e.payload || {}), x: Math.round(nx), y: Math.round(ny) };
+          syncEdges();
         };
         const up = () => {
           card.classList.remove('dragging');
@@ -216,6 +233,7 @@ export function mountSpaces(ctx) {
       line.setAttribute('y2', (b.payload.y || 0) + (b.payload.h || 160) / 2);
       line.setAttribute('stroke', 'rgba(120,120,120,.55)'); line.setAttribute('stroke-width', '2');
       svg.append(line);
+      edgeEls.push({ line, from: ed.from, to: ed.to });
     }
     box.append(svg);
     if (!(res.entities || []).length) box.append(el('div', 'set-hint', '画布还是空的，点下面「＋ 文本卡」。'));
@@ -574,10 +592,44 @@ export function mountSpaces(ctx) {
   });
   $('#newSpaceBtn').addEventListener('click', () => createSpace());
   $('#joinSpaceBtn').addEventListener('click', () => joinSpace());
-  $('#spaceBack').addEventListener('click', () => { S.space = null; S.resource = null; render(); });
+  $('#spaceBack').addEventListener('click', () => { clearCanvasFocus(); S.space = null; S.resource = null; render(); });
   $('#newResourceBtn').addEventListener('click', () => createPage());
   $('#spaceNotif').addEventListener('click', () => showNotifications());
   $('#spaceAddMember').addEventListener('click', () => addMember());
+
+  async function toggleCanvasFocus() {
+    const page = $('#spacesPage');
+    if (!page || !S.resource || S.resource.type !== 'canvas') return;
+    const on = !S.canvasFocus;
+    S.canvasFocus = on;
+    page.classList.toggle('canvas-focus', on);
+    $('#canvasFullBtn').textContent = on ? '退出全屏' : '⤢ 全屏';
+    if (on) {
+      try { await page.requestFullscreen(); } catch (e) {}
+    } else {
+      try { if (document.fullscreenElement === page) await document.exitFullscreen(); } catch (e) {}
+    }
+  }
+  async function clearCanvasFocus() {
+    const page = $('#spacesPage');
+    if (!page) return;
+    S.canvasFocus = false;
+    page.classList.remove('canvas-focus');
+    const btn = $('#canvasFullBtn');
+    if (btn) btn.textContent = '⤢ 全屏';
+    try { if (document.fullscreenElement === page) await document.exitFullscreen(); } catch (e) {}
+  }
+  document.addEventListener('fullscreenchange', () => {
+    const page = $('#spacesPage');
+    if (!document.fullscreenElement && S.canvasFocus && page) {
+      S.canvasFocus = false;
+      page.classList.remove('canvas-focus');
+      const b = $('#canvasFullBtn');
+      if (b) b.textContent = '⤢ 全屏';
+    }
+  });
+
+  $('#canvasFullBtn').addEventListener('click', () => toggleCanvasFocus());
   $('#linkCardsBtn').addEventListener('click', () => {
     if (!S.resource || S.resource.type !== 'canvas') return;
     S.linkMode = !S.linkMode; S.linkFrom = null;
