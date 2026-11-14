@@ -588,6 +588,13 @@ export function mountSpaces(ctx) {
     openListPanel('通知', items.length ? '最近 ' + items.length + ' 条' : '空间里的 @ 会出现在这里', rows);
     if (items.some((n) => !n.readAt)) api('/notifications/read', { method: 'POST', body: {} }).catch(() => {});
   }
+  const spacesPageEl = $('#spacesPage');
+  if (spacesPageEl) {
+    spacesPageEl.addEventListener('contextmenu', (e) => {
+      if (e.target && e.target.closest && e.target.closest('input,textarea,select,[contenteditable="true"]')) return;
+      e.preventDefault();
+    });
+  }
   $('#navSpaces').addEventListener('click', async () => {
     state.view = 'spaces';
     S.space = null;
