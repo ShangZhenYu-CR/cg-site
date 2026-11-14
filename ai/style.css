@@ -85,6 +85,7 @@ button{cursor:pointer;background:none;border:0}
 #list .pkids .kid{height:36px;font-size:16px}
 #list .pkids .kid .t{font-weight:500}
 .pkids-empty{font-size:12px;color:var(--faint);padding:4px 10px}
+#side .nav-row{font-weight:500}
 
 .proj.dragover{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 12%, transparent)}
 .proj .caret{width:12px;color:var(--faint);font-size:10px;transition:.15s}
