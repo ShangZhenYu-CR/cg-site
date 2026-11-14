@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 14:23';
+const APP_BUILD = '2026-11-14 14:31';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1541,6 +1541,21 @@ function renderSkeleton() {
     listBox.append(row);
   }
 }
+
+/** 侧栏顺序稳定：已有会话不因 updatedAt 变化而跳位，新会话置顶 */
+function orderedSideConvs() {
+  const list = state.convs || [];
+  const ids = list.map((c) => c.id);
+  const set = new Set(ids);
+  let order = (state.sideOrder || []).filter((id) => set.has(id));
+  const known = new Set(order);
+  const added = ids.filter((id) => !known.has(id));
+  if (added.length) order = [...added, ...order];
+  state.sideOrder = order;
+  const idx = new Map(order.map((id, i) => [id, i]));
+  return [...list].sort((a, b) => (idx.get(a.id) ?? 1e9) - (idx.get(b.id) ?? 1e9));
+}
+
 function renderSide() {
   const q = $('#q').value.trim().toLowerCase();
   listBox.textContent = '';
@@ -1583,7 +1598,8 @@ function renderSide() {
   };
 
   // 已置顶：置顶的会话 + 项目（Claude 把项目行放在置顶区）
-  const pinned = (state.convs || []).filter((cv) => !cv.archived && pinnedIds.has(cv.id) && !cv.projectId && matches(cv));
+  const sideConvs = orderedSideConvs();
+  const pinned = sideConvs.filter((cv) => !cv.archived && pinnedIds.has(cv.id) && !cv.projectId && matches(cv));
   const pinnedProjects = (state.projects || []).filter((p) => p.pinned);
   if (pinned.length || pinnedProjects.length) {
     listBox.append(sectionHead('已置顶'));
@@ -1595,7 +1611,7 @@ function renderSide() {
 
   // 项目：可展开，子项缩进
   function appendProject(p) {
-    const kids = state.convs.filter((cv) => cv.projectId === p.id && !cv.archived && matches(cv));
+    const kids = sideConvs.filter((cv) => cv.projectId === p.id && !cv.archived && matches(cv));
     if (q && !String(p.name || '').toLowerCase().includes(q) && !kids.length) return;
     const open = state.open && state.open[p.id] !== undefined ? !!state.open[p.id] : true;
     const row = el('button', 'prow' + (open ? ' open' : '') + (state.projectId === p.id ? ' on' : ''));
@@ -1631,7 +1647,7 @@ function renderSide() {
 
   // 最近：平铺，不做按天分组（对齐 Claude）
   // 项目里的会话只在项目下显示，不进「最近」（对齐 Claude）
-  const loose = (state.convs || []).filter((cv) => !cv.archived && !cv.projectId && matches(cv) && !pinnedIds.has(cv.id));
+  const loose = sideConvs.filter((cv) => !cv.archived && !cv.projectId && matches(cv) && !pinnedIds.has(cv.id));
   const LIMIT = 12;
   const shown = state.sideAll ? loose : loose.slice(0, LIMIT);
   listBox.append(sectionHead('最近'));
@@ -1650,7 +1666,7 @@ function renderSide() {
   }
 
   // 已归档
-  const arch = (state.convs || []).filter((cv) => cv.archived && matches(cv));
+  const arch = sideConvs.filter((cv) => cv.archived && matches(cv));
   if (arch.length) {
     const h = el('div', 'grp');
     h.innerHTML = '<span>已归档</span><button id="archToggle">' + (state.showArchived ? '隐藏' : '显示 ' + arch.length) + '</button>';
