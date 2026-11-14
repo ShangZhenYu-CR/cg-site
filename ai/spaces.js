@@ -56,7 +56,7 @@ export function mountSpaces(ctx) {
   }
   async function openSpace(id) {
     await clearCanvasFocus();
-    const r = await api('/spaces/' + encodeURIComponent(id));
+    const r = await api('/spaces/' + encodeURIComponent(id) + '?full=1');
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '打不开空间'); return; }
     S.space = j.space;
@@ -65,7 +65,13 @@ export function mountSpaces(ctx) {
     S.comments = [];
     S.extensions = [];
     const extP = api('/spaces/' + encodeURIComponent(id) + '/extensions').then((er) => er.json()).then((ej) => { S.extensions = Array.isArray(ej.extensions) ? ej.extensions : []; }).catch(() => {});
-    if (j.space.resources && j.space.resources.length) await openResource(j.space.resources[0].id);
+    if (j.space.firstResource) {
+      S.resource = j.space.firstResource;
+      S.activeEntity = (S.resource.entities || [])[0] ? S.resource.entities[0].id : null;
+      S.conflict = false;
+      render();
+      loadComments();
+    } else if (j.space.resources && j.space.resources.length) await openResource(j.space.resources[0].id);
     else { S.resource = null; render(); }
     await extP;
   }
