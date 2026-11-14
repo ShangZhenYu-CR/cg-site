@@ -72,17 +72,19 @@ button{cursor:pointer;background:none;border:0}
 .proj{display:flex;align-items:center;gap:8px;padding:0 8px;height:28px;border-radius:8px;width:100%;text-align:left;min-width:0;border:1px solid transparent}
 .proj:hover{background:var(--panel2)}
 
-/* 项目树：文件夹行 + 缩进竖线 + 子会话加粗（对齐旧版截图） */
-.prow{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px;border-radius:8px;text-align:left;font-size:14px;font-weight:500;color:var(--text)}
+/* 项目树：文件夹行 + 缩进竖线 + 子会话加粗（按旧版 CSS 恢复） */
+.prow{display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 2px 0 10px;border-radius:8px;text-align:left;font-size:14px;font-weight:400;color:var(--text)}
 .prow:hover{background:var(--panel2)}
-.prow .pico{display:flex;color:var(--brand);flex:0 0 auto}
+.prow .pico{display:flex;align-items:center;color:var(--dim);flex:none}
 .prow .pn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.prow .pchev{color:var(--faint);font-size:15px;line-height:1;transition:transform .15s}
-.prow.open .pchev{transform:rotate(90deg)}
-.pkids{position:relative;margin:2px 0 6px 18px;padding-left:14px;border-left:1px solid var(--line)}
-.pkids .kid{height:36px;font-size:16px}
-.pkids .kid .t{font-weight:600}
-.pkids-empty{font-size:12px;color:var(--faint);padding:6px 10px}
+.prow .pchev{color:var(--faint);font-size:12px;line-height:1;transform:rotate(90deg);transition:transform .12s}
+.prow:not(.open) .pchev{transform:rotate(0)}
+.pkids{position:relative;padding-left:20px}
+.pkids::before{content:'';position:absolute;left:12px;top:2px;bottom:2px;width:1px;background:var(--line)}
+.pkids .kid{padding-left:10px}
+#list .pkids .kid{height:36px;font-size:16px}
+#list .pkids .kid .t{font-weight:500}
+.pkids-empty{font-size:12px;color:var(--faint);padding:4px 10px}
 
 .proj.dragover{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 12%, transparent)}
 .proj .caret{width:12px;color:var(--faint);font-size:10px;transition:.15s}
