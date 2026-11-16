@@ -684,7 +684,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .cm-model:hover{background:var(--panel2)}
 .cm-model .mm{color:var(--text)}
 .cm-model .me{color:var(--faint)}
-.composer .send{order:3;margin-left:8px}
+.composer .send{order:3;margin-left:auto}
 .composer-meta .right:empty{display:none}
 /* 空输入时藏起发送键（和 Claude 一致）；有字或在生成时才出现 */
 .composer .send{display:none}
