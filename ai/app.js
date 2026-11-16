@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-14 18:45';
+const APP_BUILD = '2026-11-16 21:51';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1011,7 +1011,7 @@ async function loadConvs() {
 
   // 只缓存列表元信息，避免塞满 localStorage
   LS.convCache = state.convs.map(c => ({
-    id: c.id, title: c.title, updatedAt: c.updatedAt,
+    id: c.id, title: c.title, updatedAt: c.updatedAt, rev: c.rev,
     projectId: c.projectId || null, private: !!c.private, owner: c.owner || '',
   }));
   return true;
@@ -1295,9 +1295,42 @@ async function doSaveConv(conv, extra) {
     // 保存发出后切换了账号：结果不属于当前身份，丢弃
     return { ok: false, stale: true };
   }
-  if (res.status === 409) {
+  if (res.status === 428 && !conv.__retry428) {
     const j = await res.json().catch(() => ({}));
-    // 只记录服务器版本，不把它当作本地已确认版本；否则下一次保存会带着旧内容覆盖
+    const rev = Number(j.rev);
+    if (Number.isFinite(rev) && rev > 0) {
+      conv.rev = rev;
+      conv.__retry428 = true;
+      try { return await doSaveConv(conv, extra); } finally { delete conv.__retry428; }
+    }
+  }
+  if (res.status === 409 && !conv.__retry409) {
+    const j = await res.json().catch(() => ({}));
+    // 冲突时合并服务器最新内容 + 本地未保存内容，然后带新版本重试一次，避免回复/图片被静默丢弃
+    let srv = j.conversation || null;
+    if (!srv) {
+      try {
+        const rr = await api('/convs/' + encodeURIComponent(conv.id));
+        if (rr.ok) { const jj = await rr.json().catch(() => ({})); srv = jj.conversation || null; }
+      } catch (e) {}
+    }
+    if (srv) {
+      const key = (m) => String(m && m.role) + '|' + String((m && m.text) || '').slice(0, 80) + '|' + ((m && m.images) || []).join(',');
+      const serverMsgs = Array.isArray(srv.messages) ? srv.messages : [];
+      const localMsgs = Array.isArray(conv.messages) ? conv.messages : [];
+      const seen = new Set(serverMsgs.map(key));
+      const mergedMsgs = serverMsgs.concat(localMsgs.filter((m) => !seen.has(key(m)))).slice(-400);
+      const serverFiles = Array.isArray(srv.files) ? srv.files : [];
+      const fseen = new Set(serverFiles.map((x) => x && x.name).filter(Boolean));
+      const mergedFiles = serverFiles.concat((conv.files || []).filter((x) => x && !fseen.has(x.name)));
+      conv.messages = mergedMsgs;
+      conv.files = mergedFiles;
+      conv.rev = Number(srv.rev);
+      conv.__conflict = false;
+      conv.__retry409 = true;
+      try { return await doSaveConv(conv, extra); } finally { delete conv.__retry409; }
+    }
+    // 无法取得服务器内容：保留原冲突处理
     conv.__conflict = true;
     conv.__serverRev = Number.isFinite(Number(j.rev)) ? Number(j.rev) : null;
     setSaveState(conv, 'conflict', '', { serverRev: conv.__serverRev });
