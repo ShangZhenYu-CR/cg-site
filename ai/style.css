@@ -291,6 +291,7 @@ button{cursor:pointer;background:none;border:0}
 .send svg{display:block}
 .plus-wrap{position:relative;flex:0 0 auto}
 .plus-pop{bottom:46px;left:0;width:250px;padding:8px}
+.plus-pop.down{top:46px;bottom:auto}
 .plus-pop .opt{font-size:13px}
 .plus-pop .opt .lock{margin-left:auto;font-size:10px;color:var(--faint)}
 

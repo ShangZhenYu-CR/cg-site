@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-16 21:51';
+const APP_BUILD = '2026-11-16 21:59';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -5270,7 +5270,7 @@ $('#modelBtn').addEventListener('click', (e) => {
 });
 $('#menuBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#menuPop'); const h = p.hidden; closePops(); p.hidden = !h; $('#menuBtn').setAttribute('aria-expanded', String(!p.hidden)); });
 $('#meBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#userPop'); const h = p.hidden; closePops(); p.hidden = !h; });
-$('#plusBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#plusPop'); const h = p.hidden; closePops(); p.hidden = !h; $('#plusBtn').setAttribute('aria-expanded', String(!p.hidden)); });
+$('#plusBtn').addEventListener('click', (e) => { e.stopPropagation(); const p = $('#plusPop'); const h = p.hidden; closePops(); p.hidden = !h; if (!p.hidden) { const br = $('#plusBtn').getBoundingClientRect(); const ph = p.getBoundingClientRect().height || 430; p.classList.toggle('down', br.top < ph + 60); } $('#plusBtn').setAttribute('aria-expanded', String(!p.hidden)); });
 document.addEventListener('click', () => closePops());
 
 /* 思考强度：点开子菜单（Claude 的二级面板），不再用滑杆 */
