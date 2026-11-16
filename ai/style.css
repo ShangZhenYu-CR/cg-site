@@ -684,11 +684,18 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .cm-model:hover{background:var(--panel2)}
 .cm-model .mm{color:var(--text)}
 .cm-model .me{color:var(--faint)}
-.composer .send{order:3;margin-left:auto}
+.composer .send{order:3;margin-left:8px}
 .composer-meta .right:empty{display:none}
 /* 空输入时藏起发送键（和 Claude 一致）；有字或在生成时才出现 */
 .composer .send{display:none}
 .composer.has-text .send{display:grid}
+
+/* 底栏顺序对齐旧版：＋ 左，语音靠右，发送最右 */
+.composer .plus-wrap{order:1}
+.composer .cm-mic{order:2;margin-left:auto}
+.composer .cm-voice{order:2}
+.composer .send{order:3;margin-left:6px}
+
 .composer{border:1px solid var(--line)}
 .composer:focus-within{border-color:var(--accent)}
 /* 侧栏底部：Claude 是一行「头像 + 名字 · 套餐 + 右侧图标」，高度 44 */
