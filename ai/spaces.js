@@ -922,6 +922,46 @@ export function mountSpaces(ctx) {
       }
     }
     /** 运行节点：把需求和连进来的输入交给后端，结果和实际提示词写回节点 */
+    /** 生成前把连进来的外链图片复制进空间：后端只拿站内图片，避免模型服务去外站下载被限流（429）；
+     *  复制成功后来源卡片的地址也换成空间地址，下次不用再复制 */
+    async function localizeInputs(e) {
+      const k = keyOf(e);
+      const ext = (u) => /^https?:\/\//i.test(u || '');
+      const tasks = [];
+      for (const ed of edges()) {
+        if (resolveKey(ed.to) !== k) continue;
+        const src = byKey(ed.from);
+        if (!src) continue;
+        const sp = src.payload;
+        if ((sp.type === 'image' || sp.type === 'ai-image') && ext(sp.url)) tasks.push({ key: keyOf(src), field: 'url', u: sp.url });
+        else if (sp.type === 'annot' && !sp.url && ext(sp.src)) tasks.push({ key: keyOf(src), field: 'src', u: sp.src });
+        else if (sp.type === 'img-search') { const r = (sp.results || [])[sp.picked]; if (r && ext(r.url)) tasks.push({ key: keyOf(src), field: 'result', i: sp.picked, u: r.url }); }
+      }
+      if (!tasks.length) return 0;
+      flashHint('正在把 ' + tasks.length + ' 张参考图复制进空间…');
+      let n = 0;
+      for (const t of tasks) {
+        const c = await copyImageIntoSpace({ src: t.u, save: t.u }, S.space.id, res.id);
+        if (!c.copied || cv !== st) continue;
+        const cur = byKey(t.key);
+        if (!cur) continue;
+        if (t.field === 'result') {
+          const results = (cur.payload.results || []).slice();
+          if (!results[t.i] || results[t.i].url !== t.u) continue;
+          results[t.i] = { ...results[t.i], url: c.url };
+          cur.payload = { ...cur.payload, results };
+        } else {
+          if (cur.payload[t.field] !== t.u) continue;
+          cur.payload = { ...cur.payload, [t.field]: c.url };
+        }
+        n += 1;
+        const card = st.cards.get(keyOf(cur));
+        if (t.field === 'url' && card && card.querySelector(':scope > img')) card.querySelector(':scope > img').src = shownUrl(c.url);
+        if (cur.payload.type === 'annot') renderAnnotNode(cur);
+      }
+      if (n) scheduleSave();
+      return n;
+    }
     async function runNode(k0) {
       const e = byKey(k0);
       if (!e) return;
@@ -929,7 +969,7 @@ export function mountSpaces(ctx) {
       if (st.running.has(k)) return;
       const kind = p.type === 'ai-image' ? 'image' : 'text';
       const instruction = (p.text || '').trim();
-      const ins = nodeInputs(e);
+      let ins = nodeInputs(e);
       if (!instruction && !ins.length) { flashHint('先写需求（双击节点），或者把卡片连进来'); startEdit(k); return; }
       if (p.mode === 'edit' && kind === 'image' && !ins.some((i) => i.type === 'image')) { flashHint('改图要先把一张图片连到这个节点'); return; }
       if (p.mode === 'edit' && kind === 'text' && !ins.some((i) => i.type === 'text')) { flashHint('改文要先把一张文字卡连到这个节点'); return; }
@@ -938,6 +978,7 @@ export function mountSpaces(ctx) {
       const sid = S.space.id, rid = res.id;
       let j = {}, err = '';
       try {
+        if (await localizeInputs(e)) ins = nodeInputs(byKey(k) || e);
         const r = await api('/spaces/' + encodeURIComponent(sid) + '/resources/' + encodeURIComponent(rid) + '/generate', {
           method: 'POST', timeout: 240000,
           body: { nodeId: e.id || undefined, kind, mode: p.mode || 'gen', instruction, inputs: ins.map((i) => (i.type === 'text' ? { type: 'text', text: String(i.text).slice(0, 8000) } : { type: 'image', url: i.url })), provider: p.provider || 'openai', model: p.model || undefined, size: kind === 'image' ? (p.size || '1024x1024') : undefined },
@@ -947,6 +988,8 @@ export function mountSpaces(ctx) {
         else if (!r.ok) err = j.error || ('生成失败（HTTP ' + r.status + '）');
         else if (kind === 'image' && !j.url) err = '没有拿到图片，可以换个说法再试';
       } catch (ex) { err = '生成失败：' + String((ex && ex.message) || ex); }
+      // 外站图片被限流：换成看得懂的提示
+      if (err && /\b429\b|Too Many Requests|downloading file/i.test(err)) err = '参考图所在的网站暂时拒绝下载（请求太多）。已尝试把参考图复制进空间，请等一会儿再点「重新生成」；如果还不行，把这张图下载后拖进画布再用。';
       const kk = resolveKey(k);
       st.running.delete(kk); st.running.delete(k);
       if (cv !== st) return;
@@ -1209,7 +1252,9 @@ export function mountSpaces(ctx) {
           const r = await fetch('https://commons.wikimedia.org/w/api.php?' + qs.toString(), { referrerPolicy: 'no-referrer', credentials: 'omit' });
           const j = await r.json();
           const pages = Object.values((j.query && j.query.pages) || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
-          list = pages.map((pg) => { const ii = (pg.imageinfo || [])[0] || {}; return { url: ii.url || '', thumb: ii.thumburl || ii.url || '', title: String(pg.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, ''), source: ii.descriptionurl || '', w: ii.width || 0, h: ii.height || 0 }; })
+          // 拿图用 1600 宽的版本（原图可能十几 MB，复制慢、也更容易被限流）
+          const bigOf = (ii) => (ii.thumburl && (ii.width || 0) > 1600 ? ii.thumburl.replace(/\/\d+px-([^/]+)$/, '/1600px-$1') : (ii.url || ''));
+          list = pages.map((pg) => { const ii = (pg.imageinfo || [])[0] || {}; return { url: bigOf(ii), thumb: ii.thumburl || ii.url || '', title: String(pg.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, ''), source: ii.descriptionurl || '', w: ii.width || 0, h: ii.height || 0 }; })
             .filter((x) => x.url && /\.(jpe?g|png|webp|gif)$/i.test(x.url.split('?')[0]));
         }
         if (!err && !list.length) err = '没有找到图片，换个关键词试试' + ((p.provider || 'commons') === 'commons' ? '（维基共享资源用英文关键词更准）' : '');
@@ -1257,6 +1302,16 @@ export function mountSpaces(ctx) {
       const n = addCard({ type: 'annot', src: url, ar, annots: [], url: '', text: '', w, h }, pos.x, pos.y);
       edges().push({ from: keyOf(src), to: keyOf(n) });
       refresh(); scheduleSave();
+      if (/^https?:\/\//i.test(url)) {
+        const nk = keyOf(n);
+        copyImageIntoSpace({ src: url, save: url }, S.space.id, res.id).then((c) => {
+          if (!c.copied || cv !== st) return;
+          const cur = byKey(nk);
+          if (!cur || cur.payload.src !== url) return;
+          cur.payload = { ...cur.payload, src: c.url };
+          renderAnnotNode(cur); scheduleSave();
+        });
+      }
       setTimeout(() => openAnnotEditor(keyOf(n)), 0);
       return n;
     }
@@ -1422,7 +1477,9 @@ export function mountSpaces(ctx) {
           inp.placeholder = '输入标注文字，回车确定';
           inp.maxLength = 200;
           boxE.append(inp);
-          setTimeout(() => inp.focus(), 0);
+          // 立刻聚焦：点完马上打字时第一个字不能丢（按下时已 preventDefault，焦点不会被抢回去）
+          inp.focus();
+          setTimeout(() => { if (document.activeElement !== inp && inp.isConnected) inp.focus(); }, 0);
           let done = false;
           const fin = (ok) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); if (ok && v) { push(); list.push({ t: 'text', x1: q.x, y1: q.y, s: v, c: color, lw }); } sync(); };
           inp.addEventListener('keydown', (k2) => { k2.stopPropagation(); if (k2.key === 'Enter') fin(true); if (k2.key === 'Escape') fin(false); });
@@ -1687,7 +1744,8 @@ export function mountSpaces(ctx) {
       inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); } });
       for (const evName of ['pointerdown', 'dblclick', 'paste', 'wheel']) inp.addEventListener(evName, (e) => e.stopPropagation());
       inp.addEventListener('blur', () => finish(true));
-      setTimeout(() => { inp.focus({ preventScroll: true }); inp.select(); }, 0);
+      inp.focus({ preventScroll: true }); inp.select();
+      setTimeout(() => { if (inp.isConnected && document.activeElement !== inp) { inp.focus({ preventScroll: true }); inp.select(); } }, 0);
     }
     /** 小菜单：anchor 是按钮元素，或屏幕坐标 {x, y}；onClose 在菜单关掉时调用 */
     let menuEl = null;
