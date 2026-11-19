@@ -453,6 +453,7 @@ export function mountSpaces(ctx) {
       b.append(ic, el('span', 'rn', r.title || '未命名'));
       b.addEventListener('click', () => {
         if (narrow()) setTree(false);
+        if (S.resource?.id === r.id) return;
         openResource(r.id).catch(() => {});
       });
       box.append(b);
