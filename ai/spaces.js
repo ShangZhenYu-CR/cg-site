@@ -1248,7 +1248,7 @@ export function mountSpaces(ctx) {
         if (running) grid.append(el('div', 'an-status', '正在搜索…'));
         else if (err) { const d = el('div', 'an-err', err); d.setAttribute('role', 'alert'); grid.append(d); }
         else if (!list.length) grid.append(el('div', 'an-empty', '输入关键词后搜索，图片会排在这里'));
-        else list.forEach((r, i) => {
+        list.forEach((r, i) => {
           const it = el('div', 'sn-item');
           it.dataset.i = String(i);
           it.title = (r.title || '') + (r.w && r.h ? '（' + r.w + ' × ' + r.h + '）' : '') + (r.author ? '\n摄影：' + r.author : '') + '\n点击选中，按住拖到画布上拿出来';
@@ -1287,36 +1287,37 @@ export function mountSpaces(ctx) {
       st.running.add(k); st.errors.delete(k);
       renderSearchNode(e);
       const src = srcOf(p);
-      let list = [], err = '', via = '';
+      let list=[], err='', via='', progress;
+      const previous=p.results || [];
+      const cursor=p.searchProgress;
+      const same=cursor && cursor.query===q && cursor.src===src;
       try {
-        if (SEARCH_API[src]) {
-          const r = await api('/ai/image-search', { method: 'POST', timeout: 60000, body: { query: q, count: 24, provider: SEARCH_API[src] } });
-          const j = await r.json().catch(() => ({}));
-          if (r.status === 404 || r.status === 405) err = '后端还没有搜图接口，先切换到「维基共享资源」';
-          else if (!r.ok) err = j.error || ('搜索失败（HTTP ' + r.status + '）');
+        if (same && cursor.nextPage===0) { flashHint('这个条件的结果已看完'); }
+        else {
+          const r=await api('/ai/image-search',{method:'POST',timeout:180000,body:{
+            query:q,count:24,rank:true,provider:SEARCH_API[src] || src,
+            terms:same ? cursor.terms : '',page:same ? cursor.nextPage : 1,
+            exclude:previous.flatMap(x=>[x.original || x.url,x.source]).filter(Boolean),
+          }});
+          const j=await r.json();
+          if (!r.ok) err=j.error || '搜索失败';
           else {
-            via = String(j.provider || SEARCH_API[src]).slice(0, 40);
-            list = (j.images || []).map((x) => ({ url: x.url, thumb: x.thumb || x.url, title: x.title || '', source: x.source || '', author: x.author || '', authorUrl: x.authorUrl || '', w: Number(x.width || x.w) || 0, h: Number(x.height || x.h) || 0 }));
+            via=j.provider;
+            const seen=new Set(previous.flatMap(x=>[x.original || x.url,x.source]).filter(Boolean));
+            list=j.images.filter(x=>!seen.has(x.url)&&!seen.has(x.source)).map(x=>({...x,original:x.url,w:x.width,h:x.height}));
+            progress={query:q,src,terms:j.terms,nextPage:j.nextPage};
+            if (!list.length) flashHint('这一轮没有符合需求的新图片');
           }
-        } else {
-          const qs = new URLSearchParams({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrnamespace: '6', gsrlimit: '30', gsrsearch: q, prop: 'imageinfo', iiprop: 'url|size', iiurlwidth: '360' });
-          const r = await fetch('https://commons.wikimedia.org/w/api.php?' + qs.toString(), { referrerPolicy: 'no-referrer', credentials: 'omit' });
-          const j = await r.json();
-          const pages = Object.values((j.query && j.query.pages) || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
-          // 拿图用 1280 宽的版本：原图可能十几 MB；1280 是维基允许的标准宽度（1600 这类非标准宽度会被拒绝）
-          const bigOf = (ii) => (ii.thumburl && (ii.width || 0) > 1280 ? ii.thumburl.replace(/\/\d+px-([^/]+)$/, '/1280px-$1') : (ii.url || ''));
-          list = pages.map((pg) => { const ii = (pg.imageinfo || [])[0] || {}; return { url: bigOf(ii), thumb: ii.thumburl || ii.url || '', title: String(pg.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, ''), source: ii.descriptionurl || '', w: ii.width || 0, h: ii.height || 0 }; })
-            .filter((x) => x.url && /\.(jpe?g|png|webp|gif)$/i.test(x.url.split('?')[0]));
         }
-        if (!err && !list.length) err = '没有找到图片，换个关键词试试' + (src === 'commons' ? '（维基共享资源用英文关键词更准）' : '');
       } catch (ex) { err = '搜索失败：' + String((ex && ex.message) || ex); }
       st.running.delete(resolveKey(k)); st.running.delete(k);
       if (cv !== st) return;
       const cur = byKey(k);
       if (!cur) return;
       if (err) { st.errors.set(keyOf(cur), err); renderSearchNode(cur); return; }
+      if (!progress) { renderSearchNode(cur); return; }
       const s0 = snap();
-      cur.payload = { ...cur.payload, picked: -1, via, results: list.slice(0, 40).map((x) => ({ url: String(x.url).slice(0, 500), thumb: String(x.thumb || '').slice(0, 500), title: String(x.title || '').slice(0, 200), source: String(x.source || '').slice(0, 500), author: String(x.author || '').slice(0, 100), authorUrl: /^https?:\/\//i.test(x.authorUrl || '') ? String(x.authorUrl).slice(0, 500) : '', w: x.w, h: x.h })) };
+      cur.payload={...cur.payload,via,searchProgress:progress,results:[...(cur.payload.results || []),...list]};
       pushUndo(s0);
       renderSearchNode(cur);
       scheduleSave();
