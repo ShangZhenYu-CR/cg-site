@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-20 06:00';
+const APP_BUILD = '2026-11-20 06:01';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -207,7 +207,7 @@ function wikiFileDirect(u) {
 /** 维基缩略图只认标准宽度（https://w.wiki/GHai），其他宽度往下取到最近的标准宽度，否则会 400 */
 const WIKI_STEPS = [20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840];
 function fixWikiThumb(u) {
-  const m = /^(https?:\/\/upload\.wikimedia\.org\/.+\/thumb\/.+\/)(\d+)px-([^/?#]+)$/i.exec(String(u || ''));
+  const m = /^(https?:\/\/(?:upload|thumb)\.wikimedia\.org\/[^?#]+\/thumb\/[^?#]+\/)(\d+)px-([^/?#]+(?:[?#].*)?)$/i.exec(String(u || ''));
   if (!m || WIKI_STEPS.includes(Number(m[2]))) return u;
   return m[1] + (WIKI_STEPS.filter((x) => x <= Number(m[2])).pop() || WIKI_STEPS[0]) + 'px-' + m[3];
 }

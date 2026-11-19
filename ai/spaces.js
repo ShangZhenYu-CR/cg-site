@@ -10,7 +10,7 @@ export function mountSpaces(ctx) {
    * 不在列表里的宽度一律往下取到最近的标准宽度（比如以前存下的 1600 → 1280），保证一定能打开。 */
   const WIKI_STEPS = [20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840];
   function fixWikiThumb(u) {
-    const m = /^(https?:\/\/upload\.wikimedia\.org\/.+\/thumb\/.+\/)(\d+)px-([^/?#]+)$/i.exec(String(u || ''));
+    const m = /^(https?:\/\/(?:upload|thumb)\.wikimedia\.org\/[^?#]+\/thumb\/[^?#]+\/)(\d+)px-([^/?#]+(?:[?#].*)?)$/i.exec(String(u || ''));
     if (!m) return u;
     const n = Number(m[2]);
     if (WIKI_STEPS.includes(n)) return u;
