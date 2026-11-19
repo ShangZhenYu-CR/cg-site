@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-19 23:00';
+const APP_BUILD = '2026-11-20 03:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -194,14 +194,79 @@ function texHTML(tex, display) {
   }
 }
 
+/* ---------------- 回答里的图片 ----------------
+ * 地址允许带一层括号（维基文件名常见：File:Nalanda_(1).jpg）；只认 http(s) 和站内 /files/ */
+const MD_URL = String.raw`((?:https?:\/\/|\/files\/)(?:[^\s()<>"]|\([^\s()<>"]*\))+)`;
+const IMG_EXT_RE = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
+/** 维基百科 / 维基共享资源的 File 页面 → 图片直链（Special:FilePath 会跳到原图） */
+function wikiFileDirect(u) {
+  const m = /^https?:\/\/((?:commons|upload|[a-z]{2,3})\.(?:m\.)?wiki(?:media|pedia)\.org)\/wiki\/(?:File|Image|%E6%96%87%E4%BB%B6|文件):([^?#\s]+)/i.exec(u);
+  if (!m) return '';
+  return 'https://' + m[1].replace('.m.', '.') + '/wiki/Special:FilePath/' + m[2] + '?width=1280';
+}
+/** 能直接当图片显示的地址；不是图片返回空 */
+function imageSrcOf(u) {
+  const url = String(u || '').replace(/&amp;/g, '&');
+  if (!/^(https?:\/\/|\/files\/)/i.test(url)) return '';
+  const w = wikiFileDirect(url);
+  if (w) return w;
+  const path = url.split(/[?#]/)[0];
+  if (IMG_EXT_RE.test(path)) return url;
+  if (/\/\/upload\.wikimedia\.org\//i.test(url)) return url;
+  return '';
+}
+function imgKey(u) {
+  const w = /Special:FilePath\/([^?#]+)/i.exec(u) || /\/wiki\/(?:File|Image|文件):([^?#]+)/i.exec(u);
+  if (w) { try { return 'wiki:' + decodeURIComponent(w[1]).replace(/ /g, '_').toLowerCase(); } catch (e) { return 'wiki:' + w[1].toLowerCase(); } }
+  const up = /upload\.wikimedia\.org\/.*\/([^/?#]+)$/i.exec(u.split('?')[0]);
+  if (up) { try { return 'wiki:' + decodeURIComponent(up[1]).replace(/^\d+px-/, '').toLowerCase(); } catch (e) { return 'wiki:' + up[1].toLowerCase(); } }
+  return u.split('#')[0];
+}
+/** 从回答原文里找图片：![说明](地址) 是内嵌图；指向图片的普通链接、裸地址收进「回答里的图片」 */
+function extractImages(text) {
+  const raw = String(text || '');
+  const inline = [], links = [], seen = new Set();
+  const take = (list, url, alt) => { const src = imageSrcOf(url); if (!src) return; const k = imgKey(src); if (seen.has(k)) return; seen.add(k); list.push({ src, href: url, alt: (alt || '').trim() }); };
+  for (const m of raw.matchAll(new RegExp('!\\[([^\\]\\n]*)\\]\\(' + MD_URL + '\\)', 'g'))) take(inline, m[2], m[1]);
+  const rest = raw.replace(new RegExp('!\\[([^\\]\\n]*)\\]\\(' + MD_URL + '\\)', 'g'), ' ');
+  for (const m of rest.matchAll(new RegExp('\\[([^\\]\\n]+)\\]\\(' + MD_URL + '\\)', 'g'))) take(links, m[2], m[1]);
+  for (const m of rest.replace(new RegExp('\\[([^\\]\\n]+)\\]\\(' + MD_URL + '\\)', 'g'), ' ').matchAll(new RegExp(String.raw`(?:^|[^\w"'=/.\->;])` + MD_URL, 'g'))) take(links, m[1], '');
+  return { inline, links, all: inline.concat(links) };
+}
+
 function inline(s) {
   s = s.replace(/`([^`\n]+)`/g, (m, c) => '<code>' + c + '</code>');
   s = s.replace(/\$([^$\n]+?)\$/g, (m, tex) => texHTML(tex, false));
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-  s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+  // 图片：![说明](地址)。s 已经转义过，地址里不会有引号和尖括号
+  s = s.replace(new RegExp('!\\[([^\\]\\n]*)\\]\\(' + MD_URL + '\\)', 'g'), (m, alt, url) => {
+    const src = imageSrcOf(url) || (/^https?:\/\//i.test(url) ? url : '');
+    if (!src) return m;
+    const shown = /^\/files\//.test(src) ? fileUrl(src) : src;
+    return '<span class="md-img"><img src="' + shown.replace(/"/g, '&quot;') + '" alt="' + alt + '" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-href="' + url + '"></span>';
+  });
+  s = s.replace(new RegExp('\\[([^\\]\\n]+)\\]\\(' + MD_URL + '\\)', 'g'), (m, t, url) => '<a href="' + (/^\/files\//.test(url) ? fileUrl(url) : url) + '" target="_blank" rel="noopener noreferrer">' + t + '</a>');
+  // 裸地址：前面是空格、括号、中文标点都行；引号、等号、斜杠、> 和实体后面的不动（已经在链接或属性里）
+  s = s.replace(new RegExp(String.raw`(^|[^\w"'=/.\->;])` + String.raw`((?:https?:\/\/)(?:[^\s()<>"]|\([^\s()<>"]*\))+)`, 'g'), '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
   return s;
 }
+// 内嵌图片：点击放大；加载失败退回成可点的链接
+document.addEventListener('click', (e) => {
+  const img = e.target && e.target.closest && e.target.closest('.md-img img, .md-gallery img');
+  if (!img) return;
+  e.preventDefault();
+  const list = [...img.closest('.bd, .md-gallery, body').querySelectorAll('.md-img img, .md-gallery img')].map((x) => x.currentSrc || x.src);
+  openLightbox(img.currentSrc || img.src, list);
+});
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!img || img.tagName !== 'IMG' || !img.closest || !img.closest('.md-img, .md-gallery')) return;
+  const href = img.dataset.href || img.src;
+  const a = document.createElement('a');
+  a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.className = 'md-img-broken';
+  a.textContent = (img.alt ? img.alt + '：' : '') + '图片无法直接显示，点这里打开';
+  (img.closest('.mg-item') || img).replaceWith(a);
+}, true);
 
 /* ---------------- 工具卡片（自定义工具执行结果） ---------------- */
 function pushToolCards(reply, calls) {
@@ -2839,6 +2904,29 @@ function bubble(m, idx) {
     }
   }
   bd.append(content);
+  if (!isUser && !m.err && !m.streaming) {
+    const found = extractImages(m.text || '');
+    if (found.links.length) {
+      const gal = el('div', 'md-gallery');
+      gal.append(el('div', 'mg-title', '回答里的图片（' + found.links.length + '）'));
+      const row = el('div', 'mg-row');
+      for (const it of found.links.slice(0, 16)) {
+        const fig = el('a', 'mg-item');
+        fig.href = it.href; fig.target = '_blank'; fig.rel = 'noopener noreferrer';
+        fig.title = (it.alt ? it.alt + '\n' : '') + '点击放大；Ctrl + 点击打开来源页';
+        const im = document.createElement('img');
+        im.src = /^\/files\//.test(it.src) ? fileUrl(it.src) : it.src;
+        im.alt = it.alt || '';
+        im.loading = 'lazy'; im.decoding = 'async'; im.referrerPolicy = 'no-referrer';
+        im.dataset.href = it.href;
+        fig.append(im);
+        fig.addEventListener('click', (ev) => { if (ev.ctrlKey || ev.metaKey) return; ev.preventDefault(); });
+        row.append(fig);
+      }
+      gal.append(row);
+      bd.append(gal);
+    }
+  }
 
   if (!isUser && Array.isArray(m.tools) && m.tools.length) {
     for (const t of m.tools) bd.append(toolCard(t));
@@ -2967,6 +3055,15 @@ function bubble(m, idx) {
     regen.title = '从这条开始重新回答';
     regen.addEventListener('click', () => regenerateFrom(idx));
     acts.append(regen);
+    const toSpace = el('button', null, '存到空间');
+    toSpace.type = 'button';
+    toSpace.title = '把这条回答的文字和图片存进空间';
+    toSpace.addEventListener('click', () => {
+      if (!spacesApi || !spacesApi.saveToSpace) { flashHint('空间模块没加载，刷新后再试'); return; }
+      const cv0 = current();
+      spacesApi.saveToSpace({ title: ((cv0 && cv0.title) || '对话') + ' · 回答', text: stripMemoryMarkers(m.text || ''), textLabel: '这条回答的文字', images: imagesOfMessages([m]) });
+    });
+    acts.append(toSpace);
     // 用户消息额外给「编辑」：把原文放回输入框，改完重发（Claude 的 Edit）
     if (isUser) {
       const edit = el('button', null, '编辑');
@@ -7833,6 +7930,29 @@ $('#pinBtn').addEventListener('click', () => {
 });
 
 $('#exportMdBtn').addEventListener('click', () => { closePops(); exportConvMarkdown(); });
+/** 一组消息里的所有图片：生成 / 上传的图，加上回答里的图片语法和图片链接（去重） */
+function imagesOfMessages(msgs) {
+  const out = [], seen = new Set();
+  const add = (src, save, label) => { const k = imgKey(save || src); if (seen.has(k)) return; seen.add(k); out.push({ src, save, label: label || '' }); };
+  for (const m of msgs) {
+    if (!m || m.kind) continue;
+    for (const u of (m.images || [])) add(fileUrl(u), u, m.role === 'user' ? '你发的图' : 'AI 生成');
+    if (m.role !== 'user') for (const it of extractImages(m.text || '').all) add(/^\/files\//.test(it.src) ? fileUrl(it.src) : it.src, it.src, it.alt);
+  }
+  return out;
+}
+$('#saveSpaceBtn').addEventListener('click', () => {
+  closePops();
+  const cv0 = current();
+  if (!cv0) return;
+  if (!spacesApi || !spacesApi.saveToSpace) { flashHint('空间模块没加载，刷新后再试'); return; }
+  const msgs = (cv0.messages || []).filter((m) => !m.kind && !m.err);
+  const answers = msgs.filter((m) => m.role !== 'user' && String(m.text || '').trim());
+  const images = imagesOfMessages(msgs);
+  if (!answers.length && !images.length) { flashHint('这段对话里还没有可存的内容'); return; }
+  const text = answers.map((m) => stripMemoryMarkers(m.text || '')).join('\n\n---\n\n');
+  spacesApi.saveToSpace({ title: cv0.title || '对话', text, textLabel: 'AI 的回答文字（' + answers.length + ' 条）', textDefault: !images.length, images });
+});
 
 $('#archiveBtn').addEventListener('click', async () => {
   const cv = current();
