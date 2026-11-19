@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>毛豆 · 大肥鱼的小站</title>
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="style.css?v=202611191200">
+<link rel="stylesheet" href="style.css?v=202611192030">
   <link rel="stylesheet" href="vendor/katex/katex.min.css">
   <script defer src="vendor/katex/katex.min.js"></script>
 </head>
@@ -141,39 +141,50 @@
         <div class="pp-grid" id="plugGrid"></div>
       </div>
       <div class="spaces-page" id="spacesPage" hidden>
-        <div class="spaces-head">
-          <button class="ghost" id="spaceBack" hidden>← 空间</button>
-          <h1 id="spacesTitle">空间</h1>
-          <div class="spaces-acts">
-            <button class="ghost" id="spaceNotif">通知</button>
-            <button class="ghost" id="joinSpaceBtn">加入空间</button>
-            <button class="primary" id="newSpaceBtn">新建空间</button>
-            <button class="ghost" id="spaceAddMember" hidden>邀请成员</button>
-            <button class="ghost" id="spaceVisBtn" hidden>设为私人</button>
+        <div class="sp-bar">
+          <div class="sp-tabs" id="spaceTabs" role="tablist" aria-label="空间"></div>
+          <button class="sp-add" id="newSpaceBtn" type="button" title="新建或加入空间" aria-label="新建或加入空间">＋</button>
+          <div class="sp-bar-acts">
+            <button class="ghost" id="spaceNotif" type="button">通知</button>
           </div>
         </div>
-        <p class="spaces-sub" id="spacesSub">空间是一起工作的资料容器：成员、页面、评论和通知都按空间隔离。</p>
-        <div class="spaces-list" id="spacesList"></div>
+        <div class="sp-empty" id="spacesEmpty" hidden>
+          <div class="t">还没有空间</div>
+          <div class="d">空间是一起工作的地方：页面、画布、评论都在里面。</div>
+          <button class="primary" id="emptyNewSpace" type="button">新建空间</button>
+          <button class="ghost" id="joinSpaceBtn" type="button">用邀请码加入</button>
+        </div>
         <div class="space-work" id="spaceWork" hidden>
-          <aside class="space-tree">
-            <div class="space-tree-head"><span>资源</span><button class="icon" id="newResourceBtn" title="新建页面">＋</button></div>
-            <div id="spaceRes"></div>
+          <aside class="space-tree" id="spaceTree">
+            <div class="space-tree-head"><span>页面</span><button class="icon" id="newResourceBtn" type="button" title="新建页面或画布" aria-label="新建页面或画布">＋</button></div>
+            <div class="space-res" id="spaceRes"></div>
+            <div class="space-info">
+              <div class="si-line" id="spacesSub"></div>
+              <div class="si-acts">
+                <button class="ghost" id="spaceAddMember" type="button" hidden>邀请成员</button>
+                <button class="ghost" id="spaceVisBtn" type="button" hidden>设为私人</button>
+              </div>
+            </div>
           </aside>
           <section class="space-main">
             <div class="space-main-head">
+              <button class="icon" id="treeToggle" type="button" title="收起页面列表" aria-label="收起页面列表" aria-expanded="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
+              </button>
               <input id="spaceResTitle" class="space-title-input" placeholder="页面标题">
               <span class="space-save" id="spaceSaveState"></span>
-              <button class="ghost" id="canvasFullBtn" hidden>⤢ 全屏</button>
+              <button class="ghost" id="canvasFullBtn" type="button" hidden>⤢ 全屏</button>
+              <button class="ghost" id="sidePanelBtn" type="button" aria-expanded="false">评论</button>
             </div>
             <div id="pageEditor"></div>
-            <button class="ghost" id="addBlockBtn">＋ 添加文本块</button>
-            <button class="ghost" id="linkCardsBtn" hidden>连线</button>
+            <button class="ghost" id="addBlockBtn" type="button">＋ 添加文本块</button>
           </section>
-          <aside class="space-side">
+          <aside class="space-side" id="spaceSide">
             <div class="space-tabs">
               <button class="on" id="tabComments" type="button">评论</button>
               <button id="tabMembers" type="button">成员</button>
               <button id="tabApps" type="button">应用</button>
+              <button class="ss-close" id="sideCloseBtn" type="button" title="收起" aria-label="收起面板">×</button>
             </div>
             <div id="spaceSideBody"></div>
           </aside>
@@ -805,6 +816,6 @@
   </div>
 </div>
 
-<script src="app.js?v=202611191600" type="module"></script>
+<script src="app.js?v=202611192030" type="module"></script>
 </body>
 </html>
