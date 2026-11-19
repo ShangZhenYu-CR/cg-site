@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-19 12:00';
+const APP_BUILD = '2026-11-19 12:01';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1314,12 +1314,19 @@ async function doSaveConv(conv, extra) {
       } catch (e) {}
     }
     if (srv) {
-      const key = (m) => String(m && m.role) + '|' + String((m && m.text) || '').slice(0, 80) + '|' + ((m && m.images) || []).join(',');
+      const key = (m) => String(m && m.role) + '|' + String((m && m.text) || '') + '|' + ((m && m.images) || []).join(',');
       const serverMsgs = Array.isArray(srv.messages) ? srv.messages : [];
       const localMsgs = Array.isArray(conv.messages) ? conv.messages : [];
       const seen = new Set(serverMsgs.map(key));
       const mergedMsgs = serverMsgs.concat(localMsgs.filter((m) => !seen.has(key(m)))).slice(-400);
       const serverFiles = Array.isArray(srv.files) ? srv.files : [];
+      if ((conv.files || []).some(local => serverFiles.some(remote =>
+        remote.name === local.name && (remote.content !== local.content || remote.url !== local.url)))) {
+        conv.__conflict = true;
+        conv.__serverRev = srv.rev;
+        setSaveState(conv, 'conflict', '同名文件内容不同', { serverRev: srv.rev });
+        return { ok: false, conflict: true };
+      }
       const fseen = new Set(serverFiles.map((x) => x && x.name).filter(Boolean));
       const mergedFiles = serverFiles.concat((conv.files || []).filter((x) => x && !fseen.has(x.name)));
       conv.messages = mergedMsgs;

@@ -55,6 +55,7 @@ export function mountSpaces(ctx) {
     }
   }
   async function openSpace(id) {
+    if (!await flushSave()) return;
     await clearCanvasFocus();
     const r = await api('/spaces/' + encodeURIComponent(id) + '?full=1');
     const j = await r.json().catch(() => ({}));
@@ -76,6 +77,7 @@ export function mountSpaces(ctx) {
     await extP;
   }
   async function openResource(rid) {
+    if (!await flushSave()) return;
     if (!S.space) return;
     const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(rid));
     const j = await r.json().catch(() => ({}));
@@ -265,10 +267,26 @@ export function mountSpaces(ctx) {
     flashHint('AI 已修改这张卡');
   }
 
+  let dirty = false;
+  let pendingSave;
+  async function flushSave() {
+    clearTimeout(S.saveTimer);
+    if (!pendingSave && dirty) {
+      pendingSave = (async () => {
+        while (dirty) {
+          dirty = false;
+          if (!await savePage()) { dirty = true; return false; }
+        }
+        return true;
+      })().finally(() => { pendingSave = null; });
+    }
+    return pendingSave || true;
+  }
   function scheduleSave() {
+    dirty = true;
     if (S.saveTimer) clearTimeout(S.saveTimer);
     $('#spaceSaveState').textContent = '未保存…';
-    S.saveTimer = setTimeout(() => { savePage().catch(() => {}); }, 650);
+    S.saveTimer = setTimeout(() => { flushSave().catch(() => {}); }, 650);
   }
   async function savePage() {
     if (S.saving || !S.resource || !S.space) return;
@@ -284,6 +302,7 @@ export function mountSpaces(ctx) {
         payload: { text: ta.value },
       }));
     }
+    const submitted = [...S.resource.entities];
     S.saving = true;
     $('#spaceSaveState').textContent = '保存中…';
     try {
@@ -294,7 +313,14 @@ export function mountSpaces(ctx) {
       const j = await r.json().catch(() => ({}));
       if (r.status === 409) { S.conflict = true; $('#spaceSaveState').textContent = '有冲突，已保留你的输入'; flashHint(j.error || '页面已被其他人修改'); return; }
       if (!r.ok) { $('#spaceSaveState').textContent = '保存失败'; flashHint(j.error || '保存失败'); return; }
-      S.resource = j.resource;
+      S.resource.revision = j.resource.revision;
+      submitted.forEach((entity, i) => {
+        const saved = j.resource.entities[i];
+        entity.id = saved.id;
+        entity.revision = saved.revision;
+        const ta = document.querySelectorAll('#pageEditor .page-block textarea')[S.resource.entities.indexOf(entity)];
+        if (ta) ta.dataset.eid = saved.id;
+      });
       for (const e of (j.resource.entities || [])) {
         const ta = document.querySelector('#pageEditor textarea[data-eid="' + e.id + '"]');
         if (ta) { ta.dataset.rev = String(e.revision); }
@@ -303,6 +329,7 @@ export function mountSpaces(ctx) {
       $('#spaceSaveState').textContent = '已保存';
       setTimeout(() => { const x = $('#spaceSaveState'); if (x) x.textContent = ''; }, 1200);
       renderTree();
+      return true;
     } finally { S.saving = false; }
   }
   async function loadComments() {
@@ -589,6 +616,7 @@ export function mountSpaces(ctx) {
     if (items.some((n) => !n.readAt)) api('/notifications/read', { method: 'POST', body: {} }).catch(() => {});
   }
   $('#navSpaces').addEventListener('click', async () => {
+    if (!await flushSave()) return;
     state.view = 'spaces';
     S.space = null;
     S.resource = null;
@@ -598,7 +626,7 @@ export function mountSpaces(ctx) {
   });
   $('#newSpaceBtn').addEventListener('click', () => createSpace());
   $('#joinSpaceBtn').addEventListener('click', () => joinSpace());
-  $('#spaceBack').addEventListener('click', () => { clearCanvasFocus(); S.space = null; S.resource = null; render(); });
+  $('#spaceBack').addEventListener('click', async () => { if (!await flushSave()) return; clearCanvasFocus(); S.space = null; S.resource = null; render(); });
   $('#newResourceBtn').addEventListener('click', () => createPage());
   $('#spaceNotif').addEventListener('click', () => showNotifications());
   $('#spaceAddMember').addEventListener('click', () => addMember());
