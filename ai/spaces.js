@@ -2,6 +2,9 @@ export function mountSpaces(ctx) {
   const { api, el, $, state, renderAll, openListPanel, flashHint, openPluginViewer, base } = ctx;
   const S = { spaces: null, space: null, resource: null, tab: 'comments', activeEntity: null, saveTimer: null, saving: false, conflict: false, comments: [] };
   function roleLabel(role) { return { owner: '所有者', editor: '编辑', commenter: '评论者', viewer: '只读', admin: '管理员' }[role] || role; }
+  // 公开 / 私人：后端返回 visibility 字段后才显示，旧后端不显示，避免把只有成员能看的空间标成公开
+  function visOf(s) { return s && (s.visibility === 'private' || s.visibility === 'public') ? s.visibility : null; }
+  function visLabel(v) { return v === 'private' ? '私人空间：只有成员能看' : v === 'public' ? '公开空间：所有人能看能编辑' : ''; }
   async function loadSpaces(force) {
     if (S.spaces && !force) return S.spaces;
     const r = await api('/spaces');
@@ -18,11 +21,18 @@ export function mountSpaces(ctx) {
     const addM = $('#spaceAddMember');
     if (S.space) {
       $('#spacesTitle').textContent = S.space.title || '空间';
-      $('#spacesSub').textContent = '成员 ' + (S.space.members || []).length + ' 人 · 你的角色：' + roleLabel(S.space.role);
+      const vis = visOf(S.space);
+      const notMember = S.space.isMember === false;
+      $('#spacesSub').textContent = (vis ? visLabel(vis) + ' · ' : '') + '成员 ' + (S.space.members || []).length + ' 人 · ' + (notMember ? '你还不是成员，可直接编辑' : '你的角色：' + roleLabel(S.space.role));
       list.hidden = true;
       work.hidden = false;
       back.hidden = false;
       addM.hidden = !['owner', 'admin'].includes(S.space.role);
+      const visBtn = $('#spaceVisBtn');
+      if (visBtn) {
+        visBtn.hidden = !vis || !['owner', 'admin'].includes(S.space.role);
+        visBtn.textContent = vis === 'private' ? '设为公开' : '设为私人';
+      }
       $('#newSpaceBtn').hidden = true;
       renderTree();
       renderEditor();
@@ -30,11 +40,15 @@ export function mountSpaces(ctx) {
       return;
     }
     $('#spacesTitle').textContent = '空间';
-    $('#spacesSub').textContent = '空间是一起工作的资料容器：成员、页面、评论和通知都按空间隔离。';
+    const anyVis = (S.spaces || []).some((s) => visOf(s));
+    $('#spacesSub').textContent = anyVis
+      ? '空间是一起工作的资料容器。新空间默认公开：所有人能看能编辑；私人空间只有成员能看。'
+      : '空间是一起工作的资料容器：成员、页面、评论和通知都按空间隔离。';
     work.hidden = true;
     list.hidden = false;
     back.hidden = true;
     addM.hidden = true;
+    if ($('#spaceVisBtn')) $('#spaceVisBtn').hidden = true;
     $('#newSpaceBtn').hidden = false;
     list.textContent = '';
     const spaces = S.spaces || [];
@@ -49,24 +63,28 @@ export function mountSpaces(ctx) {
       const card = el('button', 'space-card');
       card.type = 'button';
       card.append(el('div', 'sc-t', s.title || '未命名空间'));
-      card.append(el('div', 'sc-m', (s.memberCount || 0) + ' 位成员 · ' + roleLabel(s.role)));
+      const v = visOf(s);
+      const who = s.isMember === false ? '未加入，可直接编辑' : roleLabel(s.role);
+      card.append(el('div', 'sc-m', (v === 'private' ? '🔒 私人 · ' : v === 'public' ? '公开 · ' : '') + (s.memberCount || 0) + ' 位成员 · ' + who));
       card.addEventListener('click', () => openSpace(s.id).catch(() => {}));
       list.append(card);
     }
   }
-  async function openSpace(id) {
-    if (!await flushSave()) return;
+  async function openSpace(id, rid) {
+    if (!await flushSave()) return false;
     await clearCanvasFocus();
     const r = await api('/spaces/' + encodeURIComponent(id) + '?full=1');
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { flashHint(j.error || '打不开空间'); return; }
+    if (!r.ok) { flashHint(j.error || '打不开空间'); return false; }
     S.space = j.space;
     S.resource = null;
     S.activeEntity = null;
     S.comments = [];
     S.extensions = [];
     const extP = api('/spaces/' + encodeURIComponent(id) + '/extensions').then((er) => er.json()).then((ej) => { S.extensions = Array.isArray(ej.extensions) ? ej.extensions : []; }).catch(() => {});
-    if (j.space.firstResource) {
+    // 指定了页面（比如从产物面板「存到空间」跳过来）就直接打开那一页
+    if (rid) { render(); await openResource(rid); }
+    else if (j.space.firstResource) {
       S.resource = j.space.firstResource;
       S.activeEntity = (S.resource.entities || [])[0] ? S.resource.entities[0].id : null;
       S.conflict = false;
@@ -75,6 +93,17 @@ export function mountSpaces(ctx) {
     } else if (j.space.resources && j.space.resources.length) await openResource(j.space.resources[0].id);
     else { S.resource = null; render(); }
     await extP;
+    return true;
+  }
+  /** 从别的视图直接跳到某个空间的某一页 */
+  async function openPage(spaceId, rid) {
+    if (!await flushSave()) return false;
+    state.view = 'spaces';
+    S.space = null;
+    S.resource = null;
+    renderAll();
+    try { await loadSpaces(true); } catch (e) {}
+    return openSpace(spaceId, rid);
   }
   async function openResource(rid) {
     if (!await flushSave()) return;
@@ -582,12 +611,37 @@ export function mountSpaces(ctx) {
   async function createSpace() {
     const title = (prompt('空间名称', '新空间') || '').trim();
     if (!title) return;
-    const r = await api('/spaces', { method: 'POST', body: { title } });
+    const go = async (visibility) => {
+      const d = $('#dlgList'); if (d) d.hidden = true;
+      const r = await api('/spaces', { method: 'POST', body: { title, visibility } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { flashHint(j.error || '创建失败'); return; }
+      S.spaces = null;
+      await loadSpaces(true);
+      await openSpace(j.space.id);
+      // 旧后端不认 visibility：空间实际只有成员能看，说清楚
+      if (visibility === 'public' && !visOf(j.space)) flashHint('后端还不支持公开空间，这个空间暂时只有成员能看');
+    };
+    openListPanel('新建「' + title + '」', '之后所有者可以随时切换', [
+      { label: '公开空间', sub: '所有人能看能编辑，不用邀请', onClick: () => go('public') },
+      { label: '🔒 私人空间', sub: '只有你和你加进来的成员能看', onClick: () => go('private') },
+    ]);
+  }
+  async function toggleVisibility() {
+    if (!S.space) return;
+    const next = visOf(S.space) === 'private' ? 'public' : 'private';
+    const tip = next === 'private'
+      ? '设为私人空间？之后只有成员能看，没加入的人会立刻失去访问。'
+      : '设为公开空间？所有人都能看到并编辑这个空间里的页面。';
+    if (!confirm(tip)) return;
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id), { method: 'PATCH', body: { visibility: next } });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { flashHint(j.error || '创建失败'); return; }
+    if (r.status === 404 || r.status === 405) { flashHint('后端还不支持切换公开 / 私人'); return; }
+    if (!r.ok) { flashHint(j.error || '切换失败'); return; }
     S.spaces = null;
     await loadSpaces(true);
-    await openSpace(j.space.id);
+    await openSpace(S.space.id);
+    flashHint(next === 'private' ? '已设为私人空间' : '已设为公开空间');
   }
   async function createPage() {
     if (!S.space) return;
@@ -630,6 +684,7 @@ export function mountSpaces(ctx) {
   $('#newResourceBtn').addEventListener('click', () => createPage());
   $('#spaceNotif').addEventListener('click', () => showNotifications());
   $('#spaceAddMember').addEventListener('click', () => addMember());
+  if ($('#spaceVisBtn')) $('#spaceVisBtn').addEventListener('click', () => toggleVisibility());
 
   async function toggleCanvasFocus() {
     const page = $('#spacesPage');
@@ -803,5 +858,5 @@ export function mountSpaces(ctx) {
   }
   document.addEventListener('mousedown', (e) => { if (selBar && !selBar.hidden && !selBar.contains(e.target)) hideSelBar(); });
   bindSelection();
-  return { render, openSpace };
+  return { render, openSpace, openPage };
 }

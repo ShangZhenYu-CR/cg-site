@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-19 12:01';
+const APP_BUILD = '2026-11-19 16:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -6284,6 +6284,7 @@ const ART_ICONS = {
   copy: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
   refresh: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>',
   flag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4h10l-1 4h7l-2 6H9"/></svg>',
+  space: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/></svg>',
   trash: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>',
 };
 function closeArtMenu() { const m = $('#artMenu'); if (m) m.hidden = true; }
@@ -6313,6 +6314,7 @@ function buildArtMenu() {
     catch (e) { flashHint('复制失败'); }
   });
   item(ART_ICONS.down, '导出', () => $('#artExport').click());
+  item(ART_ICONS.space, '存到空间', () => saveArtifactToSpace());
   sep();
   item(ART_ICONS.pin, artKind && isPinned(state.currentId) ? '取消置顶' : '置顶', async () => {
     const c = current();
@@ -6352,6 +6354,175 @@ function buildArtMenu() {
     closeArtifactPane();
     renderAll();
   }, { danger: true });
+}
+/* ---------------- 产物存到空间（只用空间现有的建页面 / 保存页面接口） ---------------- */
+// 后端限制：每页最多 200 块，每块最多 20000 字，标题最多 120 字
+const SPACE_BLOCK_MAX = 20000;
+const SPACE_BLOCK_LIMIT = 200;
+const SPACE_SAVES_KEY = 'ai.artSpaceSaves';
+/** 长文本按换行切成不超过 max 的几段，不切断代理对 */
+function chunkSpaceText(text, max) {
+  let s = String(text || '');
+  const out = [];
+  while (s.length > max) {
+    let cut = s.lastIndexOf('\n', max);
+    if (cut < max / 2) cut = max;
+    const code = s.charCodeAt(cut - 1);
+    if (code >= 0xd800 && code <= 0xdbff) cut -= 1;
+    out.push(s.slice(0, cut));
+    s = s.slice(cut).replace(/^\n/, '');
+  }
+  out.push(s);
+  return out;
+}
+/** 产物 → 空间页面的文本块；内容大到放不下时返回 null */
+function artifactToSpaceBlocks(file, kind) {
+  const text = String((file && file.content) || '');
+  let blocks = [];
+  if (kind === 'deck') {
+    const deck = parseDeck(file);
+    blocks = (deck.slides || []).map((sl, i) => {
+      const lines = [String((sl && sl.title) || ('第 ' + (i + 1) + ' 页'))];
+      for (const b of ((sl && sl.bullets) || [])) lines.push('- ' + String(b));
+      return lines.join('\n');
+    });
+    if (!blocks.length && text.trim()) blocks = [text];
+  } else if (kind === 'doc') {
+    // 遇到 Markdown 标题开新块；代码围栏里的 # 不算
+    let cur = [];
+    let fence = false;
+    for (const line of text.split(/\r?\n/)) {
+      if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+      if (!fence && /^#{1,6}\s/.test(line) && cur.join('').trim()) { blocks.push(cur.join('\n')); cur = []; }
+      cur.push(line);
+    }
+    blocks.push(cur.join('\n'));
+    blocks = blocks.map((b) => b.replace(/^\n+/, '').replace(/\s+$/, '')).filter((b) => b);
+  } else {
+    blocks = [text];
+  }
+  let out = blocks.flatMap((b) => chunkSpaceText(b, SPACE_BLOCK_MAX));
+  if (out.length > SPACE_BLOCK_LIMIT) {
+    // 块太多：相邻块合并，尽量装满每块
+    const packed = [];
+    for (const b of out) {
+      const last = packed[packed.length - 1];
+      if (last != null && last.length + 2 + b.length <= SPACE_BLOCK_MAX) packed[packed.length - 1] = last + '\n\n' + b;
+      else packed.push(b);
+    }
+    out = packed;
+  }
+  if (out.length > SPACE_BLOCK_LIMIT) return null;
+  return out.length ? out : [''];
+}
+function spaceTitleOf(name) {
+  const t = String(name || '').replace(/\.deck\.json$/i, '').replace(/\.[A-Za-z0-9]{1,8}$/, '').trim();
+  return (t || '未命名产物').slice(0, 120);
+}
+/** 存过的记录只留在本浏览器：会话文件上的额外字段会被服务器清掉 */
+function readSpaceSaves() {
+  try { const v = JSON.parse(localStorage.getItem(SPACE_SAVES_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; }
+}
+function spaceSavesFor(convId, fileName) {
+  const list = readSpaceSaves()[convId + '\n' + fileName];
+  return Array.isArray(list) ? list : [];
+}
+function rememberSpaceSave(convId, fileName, rec) {
+  try {
+    const all = readSpaceSaves();
+    const key = convId + '\n' + fileName;
+    all[key] = (Array.isArray(all[key]) ? all[key] : []).concat([rec]).slice(-10);
+    localStorage.setItem(SPACE_SAVES_KEY, JSON.stringify(all));
+  } catch (e) {}
+}
+function closeListPanel() { const d = $('#dlgList'); if (d) d.hidden = true; }
+async function openSavedSpacePage(rec) {
+  closeListPanel();
+  if (!spacesApi || !spacesApi.openPage) { flashHint('空间模块没加载，刷新后再试'); return; }
+  await spacesApi.openPage(rec.spaceId, rec.resourceId);
+}
+function spaceAgo(at) {
+  const m = Math.max(1, Math.round((Date.now() - (Number(at) || Date.now())) / 60000));
+  if (m < 60) return m + ' 分钟前';
+  if (m < 60 * 24) return Math.round(m / 60) + ' 小时前';
+  return Math.round(m / 60 / 24) + ' 天前';
+}
+async function saveArtifactToSpace() {
+  const cv = current();
+  const file = currentArtifactFile();
+  if (!cv || !file) { flashHint('没有可存的产物'); return; }
+  const kind = kindOfFile(file.name);
+  if (!artifactToSpaceBlocks(file, kind)) { flashHint('产物太大，超出空间页面的容量'); return; }
+  let spaces = [];
+  try {
+    const r = await api('/spaces');
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    spaces = Array.isArray(j.spaces) ? j.spaces : [];
+  } catch (e) {
+    flashHint('读不到空间列表：' + String((e && e.message) || e));
+    return;
+  }
+  const writable = spaces.filter((sp) => ['owner', 'editor', 'admin'].includes(sp.role));
+  const prev = spaceSavesFor(cv.id, file.name);
+  const rows = [];
+  for (const rec of prev.slice(-3).reverse()) {
+    rows.push({ label: '打开上次存的「' + rec.title + '」', sub: (rec.spaceTitle || '空间') + ' · ' + spaceAgo(rec.at), onClick: () => openSavedSpacePage(rec) });
+  }
+  for (const sp of writable) {
+    rows.push({
+      label: (prev.length ? '再存一份到「' : '存到「') + (sp.title || '未命名空间') + '」',
+      sub: (sp.memberCount || 0) + ' 位成员 · 新建一个页面',
+      onClick: () => { closeListPanel(); doSaveArtifactToSpace(cv, file, kind, sp); },
+    });
+  }
+  if (!writable.length) {
+    const why = spaces.length ? '你在现有空间里都没有编辑权限' : '还没有空间，先在左侧「空间」新建一个';
+    if (!rows.length) { flashHint(why); return; }
+    rows.push({ label: why, sub: '' });
+  }
+  openListPanel('存到空间', '「' + file.name + '」会存成所选空间里的一个新页面，不会覆盖已有页面', rows);
+}
+async function doSaveArtifactToSpace(cv, file, kind, sp) {
+  const blocks = artifactToSpaceBlocks(file, kind);
+  if (!blocks) { flashHint('产物太大，超出空间页面的容量'); return; }
+  const title = spaceTitleOf(file.name);
+  const sid = encodeURIComponent(sp.id);
+  const spaceTitle = sp.title || '未命名空间';
+  flashHint('正在存到「' + spaceTitle + '」…');
+  let resource;
+  try {
+    const r = await api('/spaces/' + sid + '/resources', { method: 'POST', body: { type: 'page', title } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.resource) throw new Error(j.error || ('HTTP ' + r.status));
+    resource = j.resource;
+  } catch (e) {
+    flashHint('没存成：' + String((e && e.message) || e));
+    return;
+  }
+  const rec = { spaceId: sp.id, spaceTitle, resourceId: resource.id, title, at: Date.now() };
+  let wroteBody = true;
+  let err = '';
+  try {
+    const r = await api('/spaces/' + sid + '/resources/' + encodeURIComponent(resource.id), {
+      method: 'PUT',
+      timeout: 60000,
+      // 不带旧块的 id：新页面自带的那个空块会被替换掉
+      body: { baseRevision: resource.revision, title, entities: blocks.map((text) => ({ payload: { text } })) },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  } catch (e) {
+    wroteBody = false;
+    err = String((e && e.message) || e);
+  }
+  rememberSpaceSave(cv.id, file.name, rec);
+  openListPanel(wroteBody ? '已存到空间' : '页面建好了，正文没写进去',
+    wroteBody ? spaceTitle + ' · ' + title + ' · ' + blocks.length + ' 块' : spaceTitle + ' · ' + title + '：' + err,
+    [
+      { label: '打开页面', sub: '切到空间查看', onClick: () => openSavedSpacePage(rec) },
+      { label: '留在对话', sub: '', onClick: () => closeListPanel() },
+    ]);
 }
 $('#artTitleBtn').addEventListener('click', (e) => {
   e.stopPropagation();
