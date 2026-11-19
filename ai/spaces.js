@@ -1241,7 +1241,7 @@ export function mountSpaces(ctx) {
       const ta = card.querySelector('.an-ins');
       if (document.activeElement !== ta && ta.value !== (p.text || '')) ta.value = p.text || '';
       const grid = card.querySelector('.sn-grid');
-      const sig = JSON.stringify([running, err || '', list.map((r) => r.thumb || r.url)]);
+      const sig = JSON.stringify([running, err || '', list.map((r) => [r.thumb, r.url])]);
       if (card._snSig !== sig) {
         card._snSig = sig;
         grid.textContent = '';
@@ -1254,7 +1254,11 @@ export function mountSpaces(ctx) {
           it.title = (r.title || '') + (r.w && r.h ? '（' + r.w + ' × ' + r.h + '）' : '') + (r.author ? '\n摄影：' + r.author : '') + '\n点击选中，按住拖到画布上拿出来';
           const im = document.createElement('img');
           im.src = shownUrl(r.thumb || r.url); im.alt = r.title || ''; im.loading = 'lazy'; im.draggable = false; im.referrerPolicy = 'no-referrer';
-          im.addEventListener('error', () => it.classList.add('broken'));
+          im.addEventListener('error', () => {
+            const original = r.url && shownUrl(r.url);
+            if (original && im.getAttribute('src') !== original) im.src = original;
+            else it.classList.add('broken');
+          });
           it.append(im);
           grid.append(it);
         });
