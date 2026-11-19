@@ -593,11 +593,12 @@ function showLogin(msg) {
   $('#loginErr').textContent = msg || '';
   $('#loginName').value = LS.name || '';
   $('#loginPass').value = '';
+  $('#loginPinyin').value = '';
   $('#dlgLogin').hidden = false;
   setTimeout(() => ($('#loginName').value ? $('#loginPass') : $('#loginName')).focus(), 40);
 }
 
-for (const sel of ['#loginName', '#loginPass']) {
+for (const sel of ['#loginName', '#loginPinyin', '#loginPass']) {
   const elx = document.querySelector(sel);
   if (!elx) continue;
   elx.addEventListener('keydown', (e) => {
@@ -613,10 +614,11 @@ $('#loginOk').addEventListener('click', async () => {
   try {
     const res = await fetch(base() + '/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, pass }),
+      body: JSON.stringify({ name, pass, pinyin: $('#loginPinyin').value.trim() }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { $('#loginErr').textContent = errText(res.status, data); return; }
+    $('#loginPinyin').value = '';
     sessionEpoch += 1;
     LS.token = data.token; LS.name = data.name; LS.role = data.role;
     $('#dlgLogin').hidden = true;
@@ -2706,7 +2708,7 @@ async function mountUsersPane(pane) {
     const row = el('div', 'mrow' + (u.blocked ? ' blocked' : ''));
     row.append(el('div', 'avatar', String(u.name).slice(0, 1)));
     const mi = el('div', 'mi');
-    mi.append(el('div', 'mn', u.name));
+    mi.append(el('div', 'mn', u.pinyin ? u.name + '（' + u.pinyin + '）' : u.name));
     const role = { astra: 'Astra', admin: '管理员' }[u.role] || '普通';
     mi.append(el('div', 'mm', role + ' · 进过 ' + (u.logins || 0) + ' 次' + (u.lastSeen ? ' · ' + when(u.lastSeen) : '')));
     row.append(mi);
