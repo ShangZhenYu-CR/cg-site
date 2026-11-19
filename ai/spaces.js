@@ -1158,13 +1158,13 @@ export function mountSpaces(ctx) {
      * 没写 provider 的旧节点当作维基（以前的默认）；新节点用上次选的来源，没选过就用「开放图库」。
      * （2026-11-19：Brave、Pexels 的密钥还没申请到，后端只接了 Openverse，默认先用开放图库；接好后改回 'web'） */
     const SEARCH_SOURCES = [
-      ['web', '全网', '网页上的图片（Brave 搜索），版权不明，适合当参考'],
+      ['web', '全网', '网页上的图片（OpenAI 联网搜索），版权不明，适合当参考'],
       ['pexels', 'Pexels 图库', '高质量摄影图，可免费使用'],
       ['openverse', '开放图库', 'Openverse：开放授权的图片'],
       ['commons', '维基共享资源', '免费公开图片，英文关键词更准'],
     ];
-    const SEARCH_API = { web: 'brave', pexels: 'pexels', openverse: 'openverse' };
-    const SEARCH_VIA = { brave: '全网', pexels: 'Pexels 图库', openverse: '开放图库' };
+    const SEARCH_API = { web: 'web', pexels: 'pexels', openverse: 'openverse' }; // 全网发 web，具体用哪家搜索由后端决定（T-0038 先接 OpenAI 联网搜索）
+    const SEARCH_VIA = { web: '全网', brave: '全网', pexels: 'Pexels 图库', openverse: '开放图库' };
     const srcOf = (p) => (SEARCH_SOURCES.some((x) => x[0] === p.provider) ? p.provider : 'commons');
     const lastSource = () => { const v = readLS('ai.searchSource'); return SEARCH_SOURCES.some((x) => x[0] === v) ? v : 'openverse'; };
     function createSearchNode(at, src, query) {
