@@ -692,6 +692,32 @@ export function mountSpaces(ctx) {
     /* 卡片 */
     const byKey = (k) => ents().find((e) => keyOf(e) === resolveKey(k));
     function pageOf(p) { return (S.space.resources || []).find((r) => r.id === p.ref) || (S.space.resources || []).find((r) => r.title === p.ref); }
+    const importingPhotos = new Map();
+    function importPastedPhoto(e, img) {
+      const originalUrl = e.payload.url;
+      if (!canEdit(S.space) || !/^https:\/\/lookaside\.instagram\.com\/seo\/google_widget\/crawler\/?\?/i.test(originalUrl)) return;
+      const mediaId = new URL(originalUrl).searchParams.get('media_id');
+      if (!mediaId) return;
+      const k = keyOf(e);
+      if (!importingPhotos.has(mediaId)) {
+        const request = api('/spaces/'+S.space.id+'/resources/'+S.resource.id+'/images', {method:'POST',body:{instagramMediaId:mediaId}})
+          .then(async response => {
+            const result = await response.json();
+            if (!response.ok) throw Error(result.error);
+            return result.url;
+          }).finally(() => importingPhotos.delete(mediaId));
+        importingPhotos.set(mediaId, request);
+      }
+      importingPhotos.get(mediaId).then(url => {
+        if (cv !== st) return;
+        const current = byKey(k);
+        if (current?.payload.type !== 'image' || current.payload.url !== originalUrl) return;
+        Object.assign(current.payload, {url, originalUrl});
+        const currentImage = st.cards.get(keyOf(current))?.querySelector('img') || img;
+        currentImage.src = base()+url;
+        scheduleSave();
+      }, error => { if (cv === st) flashHint('无法读取原图：'+error.message); });
+    }
     function buildCard(e) {
       const p = e.payload;
       const card = el('div', 'canvas-card');
@@ -702,6 +728,7 @@ export function mountSpaces(ctx) {
         const img = document.createElement('img');
         img.src = p.url.startsWith('/files/') || p.url.startsWith('/oss/') ? base() + p.url : fixWikiThumb(p.url); img.alt = p.text || '图片'; img.draggable = false; img.loading = 'lazy';
         card.append(img);
+        importPastedPhoto(e, img);
       } else if (p.type === 'ai-image' || p.type === 'ai-text') {
         buildAiNode(e, card);
       } else if (p.type === 'img-search') {
@@ -1593,7 +1620,7 @@ export function mountSpaces(ctx) {
       if (!multi && (asImage || (p.type === 'image' && p.url))) {
         items.push({ label: asImage ? '切换为图片' : '切换为文字', onClick: () => {
           const before = snap();
-          if (asImage) Object.assign(p, asImage, { source: asImage.source || (asImage.url === p.url ? p.source : ''), type: 'image', pastedText: p.text, text: '' });
+          if (asImage) Object.assign(p, { ...asImage, url: p.originalUrl === asImage.url && p.url.startsWith('/files/') ? p.url : asImage.url, originalUrl: asImage.url }, { source: asImage.source || (asImage.url === p.url ? p.source : ''), type: 'image', pastedText: p.text, text: '' });
           else Object.assign(p, { type: 'text', text: p.pastedText || p.url });
           pushUndo(before); rebuild(); scheduleSave();
         } });
