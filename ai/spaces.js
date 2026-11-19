@@ -618,7 +618,7 @@ export function mountSpaces(ctx) {
     help.title = '画布操作说明';
     const helpBox = el('div', 'cv-helpbox');
     helpBox.hidden = true;
-    helpBox.innerHTML = '<div class="hb-head"><b>画布操作说明</b><button type="button" class="hb-x" aria-label="关闭">×</button></div><div class="hb-sec">看画布</div><div class="hb-row"><span>缩放</span><em>鼠标滚轮；触控板双指捏合；Ctrl + 滚轮</em></div><div class="hb-row"><span>移动画布</span><em>按住右键 / 中键 / 空格拖动；触控板两指滑动；Shift + 滚轮横向</em></div><div class="hb-row"><span>看全部</span><em>底部「适应」，或 Shift + 1；点百分比回到 100%</em></div><div class="hb-sec">卡片</div><div class="hb-row"><span>新建</span><em>双击空白处；或把底部的文本、便签、图片、页面拖到画布上（点一下放在画面中央）</em></div><div class="hb-row"><span>编辑文字</span><em>双击卡片，或选中后按 Enter；Esc 结束</em></div><div class="hb-row"><span>移动 / 改大小</span><em>拖动卡片；拖右下角；方向键微调（Shift 步长 10）</em></div><div class="hb-row"><span>对齐</span><em>拖动时靠近其他卡片会出现红色辅助线并吸附；按住 Alt 不吸附</em></div><div class="hb-row"><span>样式</span><em>选中后在浮出的工具条里改颜色、形状、字号、对齐、层级，或用 AI 修改文字</em></div><div class="hb-sec">选择</div><div class="hb-row"><span>多选</span><em>Shift / Ctrl + 点击；在空白处拖框（连线也能框中）；Ctrl + A 全选</em></div><div class="hb-row"><span>删除</span><em>Delete / Backspace</em></div><div class="hb-sec">连线</div><div class="hb-row"><span>连线</span><em>按住 Shift，从一张卡拖到另一张卡；或拖卡片边上的小圆点</em></div><div class="hb-row"><span>文字 / 样式</span><em>双击连线写文字；单击连线可改虚线、箭头、方向或删除</em></div><div class="hb-sec">AI 节点</div><div class="hb-row"><span>新建</span><em>底部「AI」选生图 / 生文 / 改图 / 改文；或选中图片、文字卡后点工具条「AI」</em></div><div class="hb-row"><span>输入</span><em>连进节点的卡片就是素材（文字、图片、上游节点的结果）</em></div><div class="hb-row"><span>生成</span><em>点「生成」或 Ctrl + Enter；下方可展开 AI 实际使用的提示词</em></div><div class="hb-row"><span>结果</span><em>「存为新卡片」；改文可「替换原卡片」；选中卡片会高亮它的上游和下游</em></div><div class="hb-sec">搜图与标注</div><div class="hb-row"><span>搜图</span><em>底部「AI」→ 搜图，或从文字卡拖线选「用它搜图」；节点右上角切换来源（全网、Pexels 图库、开放图库、维基共享资源）；点一张选中，按住拖到画布上拿出来（存 1280 宽的版本）；选中拿出来的图，工具条「原图页面」可以打开来源页看原图</em></div><div class="hb-row"><span>拖线到空白</span><em>从卡片拖出连线，在空白处松手，选要做什么（标注、改图、看图写文字、文本卡…）</em></div><div class="hb-row"><span>标注</span><em>选「标注图片」，或双击标注节点：箭头、方框、椭圆、画笔、文字、序号；原图不变</em></div><div class="hb-sec">复制与粘贴</div><div class="hb-row"><span>复制</span><em>Ctrl + C / X / V（连同卡片之间的连线，可跨画布）；Ctrl + D 原地复制</em></div><div class="hb-row"><span>粘贴外部内容</span><em>截图或图片直接 Ctrl + V 上传；文字变文本卡；图片链接变图片卡；也可以把图片文件拖进来</em></div><div class="hb-row"><span>撤销 / 重做</span><em>Ctrl + Z / Ctrl + Shift + Z</em></div>';
+    helpBox.innerHTML = '<div class="hb-head"><b>画布操作说明</b><button type="button" class="hb-x" aria-label="关闭">×</button></div><div class="hb-sec">看画布</div><div class="hb-row"><span>缩放</span><em>鼠标滚轮；触控板双指捏合；Ctrl + 滚轮</em></div><div class="hb-row"><span>移动画布</span><em>按住右键 / 中键 / 空格拖动；触控板两指滑动；Shift + 滚轮横向</em></div><div class="hb-row"><span>看全部</span><em>底部「适应」，或 Shift + 1；点百分比回到 100%</em></div><div class="hb-sec">卡片</div><div class="hb-row"><span>新建</span><em>双击空白处；或把底部的文本、便签、图片、页面拖到画布上（点一下放在画面中央）</em></div><div class="hb-row"><span>编辑文字</span><em>双击卡片，或选中后按 Enter；Esc 结束</em></div><div class="hb-row"><span>移动 / 改大小</span><em>拖动卡片；拖右下角；方向键微调（Shift 步长 10）</em></div><div class="hb-row"><span>对齐</span><em>拖动时靠近其他卡片会出现红色辅助线并吸附；按住 Alt 不吸附</em></div><div class="hb-row"><span>样式</span><em>选中后在浮出的工具条里改颜色、形状、字号、对齐、层级，或用 AI 修改文字</em></div><div class="hb-sec">选择</div><div class="hb-row"><span>多选</span><em>Shift / Ctrl + 点击；在空白处拖框（连线也能框中）；Ctrl + A 全选</em></div><div class="hb-row"><span>删除</span><em>Delete / Backspace</em></div><div class="hb-sec">连线</div><div class="hb-row"><span>连线</span><em>按住 Shift，从一张卡拖到另一张卡；或拖卡片边上的小圆点</em></div><div class="hb-row"><span>文字 / 样式</span><em>双击连线写文字；单击连线可改虚线、箭头、方向或删除</em></div><div class="hb-sec">AI 节点</div><div class="hb-row"><span>新建</span><em>底部「AI」选生图 / 生文 / 改图 / 改文；或选中图片、文字卡后点工具条「AI」</em></div><div class="hb-row"><span>输入</span><em>连进节点的卡片就是素材（文字、图片、上游节点的结果）</em></div><div class="hb-row"><span>生成</span><em>点「生成」或 Ctrl + Enter；下方可展开 AI 实际使用的提示词</em></div><div class="hb-row"><span>结果</span><em>「存为新卡片」；改文可「替换原卡片」；选中卡片会高亮它的上游和下游</em></div><div class="hb-sec">搜图与标注</div><div class="hb-row"><span>看大图</span><em>双击图片卡，或选中后点工具条「大图」；搜图节点里双击一张；← → 切换，点图看原始大小</em></div><div class="hb-row"><span>复制</span><em>Ctrl + C 站内复制卡片（不重复占空间）；Ctrl + Shift + C 复制图像，可粘贴到别的软件；Ctrl + Alt + C 复制提示词；右键卡片也有这些</em></div><div class="hb-row"><span>搜图</span><em>底部「AI」→ 搜图，或从文字卡拖线选「用它搜图」；节点右上角切换来源（全网、Pexels 图库、开放图库、维基共享资源）；点一张选中，按住拖到画布上拿出来（存 1280 宽的版本）；选中拿出来的图，工具条「原图页面」可以打开来源页看原图</em></div><div class="hb-row"><span>拖线到空白</span><em>从卡片拖出连线，在空白处松手，选要做什么（标注、改图、看图写文字、文本卡…）</em></div><div class="hb-row"><span>标注</span><em>选「标注图片」，或双击标注节点：箭头、方框、椭圆、画笔、文字、序号；原图不变</em></div><div class="hb-sec">复制与粘贴</div><div class="hb-row"><span>复制</span><em>Ctrl + C / X / V（连同卡片之间的连线，可跨画布）；Ctrl + D 原地复制</em></div><div class="hb-row"><span>粘贴外部内容</span><em>截图或图片直接 Ctrl + V 上传；文字变文本卡；图片链接变图片卡；也可以把图片文件拖进来</em></div><div class="hb-row"><span>撤销 / 重做</span><em>Ctrl + Z / Ctrl + Shift + Z</em></div>';
     box.append(world, marquee, bar, tools, empty, help, helpBox);
     on(help, 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = !helpBox.hidden; });
     on(helpBox.querySelector('.hb-x'), 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = true; });
@@ -627,13 +627,20 @@ export function mountSpaces(ctx) {
 
     /* 视图 */
     let viewTimer = null;
+    /* 平移、缩放的过程中才开 will-change（流畅）；停下 150 毫秒后关掉，让浏览器按当前比例重新画文字，
+     * 否则 Chrome 一直拿 100% 时画好的位图去拉伸，缩放后文字和边框都是糊的。位移取整，避免半像素发虚。 */
+    let crispT = 0;
     function applyView() {
-      world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.z + ')';
+      world.style.transform = 'translate(' + Math.round(view.x) + 'px,' + Math.round(view.y) + 'px) scale(' + view.z + ')';
+      world.classList.add('moving');
+      clearTimeout(crispT);
+      crispT = setTimeout(() => world.classList.remove('moving'), 150);
       if (zoomBtn) zoomBtn.textContent = Math.round(view.z * 100) + '%';
       cvViews.set(res.id, { ...view });
       clearTimeout(viewTimer);
       viewTimer = setTimeout(() => writeLS('ai.canvasView.' + res.id, JSON.stringify(view)), 400);
       placeBar();
+      sharpenSoon();
     }
     const rect = () => box.getBoundingClientRect();
     function toWorld(cx, cy) { const r = rect(); return { x: (cx - r.left - view.x) / view.z, y: (cy - r.top - view.y) / view.z }; }
@@ -1193,6 +1200,17 @@ export function mountSpaces(ctx) {
       const grid = el('div', 'sn-grid an-ui an-scroll');
       const foot = el('div', 'an-inputs sn-foot');
       wrap.append(head, ta, grid, foot);
+      on(grid, 'dblclick', (ev) => {
+        const item = ev.target.closest('.sn-item');
+        if (!item) return;
+        ev.stopPropagation();
+        const cur = byKey(card.dataset.key); if (!cur) return;
+        const i = Number(item.dataset.i);
+        // 双击的两下单击会把选中切换两次，这里把它定在这一张上
+        if (cur.payload.picked !== i) { cur.payload = { ...cur.payload, picked: i }; renderSearchNode(cur); refresh({ keepEdges: true }); scheduleSave(); }
+        previewCard(cur, i);
+      });
+      if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => sharpenSoon()).observe(grid);
       card.append(wrap);
       prov.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -1251,9 +1269,10 @@ export function mountSpaces(ctx) {
         list.forEach((r, i) => {
           const it = el('div', 'sn-item');
           it.dataset.i = String(i);
-          it.title = (r.title || '') + (r.w && r.h ? '（' + r.w + ' × ' + r.h + '）' : '') + (r.author ? '\n摄影：' + r.author : '') + '\n点击选中，按住拖到画布上拿出来';
+          it.title = (r.title || '') + (r.w && r.h ? '（' + r.w + ' × ' + r.h + '）' : '') + (r.author ? '\n摄影：' + r.author : '') + '\n点击选中，双击看大图，按住拖到画布上拿出来，右键更多操作';
           const im = document.createElement('img');
           im.src = shownUrl(r.thumb || r.url); im.alt = r.title || ''; im.loading = 'lazy'; im.draggable = false; im.referrerPolicy = 'no-referrer';
+          if (r.thumb && r.url && r.thumb !== r.url) { im.dataset.full = shownUrl(r.url); im.addEventListener('load', sharpenSoon); }
           im.addEventListener('error', () => {
             const original = r.url && shownUrl(r.url);
             if (original && im.getAttribute('src') !== original) im.src = original;
@@ -1266,7 +1285,7 @@ export function mountSpaces(ctx) {
       grid.querySelectorAll('.sn-item').forEach((it) => it.classList.toggle('on', Number(it.dataset.i) === p.picked));
       const foot = card.querySelector('.sn-foot');
       const picked = list[p.picked];
-      foot.textContent = list.length ? ('共 ' + list.length + ' 张' + (picked ? ' · 已选：' + (picked.title || '第 ' + (p.picked + 1) + ' 张') + (picked.author ? ' · 摄影 ' + picked.author : '') : ' · 点击选中，按住拖到画布上拿出来')) : '';
+      foot.textContent = list.length ? ('共 ' + list.length + ' 张' + (picked ? ' · 已选：' + (picked.title || '第 ' + (p.picked + 1) + ' 张') + (picked.author ? ' · 摄影 ' + picked.author : '') : ' · 点击选中，双击看大图，按住拖到画布上拿出来')) : '';
       // 后端暂时用别的来源代替时说清楚，免得把开放图库的结果当成全网
       if (list.length && p.via && SEARCH_API[src] && p.via !== SEARCH_API[src]) foot.append(el('span', 'sn-via', ' · 后端还没接入「' + SEARCH_SOURCES.find((x) => x[0] === src)[1] + '」，这次结果来自' + (SEARCH_VIA[p.via] || p.via)));
       // Pexels 要求每次展示搜索结果都带上指向 Pexels 的链接
@@ -1434,6 +1453,184 @@ export function mountSpaces(ctx) {
       const r = /^\/(files|oss)\//.test(u) ? await api(u, { timeout: 60000 }) : await fetch(u, { mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
+    }
+    /* ---------------- 看大图、复制图像、复制提示词、下载 ----------------
+     * Ctrl + C 只在站内复制卡片（粘贴时引用同一个文件，不再占空间）；
+     * Ctrl + Shift + C 把图像放进系统剪贴板，可以粘贴到别的软件；Ctrl + Alt + C 复制提示词。 */
+    /** 卡片的提示词：生成的图用 AI 实际用的提示词，其他图用卡片上的文字 */
+    function promptOfCard(e) {
+      const p = e && e.payload;
+      if (!p) return '';
+      if (p.type === 'ai-image') return p.usedPrompt || p.text || '';
+      if (p.type === 'img-search') { const r = (p.results || [])[p.picked]; return (r && r.title) || ''; }
+      if (p.type === 'image' || p.type === 'annot') return p.text || '';
+      return '';
+    }
+    const promptLabelOf = (e) => (e && e.payload.type === 'ai-image' ? '复制提示词' : '复制图片说明');
+    async function toPng(blob) {
+      if (blob.type === 'image/png') return blob;
+      const bmp = await createImageBitmap(blob);
+      const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+      c.getContext('2d').drawImage(bmp, 0, 0);
+      return await new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('转换失败'))), 'image/png'));
+    }
+    /** 把图像放进系统剪贴板（浏览器只认 PNG，其他格式先转换） */
+    function copyImageOut(u, say) {
+      say = say || flashHint;
+      if (!u) { say('这张卡片没有图片'); return; }
+      if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') { say('这个浏览器不支持复制图像，可以用「下载图片」'); return; }
+      say('正在复制图像…');
+      let item;
+      try { item = new ClipboardItem({ 'image/png': loadImageBlob(u).then(toPng) }); } catch (ex) { say('这个浏览器不支持复制图像，可以用「下载图片」'); return; }
+      navigator.clipboard.write([item]).then(() => say('已复制图像，可以粘贴到其他软件'))
+        .catch((ex) => { const m = String((ex && ex.message) || ex); say(/HTTP|fetch|network|CORS/i.test(m) ? '图片所在网站不允许读取，先把图拖进空间再复制，或打开原图页面' : '复制图像失败：' + m); });
+    }
+    function copyPromptOut(e, say) {
+      say = say || flashHint;
+      const t = promptOfCard(e);
+      if (!t) { say(e && e.payload.type === 'ai-image' ? '还没有生成，没有提示词' : '这张卡片没有文字可复制'); return; }
+      navigator.clipboard.writeText(t).then(() => say(promptLabelOf(e) === '复制提示词' ? '已复制提示词' : '已复制图片说明')).catch(() => say('复制失败'));
+    }
+    async function downloadImage(u, name, say) {
+      say = say || flashHint;
+      try {
+        const b = await loadImageBlob(u);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b);
+        const ext = ((b.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '')) || 'png';
+        a.download = String(name || '图片').replace(/[\\/:*?"<>|\n]/g, '_').slice(0, 60) + '.' + ext;
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      } catch (ex) { say('下载失败：图片所在网站不允许读取，可以打开原图页面下载'); }
+    }
+    /** 看大图。list = [{ url, thumb, title, source, prompt, promptLabel }]；← → 切换，点图在适应窗口和原始大小之间切换，Esc 关闭 */
+    function openPreview(list, i0, opts) {
+      if (!list.length) return;
+      let i = clamp(i0, 0, list.length - 1);
+      const back = document.activeElement;
+      const ov = el('div', 'cv-preview');
+      ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', '看大图'); ov.tabIndex = -1;
+      const stage = el('div', 'pv-stage');
+      const img = document.createElement('img'); img.referrerPolicy = 'no-referrer'; img.draggable = false;
+      stage.append(img);
+      const cap = el('div', 'pv-cap'), ttl = el('span', 'pv-title'), acts = el('div', 'pv-acts'), hint = el('span', 'pv-hint');
+      hint.setAttribute('role', 'status');
+      cap.append(ttl, acts, hint);
+      const mk = (cls, txt, title) => { const b = el('button', cls, txt); b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); return b; };
+      const prev = mk('pv-nav pv-prev', '‹', '上一张（←）'), next = mk('pv-nav pv-next', '›', '下一张（→）'), close = mk('pv-close', '×', '关闭（Esc）');
+      ov.append(stage, cap, prev, next, close);
+      let hintT = 0;
+      const say = (t) => { hint.textContent = t; clearTimeout(hintT); hintT = setTimeout(() => { hint.textContent = ''; }, 3000); };
+      const act = (t, title, fn) => { const b = mk(null, t, title); b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(); }); acts.append(b); };
+      const cur = () => list[i];
+      function show() {
+        const it = cur();
+        stage.classList.remove('actual');
+        ttl.textContent = (it.title || '图片') + (list.length > 1 ? '（' + (i + 1) + ' / ' + list.length + '）' : '');
+        img.alt = it.title || '';
+        const full = shownUrl(it.url);
+        // 先显示缩略图，原图下载好再换上
+        if (it.thumb && it.thumb !== it.url) {
+          img.src = shownUrl(it.thumb); stage.classList.add('loading');
+          const pre = new Image(); pre.referrerPolicy = 'no-referrer';
+          pre.onload = () => { if (cur() === it) { img.src = full; stage.classList.remove('loading'); } };
+          pre.onerror = () => { if (cur() === it) stage.classList.remove('loading'); };
+          pre.src = full;
+        } else { img.src = full; stage.classList.remove('loading'); }
+        prev.hidden = next.hidden = list.length < 2;
+        acts.textContent = '';
+        act('复制图像', 'Ctrl + Shift + C：粘贴到其他软件', () => copyImageOut(it.url, say));
+        if (it.prompt) act(it.promptLabel || '复制提示词', 'Ctrl + Alt + C', () => navigator.clipboard.writeText(it.prompt).then(() => say('已复制')).catch(() => say('复制失败')));
+        act('下载', '保存到电脑', () => downloadImage(it.url, it.title, say));
+        if (it.source) act('原图页面', '在新标签页打开来源页', () => window.open(it.source, '_blank', 'noopener,noreferrer'));
+        if (opts && opts.take) act('拿到画布上', '放到搜图节点旁边', () => { const j = i; done(); opts.take(j); });
+      }
+      const go = (d) => { if (list.length < 2) return; i = (i + d + list.length) % list.length; show(); };
+      function done() { ov.remove(); clearTimeout(hintT); if (back && back.isConnected) back.focus({ preventScroll: true }); else box.focus({ preventScroll: true }); }
+      prev.addEventListener('click', (ev) => { ev.stopPropagation(); go(-1); });
+      next.addEventListener('click', (ev) => { ev.stopPropagation(); go(1); });
+      close.addEventListener('click', (ev) => { ev.stopPropagation(); done(); });
+      img.addEventListener('click', (ev) => { ev.stopPropagation(); stage.classList.toggle('actual'); });
+      ov.addEventListener('click', (ev) => { if (ev.target === ov || ev.target === stage) done(); });
+      ov.addEventListener('keydown', (ev) => {
+        const isC = ev.code === 'KeyC' || ev.key === 'c' || ev.key === 'C';
+        if (ev.key === 'Escape') { ev.preventDefault(); done(); }
+        else if (ev.key === 'ArrowLeft') { ev.preventDefault(); go(-1); }
+        else if (ev.key === 'ArrowRight') { ev.preventDefault(); go(1); }
+        else if ((ev.ctrlKey || ev.metaKey) && isC && ev.shiftKey) { ev.preventDefault(); copyImageOut(cur().url, say); }
+        else if ((ev.ctrlKey || ev.metaKey) && isC && ev.altKey) { ev.preventDefault(); if (cur().prompt) navigator.clipboard.writeText(cur().prompt).then(() => say('已复制')).catch(() => say('复制失败')); else say('这张图没有文字可复制'); }
+        ev.stopPropagation();
+      });
+      document.body.append(ov);
+      show();
+      ov.focus({ preventScroll: true });
+    }
+    /** 看一张卡片的大图；搜图节点看它搜到的全部结果 */
+    function previewCard(e, i) {
+      const p = e && e.payload;
+      if (!p) return;
+      if (p.type === 'img-search') {
+        const rs = p.results || [];
+        if (!rs.length) { flashHint('还没有搜索结果'); return; }
+        const k = keyOf(e);
+        openPreview(rs.map((r) => ({ url: r.url, thumb: r.thumb, title: (r.title || '') + (r.author ? ' · 摄影 ' + r.author : ''), source: r.source, prompt: r.title || '', promptLabel: '复制图片说明' })),
+          i != null ? i : (p.picked >= 0 ? p.picked : 0),
+          { take: (j) => { const cur = byKey(k); if (cur) takeResult(cur, j, { x: cur.payload.x + cur.payload.w + 170, y: cur.payload.y + 130 }); } });
+        return;
+      }
+      const u = imageOfCard(e);
+      if (!u) { flashHint(p.type === 'ai-image' ? '还没有生成图片' : '这张卡片没有图片'); return; }
+      openPreview([{ url: u, title: (p.type === 'ai-image' ? (p.text || '生成的图') : (p.text || '图片')).slice(0, 80), source: p.type === 'image' ? sourceOfCard(p) : '', prompt: promptOfCard(e), promptLabel: promptLabelOf(e) }], 0);
+    }
+    /** 右键菜单：图片类卡片多出看大图、复制图像、复制提示词、下载 */
+    function cardMenu(e, pt) {
+      const multi = st.sel.size > 1;
+      const u = multi ? '' : imageOfCard(e);
+      const p = e.payload;
+      const items = [];
+      if (!multi && (u || (p.type === 'img-search' && (p.results || []).length))) items.push({ label: '看大图', sub: p.type === 'image' ? '双击' : '', onClick: () => previewCard(e) });
+      items.push({ label: multi ? '复制 ' + st.sel.size + ' 张卡片' : '复制卡片', sub: 'Ctrl+C', onClick: () => copySel(false) });
+      if (u) {
+        items.push({ label: '复制图像', sub: 'Ctrl+Shift+C', onClick: () => copyImageOut(u) });
+        if (promptOfCard(e)) items.push({ label: promptLabelOf(e), sub: 'Ctrl+Alt+C', onClick: () => copyPromptOut(e) });
+        items.push({ label: '下载图片', onClick: () => downloadImage(u, promptOfCard(e).slice(0, 40) || '图片') });
+        const src = p.type === 'img-search' ? ((p.results || [])[p.picked] || {}).source : (p.type === 'image' ? sourceOfCard(p) : '');
+        if (src) items.push({ label: '原图页面', onClick: () => window.open(src, '_blank', 'noopener,noreferrer') });
+      }
+      items.push({ label: '创建副本', sub: 'Ctrl+D', onClick: () => duplicate() });
+      items.push({ label: '删除', sub: 'Delete', onClick: () => deleteSelected() });
+      popMenu(pt, items);
+    }
+    /** 搜图节点里某一张结果的右键菜单 */
+    function searchItemMenu(e, i, pt) {
+      const r = (e.payload.results || [])[i];
+      if (!r) return;
+      const k = keyOf(e);
+      const items = [
+        { label: '看大图', sub: '双击', onClick: () => previewCard(e, i) },
+        { label: '拿到画布上', onClick: () => { const cur = byKey(k); if (cur) takeResult(cur, i, { x: cur.payload.x + cur.payload.w + 170, y: cur.payload.y + 130 }); } },
+        { label: '复制图像', sub: 'Ctrl+Shift+C', onClick: () => copyImageOut(r.url) },
+      ];
+      if (r.title) items.push({ label: '复制图片说明', onClick: () => navigator.clipboard.writeText(r.title).then(() => flashHint('已复制图片说明')).catch(() => flashHint('复制失败')) });
+      items.push({ label: '下载图片', onClick: () => downloadImage(r.url, r.title) });
+      if (r.source) items.push({ label: '原图页面', onClick: () => window.open(r.source, '_blank', 'noopener,noreferrer') });
+      popMenu(pt, items);
+    }
+    /** 搜图格子放大后换上原图，免得放大看是糊的 */
+    let sharpenRaf = 0;
+    function sharpenSoon() { if (!sharpenRaf) sharpenRaf = requestAnimationFrame(() => { sharpenRaf = 0; sharpenGrids(); }); }
+    function sharpenGrids() {
+      const dpr = window.devicePixelRatio || 1;
+      for (const im of world.querySelectorAll('.sn-item img[data-full]')) {
+        if (im.dataset.up || !im.naturalWidth || !im.clientWidth) continue;
+        const need = Math.max(im.clientWidth / im.naturalWidth, im.clientHeight / im.naturalHeight) * view.z * dpr;
+        if (need <= 1.2) continue;
+        im.dataset.up = '1';
+        const full = im.dataset.full;
+        const pre = new Image(); pre.referrerPolicy = 'no-referrer';
+        pre.onload = () => { if (im.isConnected && im.dataset.full === full) im.src = full; };
+        pre.src = full;
+      }
     }
     /** 原图 + 标注画成一张 PNG，上传进空间 */
     async function flattenAnnot(p) {
@@ -1939,6 +2136,13 @@ export function mountSpaces(ctx) {
         ai.addEventListener('click', (ev) => { ev.stopPropagation(); aiMenuForSelection(ai); });
         bar.append(ai);
       }
+      if (items.length === 1 && (imageOfCard(items[0]) || (items[0].payload.type === 'img-search' && (items[0].payload.results || []).length))) {
+        const pv = el('button', null, '大图');
+        pv.type = 'button';
+        pv.title = '看大图（图片卡可以双击）；右键还有复制图像、复制提示词、下载';
+        pv.addEventListener('click', () => previewCard(items[0]));
+        bar.append(pv);
+      }
       if (items.length === 1 && items[0].payload.type === 'image' && sourceOfCard(items[0].payload)) {
         const op = el('button', null, '原图页面');
         op.type = 'button';
@@ -1952,8 +2156,8 @@ export function mountSpaces(ctx) {
         op.addEventListener('click', () => openPageCard(items[0]));
         bar.append(op);
       }
-      const dup = el('button', null, '复制');
-      dup.type = 'button'; dup.title = 'Ctrl + D';
+      const dup = el('button', null, '副本');
+      dup.type = 'button'; dup.title = '创建副本（Ctrl + D）。复制到剪贴板用 Ctrl + C，右键有更多复制方式';
       dup.addEventListener('click', () => duplicate());
       const del = el('button', 'danger', '删除');
       del.type = 'button'; del.title = 'Delete';
@@ -2268,6 +2472,7 @@ export function mountSpaces(ctx) {
       if (ev.button === 1 || ev.button === 2 || st.spaceDown || (ev.pointerType === 'touch' && !cardEl)) {
         ev.preventDefault();
         st.gesture = { type: 'pan', sx: ev.clientX, sy: ev.clientY, ox: view.x, oy: view.y };
+        st.rdown = ev.button === 2 ? { x: ev.clientX, y: ev.clientY } : null;
         box.classList.add('panning');
         return;
       }
@@ -2438,7 +2643,7 @@ export function mountSpaces(ctx) {
         if (!e) return;
         if (e.payload.type === 'page') { openPageCard(e); return; }
         if (e.payload.type === 'annot') { openAnnotEditor(cardEl.dataset.key); return; }
-        if (e.payload.type === 'image') return;
+        if (e.payload.type === 'image') { previewCard(e); return; }
         startEdit(cardEl.dataset.key);
         return;
       }
@@ -2447,7 +2652,23 @@ export function mountSpaces(ctx) {
       const w = toWorld(ev.clientX, ev.clientY);
       addCard({}, w.x - 120, w.y - 30, true);
     });
-    on(box, 'contextmenu', (ev) => { if (!(st.editing && ev.target.closest('.canvas-card.editing'))) ev.preventDefault(); });
+    on(box, 'contextmenu', (ev) => {
+      if (st.editing && ev.target.closest('.canvas-card.editing')) return;
+      ev.preventDefault();
+      const d = st.rdown; st.rdown = null;
+      if (d && Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > 5) return; // 右键拖动是平移，不弹菜单
+      const tgt = document.elementFromPoint(ev.clientX, ev.clientY) || ev.target;
+      if (!tgt || isUi(tgt)) return;
+      const cardEl = tgt.closest('.canvas-card');
+      if (!cardEl) return;
+      const k = cardEl.dataset.key, e = byKey(k);
+      if (!e) return;
+      const pt = { x: ev.clientX, y: ev.clientY };
+      const item = tgt.closest('.sn-item');
+      if (item) { searchItemMenu(e, Number(item.dataset.i), pt); return; }
+      if (!st.sel.has(k)) { st.sel = new Set([k]); clearEdgeSel(); refresh(); }
+      cardMenu(e, pt);
+    });
     on(box, 'wheel', (ev) => {
       if (isUi(ev.target)) return;
       const sc = ev.target.closest && ev.target.closest('.an-scroll');
@@ -2479,6 +2700,13 @@ export function mountSpaces(ctx) {
       if (mod && (k === 'y' || k === 'Y')) { ev.preventDefault(); redo(); return; }
       if (mod && (k === 'a' || k === 'A')) { ev.preventDefault(); st.sel = new Set(ents().map(keyOf)); clearEdgeSel(); refresh(); return; }
       if (mod && (k === 'd' || k === 'D')) { ev.preventDefault(); duplicate(); return; }
+      if (mod && (ev.code === 'KeyC' || k === 'c' || k === 'C') && (ev.shiftKey || ev.altKey)) {
+        ev.preventDefault();
+        const e = [...st.sel].map(byKey).filter(Boolean).find((x) => imageOfCard(x)) || (st.sel.size === 1 ? byKey([...st.sel][0]) : null);
+        if (!e) { flashHint('先选中一张图片'); return; }
+        if (ev.shiftKey) copyImageOut(imageOfCard(e)); else copyPromptOut(e);
+        return;
+      }
       if (mod && (k === 'c' || k === 'C')) { if (st.sel.size) { ev.preventDefault(); copySel(false); } return; }
       if (mod && (k === 'x' || k === 'X')) { if (st.sel.size) { ev.preventDefault(); copySel(true); } return; }
       if (mod && (k === '=' || k === '+')) { ev.preventDefault(); zoomCenter(1.25); return; }

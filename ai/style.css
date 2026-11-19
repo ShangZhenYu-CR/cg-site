@@ -817,7 +817,8 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 #pageEditor.canvas-board{position:relative;display:block;overflow:hidden;padding:0;gap:0;touch-action:none;outline:none;cursor:default;background:var(--panel2)}
 #pageEditor.canvas-board.panning,#pageEditor.canvas-board.space-pan{cursor:grab}
 #pageEditor.canvas-board.panning:active{cursor:grabbing}
-.cv-world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.cv-world{position:absolute;left:0;top:0;transform-origin:0 0}
+.cv-world.moving{will-change:transform}
 .cv-bounds{position:absolute;left:0;top:0;border:1px solid var(--line);border-radius:6px;pointer-events:none;background-color:var(--bg);background-image:radial-gradient(color-mix(in srgb,var(--faint) 50%,transparent) 1.2px,transparent 1.4px);background-size:24px 24px}
 .cv-edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 .cv-edges .ed{fill:none;stroke:color-mix(in srgb,var(--dim) 70%,transparent);stroke-width:1.75;transition:stroke var(--dur-fast)}
@@ -934,9 +935,9 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .sp-dlg .card{width:min(560px,calc(100vw - 32px))}
 /* 搜图节点、标注节点、标注编辑器（T-0034） */
 .sn-q.an-ins{flex:0 0 36px;min-height:36px}
-.sn-grid{flex:1;min-height:80px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));grid-auto-rows:92px;gap:6px;padding:2px;border-radius:7px;background:var(--panel2);align-content:start}
+.sn-grid{flex:1;min-height:80px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(max(92px,calc(25% - 6px)),1fr));grid-auto-rows:auto;gap:6px;padding:2px;border-radius:7px;background:var(--panel2);align-content:start}
 .sn-grid .an-status,.sn-grid .an-err,.sn-grid .an-empty{grid-column:1 / -1}
-.sn-item{position:relative;border-radius:6px;overflow:hidden;cursor:grab;border:2px solid transparent;background:var(--bg)}
+.sn-item{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;cursor:grab;border:2px solid transparent;background:var(--bg)}
 .sn-item img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
 .sn-item:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
 .sn-item.on{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
@@ -1162,3 +1163,23 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .cv-cardbar{max-width:95vw;flex-wrap:wrap}
 .cv-cardbar select{font:inherit;font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:5px}
 .cv-cardbar button[aria-pressed="true"]{color:var(--accent)}
+/* 看大图 */
+.cv-preview{position:fixed;inset:0;z-index:2000;background:rgba(12,12,14,.9);display:flex;flex-direction:column;outline:none;color:#f2f2f2}
+.cv-preview .pv-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:24px 68px 8px;overflow:hidden}
+.cv-preview .pv-stage img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.cv-preview .pv-stage.actual{overflow:auto;display:block;text-align:center}
+.cv-preview .pv-stage.actual img{max-width:none;max-height:none;cursor:zoom-out}
+.cv-preview .pv-stage.loading img{opacity:.85}
+.cv-preview .pv-cap{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px 14px;padding:10px 16px 18px;font-size:13px}
+.cv-preview .pv-title{opacity:.85;max-width:min(60vw,640px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv-preview .pv-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.cv-preview .pv-acts button{padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.13);color:#fff;font-size:13px}
+.cv-preview .pv-acts button:hover,.cv-preview .pv-acts button:focus-visible{background:rgba(255,255,255,.25);outline:none}
+.cv-preview .pv-hint{color:#ffd479;min-width:1px}
+.cv-preview .pv-nav,.cv-preview .pv-close{position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.13);color:#fff;font-size:26px;line-height:42px;text-align:center;padding:0}
+.cv-preview .pv-nav:hover,.cv-preview .pv-close:hover{background:rgba(255,255,255,.26)}
+.cv-preview .pv-prev{left:12px;top:50%;transform:translateY(-50%)}
+.cv-preview .pv-next{right:12px;top:50%;transform:translateY(-50%)}
+.cv-preview .pv-close{right:12px;top:12px}
+.cv-preview [hidden]{display:none}
+@media (max-width:600px){.cv-preview .pv-stage{padding:56px 8px 8px}.cv-preview .pv-nav{top:auto;bottom:76px;transform:none}}
