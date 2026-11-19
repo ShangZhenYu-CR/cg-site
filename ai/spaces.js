@@ -618,7 +618,7 @@ export function mountSpaces(ctx) {
     help.title = '画布操作说明';
     const helpBox = el('div', 'cv-helpbox');
     helpBox.hidden = true;
-    helpBox.innerHTML = '<div class="hb-head"><b>画布操作说明</b><button type="button" class="hb-x" aria-label="关闭">×</button></div><div class="hb-sec">看画布</div><div class="hb-row"><span>缩放</span><em>鼠标滚轮；触控板双指捏合；Ctrl + 滚轮</em></div><div class="hb-row"><span>移动画布</span><em>按住右键 / 中键 / 空格拖动；触控板两指滑动；Shift + 滚轮横向</em></div><div class="hb-row"><span>看全部</span><em>底部「适应」，或 Shift + 1；点百分比回到 100%</em></div><div class="hb-sec">卡片</div><div class="hb-row"><span>新建</span><em>双击空白处；或把底部的文本、便签、图片、页面拖到画布上（点一下放在画面中央）</em></div><div class="hb-row"><span>编辑文字</span><em>双击卡片，或选中后按 Enter；Esc 结束</em></div><div class="hb-row"><span>移动 / 改大小</span><em>拖动卡片；拖右下角；方向键微调（Shift 步长 10）</em></div><div class="hb-row"><span>对齐</span><em>拖动时靠近其他卡片会出现红色辅助线并吸附；按住 Alt 不吸附</em></div><div class="hb-row"><span>样式</span><em>选中后在浮出的工具条里改颜色、形状、字号、对齐、层级，或用 AI 修改文字</em></div><div class="hb-sec">选择</div><div class="hb-row"><span>多选</span><em>Shift / Ctrl + 点击；在空白处拖框（连线也能框中）；Ctrl + A 全选</em></div><div class="hb-row"><span>删除</span><em>Delete / Backspace</em></div><div class="hb-sec">连线</div><div class="hb-row"><span>连线</span><em>按住 Shift，从一张卡拖到另一张卡；或拖卡片边上的小圆点</em></div><div class="hb-row"><span>文字 / 样式</span><em>双击连线写文字；单击连线可改虚线、箭头、方向或删除</em></div><div class="hb-sec">AI 节点</div><div class="hb-row"><span>新建</span><em>底部「AI」选生图 / 生文 / 改图 / 改文；或选中图片、文字卡后点工具条「AI」</em></div><div class="hb-row"><span>输入</span><em>连进节点的卡片就是素材（文字、图片、上游节点的结果）</em></div><div class="hb-row"><span>生成</span><em>点「生成」或 Ctrl + Enter；下方可展开 AI 实际使用的提示词</em></div><div class="hb-row"><span>结果</span><em>「存为新卡片」；改文可「替换原卡片」；选中卡片会高亮它的上游和下游</em></div><div class="hb-sec">搜图与标注</div><div class="hb-row"><span>搜图</span><em>底部「AI」→ 搜图，或从文字卡拖线选「用它搜图」；点一张选中，按住拖到画布上拿出来</em></div><div class="hb-row"><span>拖线到空白</span><em>从卡片拖出连线，在空白处松手，选要做什么（标注、改图、看图写文字、文本卡…）</em></div><div class="hb-row"><span>标注</span><em>选「标注图片」，或双击标注节点：箭头、方框、椭圆、画笔、文字、序号；原图不变</em></div><div class="hb-sec">复制与粘贴</div><div class="hb-row"><span>复制</span><em>Ctrl + C / X / V（连同卡片之间的连线，可跨画布）；Ctrl + D 原地复制</em></div><div class="hb-row"><span>粘贴外部内容</span><em>截图或图片直接 Ctrl + V 上传；文字变文本卡；图片链接变图片卡；也可以把图片文件拖进来</em></div><div class="hb-row"><span>撤销 / 重做</span><em>Ctrl + Z / Ctrl + Shift + Z</em></div>';
+    helpBox.innerHTML = '<div class="hb-head"><b>画布操作说明</b><button type="button" class="hb-x" aria-label="关闭">×</button></div><div class="hb-sec">看画布</div><div class="hb-row"><span>缩放</span><em>鼠标滚轮；触控板双指捏合；Ctrl + 滚轮</em></div><div class="hb-row"><span>移动画布</span><em>按住右键 / 中键 / 空格拖动；触控板两指滑动；Shift + 滚轮横向</em></div><div class="hb-row"><span>看全部</span><em>底部「适应」，或 Shift + 1；点百分比回到 100%</em></div><div class="hb-sec">卡片</div><div class="hb-row"><span>新建</span><em>双击空白处；或把底部的文本、便签、图片、页面拖到画布上（点一下放在画面中央）</em></div><div class="hb-row"><span>编辑文字</span><em>双击卡片，或选中后按 Enter；Esc 结束</em></div><div class="hb-row"><span>移动 / 改大小</span><em>拖动卡片；拖右下角；方向键微调（Shift 步长 10）</em></div><div class="hb-row"><span>对齐</span><em>拖动时靠近其他卡片会出现红色辅助线并吸附；按住 Alt 不吸附</em></div><div class="hb-row"><span>样式</span><em>选中后在浮出的工具条里改颜色、形状、字号、对齐、层级，或用 AI 修改文字</em></div><div class="hb-sec">选择</div><div class="hb-row"><span>多选</span><em>Shift / Ctrl + 点击；在空白处拖框（连线也能框中）；Ctrl + A 全选</em></div><div class="hb-row"><span>删除</span><em>Delete / Backspace</em></div><div class="hb-sec">连线</div><div class="hb-row"><span>连线</span><em>按住 Shift，从一张卡拖到另一张卡；或拖卡片边上的小圆点</em></div><div class="hb-row"><span>文字 / 样式</span><em>双击连线写文字；单击连线可改虚线、箭头、方向或删除</em></div><div class="hb-sec">AI 节点</div><div class="hb-row"><span>新建</span><em>底部「AI」选生图 / 生文 / 改图 / 改文；或选中图片、文字卡后点工具条「AI」</em></div><div class="hb-row"><span>输入</span><em>连进节点的卡片就是素材（文字、图片、上游节点的结果）</em></div><div class="hb-row"><span>生成</span><em>点「生成」或 Ctrl + Enter；下方可展开 AI 实际使用的提示词</em></div><div class="hb-row"><span>结果</span><em>「存为新卡片」；改文可「替换原卡片」；选中卡片会高亮它的上游和下游</em></div><div class="hb-sec">搜图与标注</div><div class="hb-row"><span>搜图</span><em>底部「AI」→ 搜图，或从文字卡拖线选「用它搜图」；点一张选中，按住拖到画布上拿出来（存 1280 宽的版本）；选中拿出来的图，工具条「原图页面」可以打开来源页看原图</em></div><div class="hb-row"><span>拖线到空白</span><em>从卡片拖出连线，在空白处松手，选要做什么（标注、改图、看图写文字、文本卡…）</em></div><div class="hb-row"><span>标注</span><em>选「标注图片」，或双击标注节点：箭头、方框、椭圆、画笔、文字、序号；原图不变</em></div><div class="hb-sec">复制与粘贴</div><div class="hb-row"><span>复制</span><em>Ctrl + C / X / V（连同卡片之间的连线，可跨画布）；Ctrl + D 原地复制</em></div><div class="hb-row"><span>粘贴外部内容</span><em>截图或图片直接 Ctrl + V 上传；文字变文本卡；图片链接变图片卡；也可以把图片文件拖进来</em></div><div class="hb-row"><span>撤销 / 重做</span><em>Ctrl + Z / Ctrl + Shift + Z</em></div>';
     box.append(world, marquee, bar, tools, empty, help, helpBox);
     on(help, 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = !helpBox.hidden; });
     on(helpBox.querySelector('.hb-x'), 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = true; });
@@ -784,6 +784,14 @@ export function mountSpaces(ctx) {
       if (p.type === 'text' || p.type === 'file') return p.text || '';
       if (p.type === 'ai-text') return p.output || '';
       return '';
+    }
+    /** 图片卡的来源页：搜图时记下的 source / ref；还是维基外链时直接从地址推算文件页 */
+    function sourceOfCard(p) {
+      if (!p) return '';
+      if (/^https?:\/\//i.test(p.source || '')) return p.source;
+      if (/^https?:\/\//i.test(p.ref || '')) return p.ref;
+      const m = /^https?:\/\/(?:upload|thumb)\.wikimedia\.org\/wikipedia\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/?#]+)/i.exec(p.url || '');
+      return m ? 'https://commons.wikimedia.org/wiki/File:' + m[1] : '';
     }
     const shownUrl = (u) => (/^\/(files|oss)\//.test(u || '') ? base() + u : fixWikiThumb(u || ''));
     /** 图片的高宽比：先看卡片上已加载的图，再看搜图结果里的尺寸 */
@@ -1289,7 +1297,8 @@ export function mountSpaces(ctx) {
       if (!r) return null;
       const w = 260, h = r.w && r.h ? clamp(Math.round(w * r.h / r.w), CV.MINH, CV.MAXH) : 200;
       const url0 = fixWikiThumb(r.url);
-      const n = addCard({ type: 'image', url: url0, text: (r.title || '').slice(0, 200), w, h }, at.x - w / 2, at.y - h / 2);
+      const src0 = /^https?:\/\//i.test(r.source || '') ? String(r.source).slice(0, 500) : '';
+      const n = addCard({ type: 'image', url: url0, text: (r.title || '').slice(0, 200), w, h, source: src0, ref: src0.length <= 200 ? src0 : '' }, at.x - w / 2, at.y - h / 2);
       edges().push({ from: keyOf(node), to: keyOf(n) });
       refresh(); scheduleSave();
       const nk = keyOf(n), sid = S.space.id, rid = res.id;
@@ -1897,6 +1906,13 @@ export function mountSpaces(ctx) {
         ai.innerHTML = AI_ICON.spark + '<span>AI</span><svg class="caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
         ai.addEventListener('click', (ev) => { ev.stopPropagation(); aiMenuForSelection(ai); });
         bar.append(ai);
+      }
+      if (items.length === 1 && items[0].payload.type === 'image' && sourceOfCard(items[0].payload)) {
+        const op = el('button', null, '原图页面');
+        op.type = 'button';
+        op.title = '在新标签页打开这张图的来源页，可以查看和下载原图';
+        op.addEventListener('click', () => { window.open(sourceOfCard(items[0].payload), '_blank', 'noopener,noreferrer'); });
+        bar.append(op);
       }
       if (items.length === 1 && items[0].payload.type === 'page') {
         const op = el('button', null, '打开');
