@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-16 22:26';
+const APP_BUILD = '2026-11-19 12:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -150,7 +150,6 @@ const state = {
   waitingUpload: false,
   imageMode: false,
   gifMode: false,
-  search: true,   // 联网搜索默认开：模型按需调用，可在菜单里关
   rawUpload: false,
   fidelity: false,        // 保真优先：高频纹理图不二次压糊
   attachments: [],
@@ -1027,7 +1026,7 @@ async function createConv(opts = {}) {
       title: '新对话',
       projectId: opts.projectId || null,
       private: !!opts.private,
-      settings: { model: LS.model, effort: LS.effort, codeMode: !!state.codeMode, search: !!state.search, raw: !!state.rawUpload, imageMode: !!state.imageMode, gifMode: !!state.gifMode },
+      settings: { model: LS.model, effort: LS.effort, codeMode: !!state.codeMode, raw: !!state.rawUpload, imageMode: !!state.imageMode, gifMode: !!state.gifMode },
     },
   });
   if (!r.ok) {
@@ -1415,7 +1414,6 @@ function persistSettings() {
     effort: LS.effort,
     codeMode: !!state.codeMode,
     workMode: !!state.workMode,
-    search: !!state.search,
     raw: !!state.rawUpload,
     imageMode: !!state.imageMode,
     gifMode: !!state.gifMode,
@@ -1454,10 +1452,9 @@ function applyConvSettings(cv) {
     if (s.model) { modelPinned = true; LS.model = s.model; }   // 会话记录的就是它当时用的模型，直接恢复
     if (s.effort) LS.effort = s.effort;
 
-    // 开关按会话重置；联网缺省为开（模型按需调用）
+    // 开关按会话重置；联网由模型按需调用。
     setCap('code', !!s.codeMode);
     setCap('work', !!s.workMode);
-    setCap('search', s.search === undefined ? true : !!s.search);
     setCap('raw', !!s.raw);
     setCap('image', !!s.imageMode);
     setCap('gif', !!s.gifMode);
@@ -3883,7 +3880,7 @@ async function sendChat(text, opts = {}) {
   if (host) { host.textContent = ''; host.append(caret); }
 
   setBusy(true);
-  showThinking(gifAsk ? '正在生成动图' : (drawMode ? '正在画图' : (state.search ? '正在联网搜索' : '正在思考')));
+  showThinking(gifAsk ? '正在生成动图' : (drawMode ? '正在画图' : '正在思考'));
   state.controller = new AbortController();
 
   let acc = '';
@@ -3954,11 +3951,11 @@ function hideThinking() {
   /** 真打一次 /chat；imageOpts 允许被降档重试替换 */
   const postChat = async (io) => {
     const reqBody = {
-        model, search: state.search, convId: cv.id, projectId: cv.projectId || null, runId: runId || undefined,
+        model, convId: cv.id, projectId: cv.projectId || null, runId: runId || undefined,
         // 出图工具常开：模型自己判断要不要画
         imageTool: true,
         ...(drawMode
-          ? { imageMode: true, refImages: refImages.length ? refImages : undefined, imageOpts: io, imageCount: wantN }
+          ? { imageMode: true, imageOpts: io, imageCount: wantN }
           : { effort }),
         codeMode: state.codeMode || !!cv.artifact,
         workMode: !!state.workMode,
@@ -3976,8 +3973,8 @@ function hideThinking() {
         messages: sentMessages(cv).map(m => ({
           role: m.role,
           text: m.text,
-          // 只有用户消息能带图；assistant 的内容只允许 output_text / refusal
-          images: m.role === 'user' ? m.images : undefined,
+          // 后端会把生成图转成带来源说明的参考内容。
+          images: m.images,
         })),
     };
 
@@ -5302,7 +5299,6 @@ const CAP_DEFS = [
   { k: 'gif', icon: '🎞️', label: '动图' },
   { k: 'code', icon: '🧑‍💻', label: '编程模式' },
   { k: 'work', icon: '🛠️', label: '工作模式' },
-  { k: 'search', icon: '🌐', label: '联网搜索' },
   { k: 'fidelity', icon: '🔍', label: '保真' },
   { k: 'raw', icon: '📷', label: '原图' },
 ];
@@ -5312,7 +5308,6 @@ function capOn(k) {
   if (k === 'gif') return state.gifMode;
   if (k === 'code') return state.codeMode;
   if (k === 'work') return state.workMode;
-  if (k === 'search') return state.search;
   if (k === 'fidelity') return state.fidelity;
   if (k === 'raw') return state.rawUpload;
   return false;
@@ -5340,7 +5335,6 @@ function renderCaps() {
 }
 
 function resetTransientModes() {
-  state.search = false;
   state.gifMode = false;
   state.imageMode = false;
   state.codeMode = false;
@@ -5362,8 +5356,6 @@ function setCap(kind, on) {
     state.workMode = on;
     input.placeholder = on ? '描述要做的事，缺少工具时它会自己造…' : DEFAULT_PH;
     flashHint(on ? '工作模式：可以自己找工具、造工具、生成文件' : '已关闭工作模式');
-  } else if (kind === 'search') {
-    state.search = on;
   } else if (kind === 'fidelity') {
     state.fidelity = on;
     LS.fidelity = on;
