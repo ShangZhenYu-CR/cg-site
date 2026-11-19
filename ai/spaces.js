@@ -5,6 +5,18 @@ export function mountSpaces(ctx) {
   // 公开 / 私人：后端返回 visibility 字段后才显示，旧后端不显示，避免把只有成员能看的空间标成公开
   function visOf(s) { return s && (s.visibility === 'private' || s.visibility === 'public') ? s.visibility : null; }
   function visLabel(v) { return v === 'private' ? '私人空间：只有成员能看' : v === 'public' ? '公开空间：所有人能看能编辑' : ''; }
+  /* ---------------- 维基缩略图只认标准宽度 ----------------
+   * 维基 2025–2026 起只接受这些宽度的缩略图，其他宽度直接请求会返回 400（见 https://w.wiki/GHai）。
+   * 不在列表里的宽度一律往下取到最近的标准宽度（比如以前存下的 1600 → 1280），保证一定能打开。 */
+  const WIKI_STEPS = [20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840];
+  function fixWikiThumb(u) {
+    const m = /^(https?:\/\/upload\.wikimedia\.org\/.+\/thumb\/.+\/)(\d+)px-([^/?#]+)$/i.exec(String(u || ''));
+    if (!m) return u;
+    const n = Number(m[2]);
+    if (WIKI_STEPS.includes(n)) return u;
+    const std = WIKI_STEPS.filter((x) => x <= n).pop() || WIKI_STEPS[0];
+    return m[1] + std + 'px-' + m[3];
+  }
   /* ---------------- 站内对话框（替代浏览器 prompt / confirm） ----------------
    * fields: { name, label, type: text | textarea | choice | select, options: [[值, 名称, 说明]], value, placeholder, maxLength, readOnly, copy }
    * 确定 → 各字段的值；取消 / Esc / 点遮罩 → null */
@@ -186,6 +198,7 @@ export function mountSpaces(ctx) {
   }
   /** 把图片复制进空间：站内图片用登录态读取，外链能读到就读；读不到就保留原地址 */
   async function copyImageIntoSpace(im, sid, rid) {
+    im = { ...im, src: fixWikiThumb(im.src), save: fixWikiThumb(im.save) };
     const save = im.save || im.src;
     try {
       let r;
@@ -680,7 +693,7 @@ export function mountSpaces(ctx) {
       card.dataset.eid = e.id || '';
       if (p.type === 'image' && p.url) {
         const img = document.createElement('img');
-        img.src = p.url.startsWith('/files/') || p.url.startsWith('/oss/') ? base() + p.url : p.url; img.alt = p.text || '图片'; img.draggable = false; img.loading = 'lazy';
+        img.src = p.url.startsWith('/files/') || p.url.startsWith('/oss/') ? base() + p.url : fixWikiThumb(p.url); img.alt = p.text || '图片'; img.draggable = false; img.loading = 'lazy';
         card.append(img);
       } else if (p.type === 'ai-image' || p.type === 'ai-text') {
         buildAiNode(e, card);
@@ -743,15 +756,15 @@ export function mountSpaces(ctx) {
         const src = byKey(ed.from);
         if (!src) continue;
         const sp = src.payload, from = keyOf(src);
-        if ((sp.type === 'image' || sp.type === 'ai-image') && sp.url) out.push({ type: 'image', url: sp.url, from });
+        if ((sp.type === 'image' || sp.type === 'ai-image') && sp.url) out.push({ type: 'image', url: fixWikiThumb(sp.url), from });
         else if (sp.type === 'ai-text' && (sp.output || '').trim()) out.push({ type: 'text', text: sp.output, from });
         else if ((sp.type === 'text' || sp.type === 'file') && (sp.text || '').trim()) out.push({ type: 'text', text: sp.text, from });
         else if (sp.type === 'annot' && (sp.url || sp.src)) {
-          out.push({ type: 'image', url: sp.url || sp.src, from });
+          out.push({ type: 'image', url: fixWikiThumb(sp.url || sp.src), from });
           const notes = (sp.annots || []).filter((a) => a.t === 'text' && a.s).map((a) => a.s);
           const nums = (sp.annots || []).filter((a) => a.t === 'num').length;
           if (notes.length || nums) out.push({ type: 'text', text: '图上的标注：' + notes.map((t, i) => (i + 1) + '. ' + t).join('；') + (nums ? '（图中有 ' + nums + ' 个序号标记）' : ''), from });
-        } else if (sp.type === 'img-search') { const r = (sp.results || [])[sp.picked]; if (r && r.url) out.push({ type: 'image', url: r.url, from }); }
+        } else if (sp.type === 'img-search') { const r = (sp.results || [])[sp.picked]; if (r && r.url) out.push({ type: 'image', url: fixWikiThumb(r.url), from }); }
         else if (sp.type === 'page') { const r = pageOf(sp); if (r) out.push({ type: 'text', text: '（空间里的页面：' + (r.title || '未命名') + '）', from }); }
       }
       return out;
@@ -772,7 +785,7 @@ export function mountSpaces(ctx) {
       if (p.type === 'ai-text') return p.output || '';
       return '';
     }
-    const shownUrl = (u) => (/^\/(files|oss)\//.test(u || '') ? base() + u : (u || ''));
+    const shownUrl = (u) => (/^\/(files|oss)\//.test(u || '') ? base() + u : fixWikiThumb(u || ''));
     /** 图片的高宽比：先看卡片上已加载的图，再看搜图结果里的尺寸 */
     function ratioOfCard(e) {
       const c = st.cards.get(keyOf(e));
@@ -1252,8 +1265,8 @@ export function mountSpaces(ctx) {
           const r = await fetch('https://commons.wikimedia.org/w/api.php?' + qs.toString(), { referrerPolicy: 'no-referrer', credentials: 'omit' });
           const j = await r.json();
           const pages = Object.values((j.query && j.query.pages) || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
-          // 拿图用 1600 宽的版本（原图可能十几 MB，复制慢、也更容易被限流）
-          const bigOf = (ii) => (ii.thumburl && (ii.width || 0) > 1600 ? ii.thumburl.replace(/\/\d+px-([^/]+)$/, '/1600px-$1') : (ii.url || ''));
+          // 拿图用 1280 宽的版本：原图可能十几 MB；1280 是维基允许的标准宽度（1600 这类非标准宽度会被拒绝）
+          const bigOf = (ii) => (ii.thumburl && (ii.width || 0) > 1280 ? ii.thumburl.replace(/\/\d+px-([^/]+)$/, '/1280px-$1') : (ii.url || ''));
           list = pages.map((pg) => { const ii = (pg.imageinfo || [])[0] || {}; return { url: bigOf(ii), thumb: ii.thumburl || ii.url || '', title: String(pg.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, ''), source: ii.descriptionurl || '', w: ii.width || 0, h: ii.height || 0 }; })
             .filter((x) => x.url && /\.(jpe?g|png|webp|gif)$/i.test(x.url.split('?')[0]));
         }
@@ -1275,14 +1288,15 @@ export function mountSpaces(ctx) {
       const r = (node.payload.results || [])[i];
       if (!r) return null;
       const w = 260, h = r.w && r.h ? clamp(Math.round(w * r.h / r.w), CV.MINH, CV.MAXH) : 200;
-      const n = addCard({ type: 'image', url: r.url, text: (r.title || '').slice(0, 200), w, h }, at.x - w / 2, at.y - h / 2);
+      const url0 = fixWikiThumb(r.url);
+      const n = addCard({ type: 'image', url: url0, text: (r.title || '').slice(0, 200), w, h }, at.x - w / 2, at.y - h / 2);
       edges().push({ from: keyOf(node), to: keyOf(n) });
       refresh(); scheduleSave();
       const nk = keyOf(n), sid = S.space.id, rid = res.id;
-      copyImageIntoSpace({ src: r.url, save: r.url }, sid, rid).then((c) => {
+      copyImageIntoSpace({ src: url0, save: url0 }, sid, rid).then((c) => {
         if (!c.copied || cv !== st) return;
         const cur = byKey(nk);
-        if (!cur || cur.payload.url !== r.url) return;
+        if (!cur || cur.payload.url !== url0) return;
         cur.payload = { ...cur.payload, url: c.url };
         const im = st.cards.get(keyOf(cur)) && st.cards.get(keyOf(cur)).querySelector('img');
         if (im) im.src = shownUrl(c.url);
@@ -1375,6 +1389,7 @@ export function mountSpaces(ctx) {
     }
     /** 读图片内容（站内用登录态，外链要允许跨域） */
     async function loadImageBlob(u) {
+      u = fixWikiThumb(u);
       const r = /^\/(files|oss)\//.test(u) ? await api(u, { timeout: 60000 }) : await fetch(u, { mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();

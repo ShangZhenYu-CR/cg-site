@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-20 05:00';
+const APP_BUILD = '2026-11-20 06:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -204,6 +204,13 @@ function wikiFileDirect(u) {
   if (!m) return '';
   return 'https://' + m[1].replace('.m.', '.') + '/wiki/Special:FilePath/' + m[2] + '?width=1280';
 }
+/** 维基缩略图只认标准宽度（https://w.wiki/GHai），其他宽度往下取到最近的标准宽度，否则会 400 */
+const WIKI_STEPS = [20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840];
+function fixWikiThumb(u) {
+  const m = /^(https?:\/\/upload\.wikimedia\.org\/.+\/thumb\/.+\/)(\d+)px-([^/?#]+)$/i.exec(String(u || ''));
+  if (!m || WIKI_STEPS.includes(Number(m[2]))) return u;
+  return m[1] + (WIKI_STEPS.filter((x) => x <= Number(m[2])).pop() || WIKI_STEPS[0]) + 'px-' + m[3];
+}
 /** 能直接当图片显示的地址；不是图片返回空 */
 function imageSrcOf(u) {
   const url = String(u || '').replace(/&amp;/g, '&');
@@ -211,8 +218,8 @@ function imageSrcOf(u) {
   const w = wikiFileDirect(url);
   if (w) return w;
   const path = url.split(/[?#]/)[0];
-  if (IMG_EXT_RE.test(path)) return url;
-  if (/\/\/upload\.wikimedia\.org\//i.test(url)) return url;
+  if (IMG_EXT_RE.test(path)) return fixWikiThumb(url);
+  if (/\/\/upload\.wikimedia\.org\//i.test(url)) return fixWikiThumb(url);
   return '';
 }
 function imgKey(u) {
