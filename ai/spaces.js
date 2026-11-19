@@ -618,7 +618,7 @@ export function mountSpaces(ctx) {
     help.title = '画布操作说明';
     const helpBox = el('div', 'cv-helpbox');
     helpBox.hidden = true;
-    helpBox.innerHTML = '<div class="hb-head"><b>画布操作说明</b><button type="button" class="hb-x" aria-label="关闭">×</button></div><div class="hb-sec">看画布</div><div class="hb-row"><span>缩放</span><em>鼠标滚轮；触控板双指捏合；Ctrl + 滚轮</em></div><div class="hb-row"><span>移动画布</span><em>按住右键 / 中键 / 空格拖动；触控板两指滑动；Shift + 滚轮横向</em></div><div class="hb-row"><span>看全部</span><em>底部「适应」，或 Shift + 1；点百分比回到 100%</em></div><div class="hb-sec">卡片</div><div class="hb-row"><span>新建</span><em>双击空白处；或把底部的文本、便签、图片、页面拖到画布上（点一下放在画面中央）</em></div><div class="hb-row"><span>编辑文字</span><em>双击卡片，或选中后按 Enter；Esc 结束</em></div><div class="hb-row"><span>移动 / 改大小</span><em>拖动卡片；拖右下角；方向键微调（Shift 步长 10）</em></div><div class="hb-row"><span>对齐</span><em>拖动时靠近其他卡片会出现红色辅助线并吸附；按住 Alt 不吸附</em></div><div class="hb-row"><span>样式</span><em>选中后在浮出的工具条里改颜色、形状、字号、对齐、层级，或用 AI 修改文字</em></div><div class="hb-sec">选择</div><div class="hb-row"><span>多选</span><em>Shift / Ctrl + 点击；在空白处拖框（连线也能框中）；Ctrl + A 全选</em></div><div class="hb-row"><span>删除</span><em>Delete / Backspace</em></div><div class="hb-sec">连线</div><div class="hb-row"><span>连线</span><em>按住 Shift，从一张卡拖到另一张卡；或拖卡片边上的小圆点</em></div><div class="hb-row"><span>文字 / 样式</span><em>双击连线写文字；单击连线可改虚线、箭头、方向或删除</em></div><div class="hb-sec">AI 节点</div><div class="hb-row"><span>新建</span><em>底部「AI」选生图 / 生文 / 改图 / 改文；或选中图片、文字卡后点工具条「AI」</em></div><div class="hb-row"><span>输入</span><em>连进节点的卡片就是素材（文字、图片、上游节点的结果）</em></div><div class="hb-row"><span>生成</span><em>点「生成」或 Ctrl + Enter；下方可展开 AI 实际使用的提示词</em></div><div class="hb-row"><span>结果</span><em>「存为新卡片」；改文可「替换原卡片」；选中卡片会高亮它的上游和下游</em></div><div class="hb-sec">搜图与标注</div><div class="hb-row"><span>搜图</span><em>底部「AI」→ 搜图，或从文字卡拖线选「用它搜图」；点一张选中，按住拖到画布上拿出来（存 1280 宽的版本）；选中拿出来的图，工具条「原图页面」可以打开来源页看原图</em></div><div class="hb-row"><span>拖线到空白</span><em>从卡片拖出连线，在空白处松手，选要做什么（标注、改图、看图写文字、文本卡…）</em></div><div class="hb-row"><span>标注</span><em>选「标注图片」，或双击标注节点：箭头、方框、椭圆、画笔、文字、序号；原图不变</em></div><div class="hb-sec">复制与粘贴</div><div class="hb-row"><span>复制</span><em>Ctrl + C / X / V（连同卡片之间的连线，可跨画布）；Ctrl + D 原地复制</em></div><div class="hb-row"><span>粘贴外部内容</span><em>截图或图片直接 Ctrl + V 上传；文字变文本卡；图片链接变图片卡；也可以把图片文件拖进来</em></div><div class="hb-row"><span>撤销 / 重做</span><em>Ctrl + Z / Ctrl + Shift + Z</em></div>';
+    helpBox.innerHTML = '<div class="hb-head"><b>画布操作说明</b><button type="button" class="hb-x" aria-label="关闭">×</button></div><div class="hb-sec">看画布</div><div class="hb-row"><span>缩放</span><em>鼠标滚轮；触控板双指捏合；Ctrl + 滚轮</em></div><div class="hb-row"><span>移动画布</span><em>按住右键 / 中键 / 空格拖动；触控板两指滑动；Shift + 滚轮横向</em></div><div class="hb-row"><span>看全部</span><em>底部「适应」，或 Shift + 1；点百分比回到 100%</em></div><div class="hb-sec">卡片</div><div class="hb-row"><span>新建</span><em>双击空白处；或把底部的文本、便签、图片、页面拖到画布上（点一下放在画面中央）</em></div><div class="hb-row"><span>编辑文字</span><em>双击卡片，或选中后按 Enter；Esc 结束</em></div><div class="hb-row"><span>移动 / 改大小</span><em>拖动卡片；拖右下角；方向键微调（Shift 步长 10）</em></div><div class="hb-row"><span>对齐</span><em>拖动时靠近其他卡片会出现红色辅助线并吸附；按住 Alt 不吸附</em></div><div class="hb-row"><span>样式</span><em>选中后在浮出的工具条里改颜色、形状、字号、对齐、层级，或用 AI 修改文字</em></div><div class="hb-sec">选择</div><div class="hb-row"><span>多选</span><em>Shift / Ctrl + 点击；在空白处拖框（连线也能框中）；Ctrl + A 全选</em></div><div class="hb-row"><span>删除</span><em>Delete / Backspace</em></div><div class="hb-sec">连线</div><div class="hb-row"><span>连线</span><em>按住 Shift，从一张卡拖到另一张卡；或拖卡片边上的小圆点</em></div><div class="hb-row"><span>文字 / 样式</span><em>双击连线写文字；单击连线可改虚线、箭头、方向或删除</em></div><div class="hb-sec">AI 节点</div><div class="hb-row"><span>新建</span><em>底部「AI」选生图 / 生文 / 改图 / 改文；或选中图片、文字卡后点工具条「AI」</em></div><div class="hb-row"><span>输入</span><em>连进节点的卡片就是素材（文字、图片、上游节点的结果）</em></div><div class="hb-row"><span>生成</span><em>点「生成」或 Ctrl + Enter；下方可展开 AI 实际使用的提示词</em></div><div class="hb-row"><span>结果</span><em>「存为新卡片」；改文可「替换原卡片」；选中卡片会高亮它的上游和下游</em></div><div class="hb-sec">搜图与标注</div><div class="hb-row"><span>搜图</span><em>底部「AI」→ 搜图，或从文字卡拖线选「用它搜图」；节点右上角切换来源（全网、Pexels 图库、开放图库、维基共享资源）；点一张选中，按住拖到画布上拿出来（存 1280 宽的版本）；选中拿出来的图，工具条「原图页面」可以打开来源页看原图</em></div><div class="hb-row"><span>拖线到空白</span><em>从卡片拖出连线，在空白处松手，选要做什么（标注、改图、看图写文字、文本卡…）</em></div><div class="hb-row"><span>标注</span><em>选「标注图片」，或双击标注节点：箭头、方框、椭圆、画笔、文字、序号；原图不变</em></div><div class="hb-sec">复制与粘贴</div><div class="hb-row"><span>复制</span><em>Ctrl + C / X / V（连同卡片之间的连线，可跨画布）；Ctrl + D 原地复制</em></div><div class="hb-row"><span>粘贴外部内容</span><em>截图或图片直接 Ctrl + V 上传；文字变文本卡；图片链接变图片卡；也可以把图片文件拖进来</em></div><div class="hb-row"><span>撤销 / 重做</span><em>Ctrl + Z / Ctrl + Shift + Z</em></div>';
     box.append(world, marquee, bar, tools, empty, help, helpBox);
     on(help, 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = !helpBox.hidden; });
     on(helpBox.querySelector('.hb-x'), 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = true; });
@@ -1147,13 +1147,25 @@ export function mountSpaces(ctx) {
     }
 
     /* ---------------- 搜图节点 ---------------- */
-    const SEARCH_SOURCES = [['commons', '维基共享资源', '免费公开图片，英文关键词更准'], ['web', '全网', '由后端搜索']];
+    /* 来源：[节点里存的值, 名称, 说明]。前三个走后端 /ai/image-search（发 provider），维基由浏览器直接查。
+     * 没写 provider 的旧节点当作维基（以前的默认）；新节点用上次选的来源，没选过就用「开放图库」。
+     * （2026-11-19：Brave、Pexels 的密钥还没申请到，后端只接了 Openverse，默认先用开放图库；接好后改回 'web'） */
+    const SEARCH_SOURCES = [
+      ['web', '全网', '网页上的图片（Brave 搜索），版权不明，适合当参考'],
+      ['pexels', 'Pexels 图库', '高质量摄影图，可免费使用'],
+      ['openverse', '开放图库', 'Openverse：开放授权的图片'],
+      ['commons', '维基共享资源', '免费公开图片，英文关键词更准'],
+    ];
+    const SEARCH_API = { web: 'brave', pexels: 'pexels', openverse: 'openverse' };
+    const SEARCH_VIA = { brave: '全网', pexels: 'Pexels 图库', openverse: '开放图库' };
+    const srcOf = (p) => (SEARCH_SOURCES.some((x) => x[0] === p.provider) ? p.provider : 'commons');
+    const lastSource = () => { const v = readLS('ai.searchSource'); return SEARCH_SOURCES.some((x) => x[0] === v) ? v : 'openverse'; };
     function createSearchNode(at, src, query) {
       const w = 440, h = 470;
       let pos;
       if (src && at) pos = dropPlace(at, src, w, h);
       else { const c = at || viewCenter(); pos = freeSpot(c.x - w / 2, c.y - h / 2, w, h, false); }
-      const n = addCard({ type: 'img-search', text: query || '', w, h, provider: 'commons', results: [], picked: -1 }, pos.x, pos.y);
+      const n = addCard({ type: 'img-search', text: query || '', w, h, provider: lastSource(), results: [], picked: -1 }, pos.x, pos.y);
       if (src) { edges().push({ from: keyOf(src), to: keyOf(n) }); refresh(); scheduleSave(); }
       if (query) setTimeout(() => runSearch(keyOf(n)), 0); else setTimeout(() => startEdit(keyOf(n)), 0);
       return n;
@@ -1185,7 +1197,7 @@ export function mountSpaces(ctx) {
       prov.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const cur = byKey(card.dataset.key); if (!cur) return;
-        popMenu(prov, SEARCH_SOURCES.map(([v, t, sub]) => ({ label: t, sub, on: (cur.payload.provider || 'commons') === v, onClick: () => { const s0 = snap(); cur.payload = { ...cur.payload, provider: v }; pushUndo(s0); renderSearchNode(cur); scheduleSave(); } })));
+        popMenu(prov, SEARCH_SOURCES.map(([v, t, sub]) => ({ label: t, sub, on: srcOf(cur.payload) === v, onClick: () => { writeLS('ai.searchSource', v); if (srcOf(cur.payload) === v) return; const s0 = snap(); cur.payload = { ...cur.payload, provider: v }; pushUndo(s0); renderSearchNode(cur); scheduleSave(); } })));
       });
       run.addEventListener('click', (ev) => { ev.stopPropagation(); runSearch(card.dataset.key); });
       // 结果：点一下选中，按住拖到画布上就拿出来
@@ -1221,7 +1233,8 @@ export function mountSpaces(ctx) {
       const p = e.payload, k = keyOf(e);
       const running = st.running.has(k), err = st.errors.get(k);
       const list = Array.isArray(p.results) ? p.results : [];
-      card.querySelector('.an-prov').textContent = ((SEARCH_SOURCES.find((x) => x[0] === (p.provider || 'commons')) || SEARCH_SOURCES[0])[1]) + ' ▾';
+      const src = srcOf(p);
+      card.querySelector('.an-prov').textContent = SEARCH_SOURCES.find((x) => x[0] === src)[1] + ' ▾';
       const run = card.querySelector('.an-run');
       run.disabled = running;
       run.textContent = running ? '搜索中…' : (list.length ? '重新搜索' : '搜索');
@@ -1238,7 +1251,7 @@ export function mountSpaces(ctx) {
         else list.forEach((r, i) => {
           const it = el('div', 'sn-item');
           it.dataset.i = String(i);
-          it.title = (r.title || '') + (r.w && r.h ? '（' + r.w + ' × ' + r.h + '）' : '') + '\n点击选中，按住拖到画布上拿出来';
+          it.title = (r.title || '') + (r.w && r.h ? '（' + r.w + ' × ' + r.h + '）' : '') + (r.author ? '\n摄影：' + r.author : '') + '\n点击选中，按住拖到画布上拿出来';
           const im = document.createElement('img');
           im.src = shownUrl(r.thumb || r.url); im.alt = r.title || ''; im.loading = 'lazy'; im.draggable = false; im.referrerPolicy = 'no-referrer';
           im.addEventListener('error', () => it.classList.add('broken'));
@@ -1249,7 +1262,16 @@ export function mountSpaces(ctx) {
       grid.querySelectorAll('.sn-item').forEach((it) => it.classList.toggle('on', Number(it.dataset.i) === p.picked));
       const foot = card.querySelector('.sn-foot');
       const picked = list[p.picked];
-      foot.textContent = list.length ? ('共 ' + list.length + ' 张' + (picked ? ' · 已选：' + (picked.title || '第 ' + (p.picked + 1) + ' 张') : ' · 点击选中，按住拖到画布上拿出来')) : '';
+      foot.textContent = list.length ? ('共 ' + list.length + ' 张' + (picked ? ' · 已选：' + (picked.title || '第 ' + (p.picked + 1) + ' 张') + (picked.author ? ' · 摄影 ' + picked.author : '') : ' · 点击选中，按住拖到画布上拿出来')) : '';
+      // 后端暂时用别的来源代替时说清楚，免得把开放图库的结果当成全网
+      if (list.length && p.via && SEARCH_API[src] && p.via !== SEARCH_API[src]) foot.append(el('span', 'sn-via', ' · 后端还没接入「' + SEARCH_SOURCES.find((x) => x[0] === src)[1] + '」，这次结果来自' + (SEARCH_VIA[p.via] || p.via)));
+      // Pexels 要求每次展示搜索结果都带上指向 Pexels 的链接
+      if (list.length && p.via === 'pexels') {
+        const a = el('a', 'sn-credit an-ui', '图片来自 Pexels');
+        a.href = 'https://www.pexels.com'; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+        foot.append(' · ', a);
+      }
     }
     async function runSearch(k0) {
       const e = byKey(k0);
@@ -1260,14 +1282,18 @@ export function mountSpaces(ctx) {
       if (!q) { flashHint('先输入关键词（双击节点）'); startEdit(k); return; }
       st.running.add(k); st.errors.delete(k);
       renderSearchNode(e);
-      let list = [], err = '';
+      const src = srcOf(p);
+      let list = [], err = '', via = '';
       try {
-        if ((p.provider || 'commons') === 'web') {
-          const r = await api('/ai/image-search', { method: 'POST', timeout: 60000, body: { query: q, count: 24 } });
+        if (SEARCH_API[src]) {
+          const r = await api('/ai/image-search', { method: 'POST', timeout: 60000, body: { query: q, count: 24, provider: SEARCH_API[src] } });
           const j = await r.json().catch(() => ({}));
-          if (r.status === 404 || r.status === 405) err = '后端还没有全网搜图接口，先切换到「维基共享资源」';
+          if (r.status === 404 || r.status === 405) err = '后端还没有搜图接口，先切换到「维基共享资源」';
           else if (!r.ok) err = j.error || ('搜索失败（HTTP ' + r.status + '）');
-          else list = (j.images || []).map((x) => ({ url: x.url, thumb: x.thumb || x.url, title: x.title || '', source: x.source || '', w: Number(x.width || x.w) || 0, h: Number(x.height || x.h) || 0 }));
+          else {
+            via = String(j.provider || SEARCH_API[src]).slice(0, 40);
+            list = (j.images || []).map((x) => ({ url: x.url, thumb: x.thumb || x.url, title: x.title || '', source: x.source || '', author: x.author || '', authorUrl: x.authorUrl || '', w: Number(x.width || x.w) || 0, h: Number(x.height || x.h) || 0 }));
+          }
         } else {
           const qs = new URLSearchParams({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrnamespace: '6', gsrlimit: '30', gsrsearch: q, prop: 'imageinfo', iiprop: 'url|size', iiurlwidth: '360' });
           const r = await fetch('https://commons.wikimedia.org/w/api.php?' + qs.toString(), { referrerPolicy: 'no-referrer', credentials: 'omit' });
@@ -1278,7 +1304,7 @@ export function mountSpaces(ctx) {
           list = pages.map((pg) => { const ii = (pg.imageinfo || [])[0] || {}; return { url: bigOf(ii), thumb: ii.thumburl || ii.url || '', title: String(pg.title || '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, ''), source: ii.descriptionurl || '', w: ii.width || 0, h: ii.height || 0 }; })
             .filter((x) => x.url && /\.(jpe?g|png|webp|gif)$/i.test(x.url.split('?')[0]));
         }
-        if (!err && !list.length) err = '没有找到图片，换个关键词试试' + ((p.provider || 'commons') === 'commons' ? '（维基共享资源用英文关键词更准）' : '');
+        if (!err && !list.length) err = '没有找到图片，换个关键词试试' + (src === 'commons' ? '（维基共享资源用英文关键词更准）' : '');
       } catch (ex) { err = '搜索失败：' + String((ex && ex.message) || ex); }
       st.running.delete(resolveKey(k)); st.running.delete(k);
       if (cv !== st) return;
@@ -1286,7 +1312,7 @@ export function mountSpaces(ctx) {
       if (!cur) return;
       if (err) { st.errors.set(keyOf(cur), err); renderSearchNode(cur); return; }
       const s0 = snap();
-      cur.payload = { ...cur.payload, picked: -1, results: list.slice(0, 40).map((x) => ({ url: String(x.url).slice(0, 500), thumb: String(x.thumb || '').slice(0, 500), title: String(x.title || '').slice(0, 200), source: String(x.source || '').slice(0, 500), w: x.w, h: x.h })) };
+      cur.payload = { ...cur.payload, picked: -1, via, results: list.slice(0, 40).map((x) => ({ url: String(x.url).slice(0, 500), thumb: String(x.thumb || '').slice(0, 500), title: String(x.title || '').slice(0, 200), source: String(x.source || '').slice(0, 500), author: String(x.author || '').slice(0, 100), authorUrl: /^https?:\/\//i.test(x.authorUrl || '') ? String(x.authorUrl).slice(0, 500) : '', w: x.w, h: x.h })) };
       pushUndo(s0);
       renderSearchNode(cur);
       scheduleSave();
@@ -1298,7 +1324,8 @@ export function mountSpaces(ctx) {
       const w = 260, h = r.w && r.h ? clamp(Math.round(w * r.h / r.w), CV.MINH, CV.MAXH) : 200;
       const url0 = fixWikiThumb(r.url);
       const src0 = /^https?:\/\//i.test(r.source || '') ? String(r.source).slice(0, 500) : '';
-      const n = addCard({ type: 'image', url: url0, text: (r.title || '').slice(0, 200), w, h, source: src0, ref: src0.length <= 200 ? src0 : '' }, at.x - w / 2, at.y - h / 2);
+      const cap = (r.title || '') + (r.author ? (r.title ? ' · ' : '') + '摄影 ' + r.author : '');
+      const n = addCard({ type: 'image', url: url0, text: cap.slice(0, 200), w, h, source: src0, ref: src0.length <= 200 ? src0 : '' }, at.x - w / 2, at.y - h / 2);
       edges().push({ from: keyOf(node), to: keyOf(n) });
       refresh(); scheduleSave();
       const nk = keyOf(n), sid = S.space.id, rid = res.id;

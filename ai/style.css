@@ -943,6 +943,8 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .sn-item.on::after{content:"✓";position:absolute;right:4px;top:4px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;line-height:18px;text-align:center}
 .sn-item.broken{background:repeating-linear-gradient(45deg,var(--panel2),var(--panel2) 6px,var(--line) 6px,var(--line) 12px)}
 .sn-foot{min-height:18px}
+.sn-foot .sn-via{color:var(--warn,#b7791f)}
+.sn-foot .sn-credit{color:var(--accent);text-decoration:underline}
 .cv-ghost.sn-ghost{padding:3px;min-width:0}
 .cv-ghost.sn-ghost img{width:96px;height:72px;object-fit:cover;border-radius:5px;display:block}
 .ann-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;border-radius:7px;background:var(--panel2);overflow:hidden}
