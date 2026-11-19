@@ -264,7 +264,7 @@ export function mountSpaces(ctx) {
     for (const e of ents()) normPayload(e);
     if (!cvHist.has(res.id)) cvHist.set(res.id, { undo: [], redo: [] });
     const hist = cvHist.get(res.id);
-    const st = cv = { res, sel: new Set(), edgeSel: -1, editing: null, cards: new Map(), spaceDown: false, gesture: null };
+    const st = cv = { res, sel: new Set(), edgeSel: -1, edgeSet: new Set(), editing: null, cards: new Map(), spaceDown: false, gesture: null };
     let view = cvViews.get(res.id) || (() => { try { const v = JSON.parse(readLS('ai.canvasView.' + res.id) || 'null'); return v && isFinite(v.x) && isFinite(v.y) && isFinite(v.z) ? v : null; } catch (e) { return null; } })();
     const needFit = !view;
     if (!view) view = { x: 40, y: 40, z: 1 };
@@ -289,7 +289,7 @@ export function mountSpaces(ctx) {
     help.title = '画布快捷键';
     const helpBox = el('div', 'cv-helpbox');
     helpBox.hidden = true;
-    helpBox.innerHTML = '<b>移动画布</b>：滚轮 / 触控板；按住空格或中键拖动<br><b>缩放</b>：Ctrl + 滚轮 / 双指捏合<br><b>新建卡片</b>：双击空白处<br><b>编辑文字</b>：双击卡片，Esc 结束<br><b>多选</b>：Shift + 点击，或在空白处拖框<br><b>连线</b>：从卡片边上的圆点拖到另一张卡<br><b>删除</b>：Delete / Backspace<br><b>撤销 / 重做</b>：Ctrl + Z / Ctrl + Shift + Z<br><b>复制粘贴</b>：Ctrl + C / X / V（外部文字、图片链接也能粘贴）<br><b>原地复制</b>：Ctrl + D　<b>全选</b>：Ctrl + A<br><b>连线文字</b>：双击连线<br><b>不吸附对齐</b>：拖动时按住 Alt<br><b>微调</b>：方向键（Shift 加大步长）<br><b>适应画布</b>：Shift + 1';
+    helpBox.innerHTML = '<b>缩放</b>：鼠标滚轮 / 触控板双指捏合<br><b>移动画布</b>：按住右键、中键或空格拖动；触控板两指滑动；Shift + 滚轮横向移动<br><b>新建卡片</b>：双击空白处<br><b>编辑文字</b>：双击卡片，Esc 结束<br><b>多选</b>：Shift / Ctrl + 点击，或在空白处拖框<br><b>连线</b>：按住 Shift 从一张卡拖到另一张卡（或拖卡片边上的圆点）<br><b>选中连线</b>：点击，或拖框框住<br><b>放卡片</b>：把底部的文本、便签等直接拖到画布上<br><b>删除</b>：Delete / Backspace<br><b>撤销 / 重做</b>：Ctrl + Z / Ctrl + Shift + Z<br><b>复制粘贴</b>：Ctrl + C / X / V（截图、图片、文字、图片链接都能直接粘贴）<br><b>原地复制</b>：Ctrl + D　<b>全选</b>：Ctrl + A<br><b>连线文字</b>：双击连线<br><b>不吸附对齐</b>：拖动时按住 Alt<br><b>微调</b>：方向键（Shift 加大步长）<br><b>适应画布</b>：Shift + 1';
     box.append(world, marquee, bar, tools, empty, help, helpBox);
     on(help, 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = !helpBox.hidden; });
 
@@ -343,7 +343,7 @@ export function mountSpaces(ctx) {
       }
       S.resource.entities = next;
       S.resource.edges = s.edges.map((x) => ({ ...x, from: remap[resolveKey(x.from)] || resolveKey(x.from), to: remap[resolveKey(x.to)] || resolveKey(x.to) }));
-      st.sel.clear(); st.edgeSel = -1;
+      st.sel.clear(); clearEdgeSel();
       rebuild();
       scheduleSave();
     }
@@ -414,9 +414,11 @@ export function mountSpaces(ctx) {
       refresh();
     }
     /** 只切换连线的选中样式，不重画（重画会让双击落到新元素上，浏览器就不触发 dblclick） */
+    function clearEdgeSel() { st.edgeSel = -1; st.edgeSet.clear(); }
+    const edgeOn = (i) => st.edgeSel === i || st.edgeSet.has(i);
     function syncEdgeSel() {
       for (const grp of svg.querySelectorAll('.eg .edge')) {
-        const on = Number(grp.dataset.i) === st.edgeSel;
+        const on = edgeOn(Number(grp.dataset.i));
         grp.classList.toggle('on', on);
         const ln = grp.querySelector('.ed');
         if (ln) ln.setAttribute('marker-end', edges()[Number(grp.dataset.i)].arrow === false ? 'none' : on ? 'url(#cvArrowOn)' : 'url(#cvArrow)');
@@ -472,7 +474,7 @@ export function mountSpaces(ctx) {
         const a = byKey(ed.from), b = byKey(ed.to);
         if (!a || !b) return;
         const { d, mid } = edgeGeom(a.payload, b.payload);
-        const on = st.edgeSel === i;
+        const on = edgeOn(i);
         st.edgeMids[i] = mid;
         if (on) st.edgeMid = mid;
         const grp = document.createElementNS(SVGNS, 'g');
@@ -572,6 +574,13 @@ export function mountSpaces(ctx) {
         bar.append(lb, rv, dl);
         return;
       }
+      if (!st.sel.size && st.edgeSet.size) {
+        const dl = el('button', 'danger', '删除 ' + st.edgeSet.size + ' 条连线');
+        dl.type = 'button'; dl.title = 'Delete';
+        dl.addEventListener('click', () => deleteSelected());
+        bar.append(dl);
+        return;
+      }
       if (!st.sel.size) return;
       const items = [...st.sel].map(byKey).filter(Boolean);
       for (const [key,label,options] of [
@@ -624,6 +633,17 @@ export function mountSpaces(ctx) {
       bar.append(dup, del);
     }
     function placeBar() {
+      if (!st.sel.size && st.edgeSet.size && !st.gesture) {
+        const ms = [...st.edgeSet].map((i) => (st.edgeMids || [])[i]).filter(Boolean);
+        if (ms.length) {
+          const cx = ms.reduce((a, m) => a + m.x, 0) / ms.length, cy = Math.min(...ms.map((m) => m.y));
+          bar.style.display = 'flex';
+          bar.style.left = clamp(cx * view.z + view.x, 120, Math.max(120, box.clientWidth - 120)) + 'px';
+          bar.style.top = (cy * view.z + view.y - 14) + 'px';
+          bar.style.transform = 'translate(-50%,-100%)';
+          return;
+        }
+      }
       if (st.edgeSel >= 0 && !st.sel.size && st.edgeMid && !st.gesture) {
         bar.style.display = 'flex';
         bar.style.left = clamp(st.edgeMid.x * view.z + view.x, 120, Math.max(120, box.clientWidth - 120)) + 'px';
@@ -650,7 +670,7 @@ export function mountSpaces(ctx) {
       ents().push(e);
       pushUndo(s);
       buildCard(e);
-      st.sel = new Set([keyOf(e)]); st.edgeSel = -1;
+      st.sel = new Set([keyOf(e)]); clearEdgeSel();
       refresh();
       scheduleSave();
       if (edit && e.payload.type === 'text') setTimeout(() => startEdit(keyOf(e)), 0);
@@ -687,7 +707,7 @@ export function mountSpaces(ctx) {
       st.editText = ta.value;
       ta.readOnly = false;
       refresh();
-      ta.focus();
+      ta.focus({ preventScroll: true });
       try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
     }
     function stopEdit() {
@@ -699,20 +719,19 @@ export function mountSpaces(ctx) {
       refresh();
     }
     function deleteSelected() {
-      if (st.edgeSel >= 0) {
-        const s = snap();
-        edges().splice(st.edgeSel, 1);
-        st.edgeSel = -1;
-        pushUndo(s); refresh(); scheduleSave();
-        return;
-      }
-      if (!st.sel.size) return;
+      const idx = new Set(st.edgeSet);
+      if (st.edgeSel >= 0) idx.add(st.edgeSel);
+      if (!st.sel.size && !idx.size) return;
       const s = snap();
-      const ks = new Set([...st.sel].map(resolveKey));
-      S.resource.entities = ents().filter((e) => !ks.has(keyOf(e)));
-      S.resource.edges = edges().filter((x) => !ks.has(resolveKey(x.from)) && !ks.has(resolveKey(x.to)));
-      for (const k of ks) { const c = st.cards.get(k); if (c) c.remove(); st.cards.delete(k); }
+      if (idx.size) S.resource.edges = edges().filter((_, i) => !idx.has(i));
+      if (st.sel.size) {
+        const ks = new Set([...st.sel].map(resolveKey));
+        S.resource.entities = ents().filter((e) => !ks.has(keyOf(e)));
+        S.resource.edges = edges().filter((x) => !ks.has(resolveKey(x.from)) && !ks.has(resolveKey(x.to)));
+        for (const k of ks) { const c = st.cards.get(k); if (c) c.remove(); st.cards.delete(k); }
+      }
       st.sel.clear();
+      clearEdgeSel();
       pushUndo(s); refresh(); scheduleSave();
     }
     function duplicate() {
@@ -735,10 +754,14 @@ export function mountSpaces(ctx) {
       const cards = ents().filter((e) => keys.has(keyOf(e))).map((e) => ({ k: keyOf(e), payload: { ...e.payload } }));
       if (!cards.length) return;
       const links = edges().filter((x) => keys.has(resolveKey(x.from)) && keys.has(resolveKey(x.to))).map((x) => ({ ...x, from: resolveKey(x.from), to: resolveKey(x.to) }));
-      const plain = cards.map((c) => c.payload.text || c.payload.url || '').filter(Boolean).join('\n\n');
-      cvClip = { cards, links, plain, at: Date.now() };
-      try { localStorage.setItem('ai.canvasClip', JSON.stringify(cvClip)); } catch (e) {}
-      try { if (navigator.clipboard && plain) navigator.clipboard.writeText(plain).catch(() => {}); } catch (e) {}
+      // 系统剪贴板写入卡片文字（空卡片写一个标记），粘贴时据此判断剪贴板里还是不是这几张卡
+      const plain = cards.map((c) => c.payload.text || c.payload.url || '').filter(Boolean).join('\n\n') || '[毛豆画布卡片 ' + cards.length + ' 张]';
+      const clipNow = cvClip = { cards, links, plain, at: Date.now(), sys: false };
+      const keep = () => { try { localStorage.setItem('ai.canvasClip', JSON.stringify(clipNow)); } catch (e) {} };
+      keep();
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(plain).then(() => { clipNow.sys = true; keep(); }).catch(() => {});
+      } catch (e) {}
       if (cut) deleteSelected();
       flashHint(cut ? '已剪切 ' + cards.length + ' 张卡片' : '已复制 ' + cards.length + ' 张卡片');
     }
@@ -755,7 +778,7 @@ export function mountSpaces(ctx) {
       }
       for (const l of clip.links) if (map[l.from] && map[l.to]) edges().push({ ...l, from: map[l.from], to: map[l.to] });
       pushUndo(s0);
-      st.sel = new Set(fresh); st.edgeSel = -1;
+      st.sel = new Set(fresh); clearEdgeSel();
       refresh(); scheduleSave();
     }
     function nudge(dx, dy) {
@@ -782,8 +805,43 @@ export function mountSpaces(ctx) {
     };
 
     /* 底部工具条 */
-    const tb = (label, title, fn, cls) => { const b = el('button', cls || null); b.type = 'button'; b.title = title; b.innerHTML = label; b.addEventListener('click', fn); tools.append(b); return b; };
-    tb('上传图片','从本地上传图片',()=>{ const picker=document.createElement('input'); picker.type='file'; picker.accept='image/png,image/jpeg,image/webp,image/gif'; picker.multiple=true; picker.onchange=()=>uploadImages(picker.files,viewCenter()); picker.click(); });
+    const tb = (label, title, fn, cls) => { const b = el('button', cls || null); b.type = 'button'; b.title = title; b.innerHTML = label; b.addEventListener('click', (ev) => { if (b._dragged) return; fn(ev); }); tools.append(b); return b; };
+    /** 按住工具条按钮拖到画布上：在松手的位置放卡片（直接点击仍然放在画面中央） */
+    function dragFromTool(btn, make) {
+      if (!btn) return;
+      btn.title += '；也可以直接拖到画布上';
+      on(btn, 'pointerdown', (ev) => {
+        if (ev.button !== 0) return;
+        const sx = ev.clientX, sy = ev.clientY;
+        let ghost = null;
+        const inBoard = (x, y) => { const r = rect(); if (x < r.left || x > r.right || y < r.top || y > r.bottom) return false; const t = document.elementFromPoint(x, y); return !!(t && box.contains(t) && !isUi(t)); };
+        const mv = (m) => {
+          if (!ghost && Math.hypot(m.clientX - sx, m.clientY - sy) < 5) return;
+          if (!ghost) {
+            ghost = el('div', 'cv-ghost');
+            ghost.innerHTML = btn.querySelector('svg') ? btn.querySelector('svg').outerHTML : '';
+            ghost.append(el('span', null, (btn.querySelector('.lbl') || btn).textContent));
+            document.body.append(ghost);
+            btn._dragged = true;
+          }
+          ghost.style.left = m.clientX + 'px'; ghost.style.top = m.clientY + 'px';
+          ghost.classList.toggle('ok', inBoard(m.clientX, m.clientY));
+        };
+        const up = (u) => {
+          window.removeEventListener('pointermove', mv);
+          window.removeEventListener('pointerup', up);
+          window.removeEventListener('pointercancel', up);
+          if (!ghost) return;
+          ghost.remove();
+          if (inBoard(u.clientX, u.clientY)) make(toWorld(u.clientX, u.clientY));
+          setTimeout(() => { btn._dragged = false; }, 0);
+        };
+        window.addEventListener('pointermove', mv);
+        window.addEventListener('pointerup', up);
+        window.addEventListener('pointercancel', up);
+      });
+    }
+    tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg><span class="lbl">上传</span>','从本地上传图片',()=>{ const picker=document.createElement('input'); picker.type='file'; picker.accept='image/png,image/jpeg,image/webp,image/gif'; picker.multiple=true; picker.onchange=()=>uploadImages(picker.files,viewCenter()); picker.click(); });
     tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg><span class="lbl">文本</span>', '新建文本卡（也可以双击空白处）', () => addAtCenter({}, true));
     tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 4h16v10l-6 6H4z" fill="#fff3b0" stroke="#c9a92c"/><path d="M14 20v-6h6" stroke="#c9a92c"/></svg><span class="lbl">便签</span>', '新建便签', () => addAtCenter({ color: 'yellow', w: 200, h: 200 }, true));
     tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg><span class="lbl">图片</span>', '用图片链接新建图片卡', () => {
@@ -798,10 +856,24 @@ export function mountSpaces(ctx) {
         onClick: () => { const d = $('#dlgList'); if (d) d.hidden = true; addAtCenter({ type: 'page', ref: r.id, text: r.title || '', w: 240, h: 110 }); },
       })));
     });
+    const toolBtn = (t) => [...tools.querySelectorAll('button')].find((b) => b.title.startsWith(t));
+    const askPageAt = (pt) => {
+      const list = (S.space.resources || []).filter((r) => r.id !== res.id);
+      if (!list.length) { flashHint('这个空间还没有别的页面'); return; }
+      openListPanel('链到页面', '卡片双击即可打开对应页面', list.map((r) => ({
+        label: r.title || '未命名', sub: r.type === 'canvas' ? '画布' : '页面',
+        onClick: () => { const d = $('#dlgList'); if (d) d.hidden = true; addCard({ type: 'page', ref: r.id, text: r.title || '', w: 240, h: 110 }, pt.x - 120, pt.y - 55); },
+      })));
+    };
+    dragFromTool(toolBtn('新建文本卡'), (pt) => addCard({}, pt.x - 120, pt.y - 40, true));
+    dragFromTool(toolBtn('新建便签'), (pt) => addCard({ color: 'yellow', w: 200, h: 200 }, pt.x - 100, pt.y - 100, true));
+    dragFromTool(toolBtn('用图片链接'), (pt) => { const url = (prompt('图片链接（站内 /files/... 或 https://...）') || '').trim(); if (url) addCard({ type: 'image', url, w: 300, h: 220 }, pt.x - 150, pt.y - 110); });
+    dragFromTool(toolBtn('放一张链到'), (pt) => askPageAt(pt));
+    dragFromTool(toolBtn('从本地上传图片'), (pt) => { const picker = document.createElement('input'); picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp,image/gif'; picker.multiple = true; picker.onchange = () => uploadImages(picker.files, { x: pt.x - 150, y: pt.y - 110 }); picker.click(); });
     tools.append(el('span', 'sep'));
-    tb('−', '缩小（Ctrl + 滚轮）', () => zoomCenter(1 / 1.25));
+    tb('−', '缩小（滚轮）', () => zoomCenter(1 / 1.25));
     const zoomBtn = tb('100%', '恢复 100%', () => zoomCenter(1 / view.z), 'zoom');
-    tb('＋', '放大（Ctrl + 滚轮）', () => zoomCenter(1.25));
+    tb('＋', '放大（滚轮）', () => zoomCenter(1.25));
     tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="lbl">适应</span>', '适应画布（Shift + 1）', () => fit());
 
     /* 指针：平移、移动、改大小、连线、框选、双指缩放 */
@@ -826,7 +898,7 @@ export function mountSpaces(ctx) {
       const rz = ev.target.closest('.cc-resize');
       const hit = ev.target.closest('.hit,.elabel');
       try { box.setPointerCapture(ev.pointerId); } catch (e) {}
-      if (ev.button === 1 || st.spaceDown || (ev.pointerType === 'touch' && !cardEl)) {
+      if (ev.button === 1 || ev.button === 2 || st.spaceDown || (ev.pointerType === 'touch' && !cardEl)) {
         ev.preventDefault();
         st.gesture = { type: 'pan', sx: ev.clientX, sy: ev.clientY, ox: view.x, oy: view.y };
         box.classList.add('panning');
@@ -842,8 +914,13 @@ export function mountSpaces(ctx) {
       if (hit) { st.sel.clear(); st.edgeSel = Number(hit.dataset.i); refresh({ keepEdges: true }); return; }
       if (cardEl) {
         const k = cardEl.dataset.key;
-        st.edgeSel = -1;
-        if (ev.shiftKey || ev.metaKey || ev.ctrlKey) {
+        clearEdgeSel();
+        if (ev.shiftKey && !ev.metaKey && !ev.ctrlKey) {
+          // 先不决定：拖出去就是连线，原地松开就是加选
+          st.gesture = { type: 'shiftcard', k, sx: ev.clientX, sy: ev.clientY };
+          return;
+        }
+        if (ev.metaKey || ev.ctrlKey) {
           if (st.sel.has(k)) { st.sel.delete(k); refresh(); return; }
           st.sel.add(k);
         } else if (!st.sel.has(k)) st.sel = new Set([k]);
@@ -851,8 +928,8 @@ export function mountSpaces(ctx) {
         st.gesture = { type: 'move', sx: ev.clientX, sy: ev.clientY, k, items: [...st.sel].map(byKey).filter(Boolean).map((e) => ({ e, ox: e.payload.x, oy: e.payload.y })), s: snap(), moved: false };
         return;
       }
-      if (!ev.shiftKey) { st.sel.clear(); st.edgeSel = -1; refresh(); }
-      st.gesture = { type: 'marquee', sx: ev.clientX, sy: ev.clientY, base: new Set(st.sel) };
+      if (!ev.shiftKey) { st.sel.clear(); clearEdgeSel(); refresh(); }
+      st.gesture = { type: 'marquee', sx: ev.clientX, sy: ev.clientY, base: new Set(st.sel), baseEdges: new Set(st.edgeSet) };
     });
     on(box, 'pointermove', (ev) => {
       if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -871,6 +948,12 @@ export function mountSpaces(ctx) {
       if (!g) return;
       const dx = ev.clientX - g.sx, dy = ev.clientY - g.sy;
       if (g.type === 'pan') { view.x = g.ox + dx; view.y = g.oy + dy; applyView(); return; }
+      if (g.type === 'shiftcard') {
+        if (Math.hypot(dx, dy) < 5) return;
+        st.gesture = { type: 'link', from: g.k, side: null };
+        bar.style.display = 'none';
+        return linkMove(st.gesture, ev);
+      }
       if (g.type === 'move') {
         if (!g.moved && Math.hypot(dx, dy) < 3) return;
         g.moved = true;
@@ -892,22 +975,7 @@ export function mountSpaces(ctx) {
         placeCard(g.e); drawEdges(); bar.style.display = 'none';
         return;
       }
-      if (g.type === 'link') {
-        const a = byKey(g.from);
-        if (!a) return;
-        const w = toWorld(ev.clientX, ev.clientY);
-        const over = document.elementFromPoint(ev.clientX, ev.clientY);
-        const tc = over && over.closest && over.closest('.canvas-card');
-        const target = tc && tc.dataset.key !== g.from ? byKey(tc.dataset.key) : null;
-        let geo;
-        if (target) geo = curve(sideAnchor(a.payload, g.side), sideAnchor(target.payload, pickSides(a.payload, target.payload)[1]));
-        else geo = curve(sideAnchor(a.payload, g.side), { x: w.x, y: w.y, nx: 0, ny: 0 });
-        const tmp = svg.querySelector('.tmp');
-        tmp.style.display = '';
-        tmp.setAttribute('d', geo.d);
-        for (const c of st.cards.values()) c.classList.toggle('drop', c === tc && c.dataset.key !== g.from);
-        return;
-      }
+      if (g.type === 'link') return linkMove(g, ev);
       if (g.type === 'marquee') {
         const r = rect();
         const x0 = Math.min(g.sx, ev.clientX) - r.left, y0 = Math.min(g.sy, ev.clientY) - r.top;
@@ -917,9 +985,34 @@ export function mountSpaces(ctx) {
         const b = { x: a.x + w / view.z, y: a.y + h / view.z };
         st.sel = new Set(g.base);
         for (const e of ents()) { const p = e.payload; if (p.x < b.x && p.x + p.w > a.x && p.y < b.y && p.y + p.h > a.y) st.sel.add(keyOf(e)); }
-        refresh();
+        st.edgeSel = -1;
+        st.edgeSet = new Set(g.baseEdges);
+        (st.edgeMids || []).forEach((m, i) => { if (m && m.x >= a.x && m.x <= b.x && m.y >= a.y && m.y <= b.y) st.edgeSet.add(i); });
+        refresh({ keepEdges: true });
       }
     });
+    /** 朝着指针方向选一条边（Shift 拖动连线时没有指定圆点） */
+    function sideToward(p, w) {
+      const dx = (w.x - (p.x + p.w / 2)) / p.w, dy = (w.y - (p.y + p.h / 2)) / p.h;
+      return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'r' : 'l') : (dy >= 0 ? 'b' : 't');
+    }
+    function linkMove(g, ev) {
+      const a = byKey(g.from);
+      if (!a) return;
+      const w = toWorld(ev.clientX, ev.clientY);
+      const over = document.elementFromPoint(ev.clientX, ev.clientY);
+      const tc = over && over.closest && over.closest('.canvas-card');
+      const target = tc && tc.dataset.key !== g.from ? byKey(tc.dataset.key) : null;
+      let geo;
+      if (target) {
+        const sides = pickSides(a.payload, target.payload);
+        geo = curve(sideAnchor(a.payload, g.side || sides[0]), sideAnchor(target.payload, sides[1]));
+      } else geo = curve(sideAnchor(a.payload, g.side || sideToward(a.payload, w)), { x: w.x, y: w.y, nx: 0, ny: 0 });
+      const tmp = svg.querySelector('.tmp');
+      tmp.style.display = '';
+      tmp.setAttribute('d', geo.d);
+      for (const c of st.cards.values()) c.classList.toggle('drop', c === tc && c.dataset.key !== g.from);
+    }
     const endPointer = (ev) => {
       pointers.delete(ev.pointerId);
       if (pinch) { if (pointers.size < 2) pinch = null; return; }
@@ -946,6 +1039,13 @@ export function mountSpaces(ctx) {
         }
       } else if (g.type === 'marquee') {
         marquee.style.display = 'none';
+        // 只框中一条连线：当作单选这条，浮出连线工具条
+        if (!st.sel.size && st.edgeSet.size === 1) { st.edgeSel = [...st.edgeSet][0]; st.edgeSet.clear(); }
+        refresh({ keepEdges: true });
+        return;
+      } else if (g.type === 'shiftcard') {
+        // Shift + 点击（没拖动）：加选 / 取消选中
+        if (st.sel.has(g.k)) st.sel.delete(g.k); else st.sel.add(g.k);
       }
       refresh();
     };
@@ -969,12 +1069,20 @@ export function mountSpaces(ctx) {
       const w = toWorld(ev.clientX, ev.clientY);
       addCard({}, w.x - 120, w.y - 30, true);
     });
+    on(box, 'contextmenu', (ev) => { if (!(st.editing && ev.target.closest('.canvas-card.editing'))) ev.preventDefault(); });
     on(box, 'wheel', (ev) => {
       if (isUi(ev.target)) return;
       if (st.editing && ev.target.closest('.canvas-card.editing') && !(ev.ctrlKey || ev.metaKey)) return;
       ev.preventDefault();
       const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+      // 捏合手势（浏览器会带上 ctrlKey）或 Ctrl + 滚轮：缩放
       if (ev.ctrlKey || ev.metaKey) { zoomAt(ev.clientX, ev.clientY, view.z * clamp(Math.exp(-ev.deltaY * unit * 0.0025), 0.8, 1.25)); return; }
+      // 区分鼠标滚轮和触控板：滚轮一格的位移大且没有横向分量；触控板是一串小位移
+      const now = performance.now();
+      const small = ev.deltaMode === 0 && (Math.abs(ev.deltaY) < 50 || ev.deltaX !== 0);
+      if (small) st.padAt = now;
+      const trackpad = small || (st.padAt && now - st.padAt < 300);
+      if (!trackpad && !ev.shiftKey) { zoomAt(ev.clientX, ev.clientY, view.z * clamp(Math.exp(-ev.deltaY * unit * 0.0015), 0.8, 1.25)); return; }
       let dx = ev.deltaX * unit, dy = ev.deltaY * unit;
       if (ev.shiftKey && !dx) { dx = dy; dy = 0; }
       view.x -= dx; view.y -= dy;
@@ -989,7 +1097,7 @@ export function mountSpaces(ctx) {
       if (k === 'Delete' || k === 'Backspace') { ev.preventDefault(); deleteSelected(); return; }
       if (mod && (k === 'z' || k === 'Z')) { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); return; }
       if (mod && (k === 'y' || k === 'Y')) { ev.preventDefault(); redo(); return; }
-      if (mod && (k === 'a' || k === 'A')) { ev.preventDefault(); st.sel = new Set(ents().map(keyOf)); st.edgeSel = -1; refresh(); return; }
+      if (mod && (k === 'a' || k === 'A')) { ev.preventDefault(); st.sel = new Set(ents().map(keyOf)); clearEdgeSel(); refresh(); return; }
       if (mod && (k === 'd' || k === 'D')) { ev.preventDefault(); duplicate(); return; }
       if (mod && (k === 'c' || k === 'C')) { if (st.sel.size) { ev.preventDefault(); copySel(false); } return; }
       if (mod && (k === 'x' || k === 'X')) { if (st.sel.size) { ev.preventDefault(); copySel(true); } return; }
@@ -997,7 +1105,7 @@ export function mountSpaces(ctx) {
       if (mod && k === '-') { ev.preventDefault(); zoomCenter(1 / 1.25); return; }
       if (mod && k === '0') { ev.preventDefault(); zoomCenter(1 / view.z); return; }
       if (ev.shiftKey && (k === '!' || k === '1')) { ev.preventDefault(); fit(); return; }
-      if (k === 'Escape') { st.sel.clear(); st.edgeSel = -1; refresh(); return; }
+      if (k === 'Escape') { st.sel.clear(); clearEdgeSel(); refresh(); return; }
       if (k === 'Enter' && st.sel.size === 1) { ev.preventDefault(); startEdit([...st.sel][0]); return; }
       const step = ev.shiftKey ? 10 : 1;
       if (k === 'ArrowLeft') { ev.preventDefault(); nudge(-step, 0); return; }
@@ -1005,31 +1113,62 @@ export function mountSpaces(ctx) {
       if (k === 'ArrowUp') { ev.preventDefault(); nudge(0, -step); return; }
       if (k === 'ArrowDown') { ev.preventDefault(); nudge(0, step); return; }
     });
-    on(box, 'keyup', (ev) => { if (ev.key === ' ') { st.spaceDown = false; box.classList.remove('space-pan'); } });
+    on(box, 'keyup', (ev) => { if (ev.key === ' ') { st.spaceDown = false; box.classList.remove('space-pan'); } if (ev.key === 'Shift') box.classList.remove('shift-link'); });
+    on(box, 'keydown', (ev) => { if (ev.key === 'Shift' && !st.editing) box.classList.add('shift-link'); });
+    on(box, 'blur', () => box.classList.remove('shift-link'));
     on(box, 'blur', () => { st.spaceDown = false; box.classList.remove('space-pan'); });
 
     // 粘贴：本画布复制的卡片 → 原样粘贴；外部文字 → 文本卡；图片链接 → 图片卡
     let lastPt = null;
     on(box, 'pointermove', (ev) => { lastPt = toWorld(ev.clientX, ev.clientY); });
-    on(box, 'paste', (ev) => {
+    function clipImages(cd) {
+      if (!cd) return [];
+      const ok = (f) => f && /^image\/(png|jpe?g|webp|gif)$/.test(f.type);
+      const fromFiles = [...(cd.files || [])].filter(ok);
+      if (fromFiles.length) return fromFiles;
+      // Chrome 粘贴截图时有时只放在 items 里
+      return [...(cd.items || [])].filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(ok);
+    }
+    function onPaste(ev) {
       if (st.editing) return;
-      const text = (ev.clipboardData && ev.clipboardData.getData('text/plain')) || '';
-      let clip = cvClip;
-      if (!clip) { try { clip = JSON.parse(localStorage.getItem('ai.canvasClip') || 'null'); } catch (e) {} }
+      const cd = ev.clipboardData;
       const c = viewCenter();
       const at = lastPt || { x: c.x, y: c.y };
-      if (clip && clip.cards && clip.cards.length && (!text || text === clip.plain)) {
+      const imgs = clipImages(cd);
+      if (imgs.length) {
+        ev.preventDefault();
+        flashHint('正在上传 ' + imgs.length + ' 张图片…');
+        uploadImages(imgs, { x: at.x - 150, y: at.y - 110 }).catch((e) => flashHint('上传失败：' + ((e && e.message) || e)));
+        return;
+      }
+      const text = (cd && cd.getData('text/plain')) || '';
+      let clip = cvClip;
+      if (!clip) { try { clip = JSON.parse(localStorage.getItem('ai.canvasClip') || 'null'); } catch (e) {} }
+      // 剪贴板内容和上次复制的卡片对得上才粘卡片；写系统剪贴板失败时（没有权限）退回：剪贴板为空就粘卡片
+      const isOurs = clip && clip.cards && clip.cards.length && (text === clip.plain || (!text && !clip.sys));
+      if (isOurs) {
         ev.preventDefault();
         pasteClip(clip, { x: at.x - 20, y: at.y - 20 });
         return;
       }
       const t = text.trim();
-      if (!t) return;
+      if (!t) { if (cd && [...(cd.items || [])].some((it) => it.kind === 'file')) flashHint('只支持粘贴 PNG、JPG、WebP、GIF 图片'); return; }
       ev.preventDefault();
       if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg)(\?\S*)?$/i.test(t) || /^\/files\/\S+\.(png|jpe?g|gif|webp)$/i.test(t)) { addCard({ type: 'image', url: t.slice(0, 500), w: 300, h: 220 }, at.x - 150, at.y - 110); return; }
       const long = t.length > 160;
       addCard({ text: t.slice(0, 4000), w: long ? 320 : 240, h: clamp(Math.ceil(t.length / (long ? 22 : 16)) * 22 + 30, 100, CV.MAXH) }, at.x - 120, at.y - 40);
+    }
+    on(box, 'paste', onPaste);
+    // 焦点不在画布上（比如刚点过页面别处）也能把东西粘到当前画布；输入框里的粘贴不拦
+    on(document, 'paste', (ev) => {
+      if (box.contains(ev.target)) return;
+      if (state.view !== 'spaces' || !box.isConnected || !box.offsetParent) return;
+      const t = ev.target;
+      if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"],.overlay:not([hidden])')) return;
+      onPaste(ev);
     });
+    // 画布容器不能自己滚动（聚焦卡片里的输入框时浏览器会自动滚动），否则坐标全部错位
+    on(box, 'scroll', () => { if (box.scrollTop || box.scrollLeft) { box.scrollTop = 0; box.scrollLeft = 0; } });
     st.cleanup = () => { ac.abort(); clearTimeout(viewTimer); };
     st.fit = fit;
     st.view = () => ({ ...view });

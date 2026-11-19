@@ -855,6 +855,9 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .canvas-card.c-blue{background:#d7e8fb}.canvas-card.c-pink{background:#fbdbe6}
 .canvas-card.c-purple{background:#e6dcfa}
 .canvas-card[class*=" c-"] textarea{color:#1c1b19}
+.canvas-board.shift-link .canvas-card:not(.editing){cursor:crosshair}
+.cv-ghost{position:fixed;z-index:9999;pointer-events:none;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;padding:10px 14px;min-width:96px;border-radius:8px;background:var(--panel);border:1px dashed var(--faint);box-shadow:var(--shadow);font-size:12px;color:var(--dim);opacity:.85}
+.cv-ghost.ok{border:1px solid var(--accent);color:var(--text);opacity:1}
 .cv-marquee{position:absolute;border:1px solid var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);pointer-events:none;display:none}
 .cv-tools{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);z-index:3;max-width:calc(100% - 24px);overflow-x:auto;scrollbar-width:none}
 .cv-tools button{height:32px;min-width:32px;padding:0 9px;border-radius:7px;font-size:13px;color:var(--text);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px}
