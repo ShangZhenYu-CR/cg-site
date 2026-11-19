@@ -1589,6 +1589,15 @@ export function mountSpaces(ctx) {
       const p = e.payload;
       const items = [];
       if (!multi && (u || (p.type === 'img-search' && (p.results || []).length))) items.push({ label: '看大图', sub: p.type === 'image' ? '双击' : '', onClick: () => previewCard(e) });
+      const asImage = p.type === 'text' && pastedLink(p.text, true);
+      if (!multi && (asImage || (p.type === 'image' && p.url))) {
+        items.push({ label: asImage ? '切换为图片' : '切换为文字', onClick: () => {
+          const before = snap();
+          if (asImage) Object.assign(p, asImage, { source: asImage.source || (asImage.url === p.url ? p.source : ''), type: 'image', pastedText: p.text, text: '' });
+          else Object.assign(p, { type: 'text', text: p.pastedText || p.url });
+          pushUndo(before); rebuild(); scheduleSave();
+        } });
+      }
       items.push({ label: multi ? '复制 ' + st.sel.size + ' 张卡片' : '复制卡片', sub: 'Ctrl+C', onClick: () => copySel(false) });
       if (u) {
         items.push({ label: '复制图像', sub: 'Ctrl+Shift+C', onClick: () => copyImageOut(u) });
@@ -2737,6 +2746,22 @@ export function mountSpaces(ctx) {
       // Chrome 粘贴截图时有时只放在 items 里
       return [...(cd.items || [])].filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(ok);
     }
+    function pastedLink(text, forceImage = false) {
+      const value = text.trim();
+      const markdown = /^\[[\s\S]*\]\(([\s\S]+)\)$/.exec(value);
+      const href = markdown ? markdown[1].replace(/\\([&()\\])/g, '$1').replace(/^<(.+)>$/, '$1') : value;
+      if (/^\/(?:files|oss)\/\S+$/.test(href)) return { url: href, source: '' };
+      if (!/^https?:\/\/\S+$/i.test(href) || !URL.canParse(href)) return null;
+      const link = new URL(href);
+      if (link.pathname === '/imgres') {
+        const original = link.searchParams.get('imgurl');
+        const source = link.searchParams.get('imgrefurl');
+        if (/^https?:\/\//i.test(original) && URL.canParse(original)) {
+          return { url: original, source: /^https?:\/\//i.test(source) && URL.canParse(source) ? source : '' };
+        }
+      }
+      return forceImage || /\.(png|jpe?g|gif|webp|svg)$/i.test(link.pathname) ? { url: href, source: '' } : null;
+    }
     function onPaste(ev) {
       if (st.editing) return;
       const cd = ev.clipboardData;
@@ -2762,9 +2787,10 @@ export function mountSpaces(ctx) {
       const t = text.trim();
       if (!t) { if (cd && [...(cd.items || [])].some((it) => it.kind === 'file')) flashHint('只支持粘贴 PNG、JPG、WebP、GIF 图片'); return; }
       ev.preventDefault();
-      if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg)(\?\S*)?$/i.test(t) || /^\/files\/\S+\.(png|jpe?g|gif|webp)$/i.test(t)) { addCard({ type: 'image', url: t.slice(0, 500), w: 300, h: 220 }, at.x - 150, at.y - 110); return; }
+      const image = pastedLink(t);
+      if (image) { addCard({ type: 'image', ...image, pastedText: text, w: 300, h: 220 }, at.x - 150, at.y - 110); return; }
       const long = t.length > 160;
-      addCard({ text: t.slice(0, 4000), w: long ? 320 : 240, h: clamp(Math.ceil(t.length / (long ? 22 : 16)) * 22 + 30, 100, CV.MAXH) }, at.x - 120, at.y - 40);
+      addCard({ ...(pastedLink(t, true) ? { text, pastedText: text } : { text: t.slice(0, 4000) }), w: long ? 320 : 240, h: clamp(Math.ceil(t.length / (long ? 22 : 16)) * 22 + 30, 100, CV.MAXH) }, at.x - 120, at.y - 40);
     }
     on(box, 'paste', onPaste);
     // 焦点不在画布上（比如刚点过页面别处）也能把东西粘到当前画布；输入框里的粘贴不拦
