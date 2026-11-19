@@ -5,6 +5,129 @@ export function mountSpaces(ctx) {
   // 公开 / 私人：后端返回 visibility 字段后才显示，旧后端不显示，避免把只有成员能看的空间标成公开
   function visOf(s) { return s && (s.visibility === 'private' || s.visibility === 'public') ? s.visibility : null; }
   function visLabel(v) { return v === 'private' ? '私人空间：只有成员能看' : v === 'public' ? '公开空间：所有人能看能编辑' : ''; }
+  /* ---------------- 站内对话框（替代浏览器 prompt / confirm） ----------------
+   * fields: { name, label, type: text | textarea | choice | select, options: [[值, 名称, 说明]], value, placeholder, maxLength, readOnly, copy }
+   * 确定 → 各字段的值；取消 / Esc / 点遮罩 → null */
+  const ROLE_OPTIONS = [['editor', '编辑', '能改页面和画布'], ['commenter', '评论', '只能看和评论'], ['viewer', '只读', '只能看']];
+  function ask(o) {
+    return new Promise((resolve) => {
+      const back = document.activeElement;
+      const ov = el('div', 'overlay sp-dlg');
+      ov.setAttribute('role', 'dialog');
+      ov.setAttribute('aria-modal', 'true');
+      const card = el('form', 'card');
+      card.noValidate = true;
+      const h = el('h2', null, o.title);
+      h.id = 'spDlgTitle' + Date.now();
+      ov.setAttribute('aria-labelledby', h.id);
+      card.append(h);
+      if (o.sub) card.append(el('p', null, o.sub));
+      const inputs = {};
+      for (const f of (o.fields || [])) {
+        const wrap = el('div', 'sd-field');
+        if (f.label) wrap.append(el('label', 'sd-label', f.label));
+        let inp;
+        if (f.type === 'choice') {
+          inp = el('div', 'sd-seg');
+          inp.setAttribute('role', 'radiogroup');
+          if (f.label) inp.setAttribute('aria-label', f.label);
+          let cur = f.value != null ? f.value : f.options[0][0];
+          const opts = [];
+          const pick = (v, b) => { cur = v; for (const x of opts) { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); x.tabIndex = on ? 0 : -1; } };
+          f.options.forEach(([v, t, sub]) => {
+            const b = el('button', 'sd-opt');
+            b.type = 'button';
+            b.setAttribute('role', 'radio');
+            b.dataset.value = v;
+            b.append(el('b', null, t));
+            if (sub) b.append(el('span', null, sub));
+            b.addEventListener('click', () => pick(v, b));
+            b.addEventListener('keydown', (e) => {
+              const i = opts.indexOf(b);
+              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); const n = opts[(i + 1) % opts.length]; n.click(); n.focus(); }
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); const n = opts[(i - 1 + opts.length) % opts.length]; n.click(); n.focus(); }
+            });
+            opts.push(b);
+            inp.append(b);
+          });
+          pick(cur, opts.find((b) => b.dataset.value === String(cur)) || opts[0]);
+          inp.getValue = () => cur;
+        } else if (f.type === 'select') {
+          inp = document.createElement('select');
+          for (const [v, t] of f.options) inp.add(new Option(t, v));
+          if (f.value != null) inp.value = f.value;
+        } else {
+          inp = document.createElement(f.type === 'textarea' ? 'textarea' : 'input');
+          if (f.type === 'textarea') inp.rows = f.rows || 4; else inp.type = 'text';
+          if (f.value != null) inp.value = f.value;
+          if (f.placeholder) inp.placeholder = f.placeholder;
+          if (f.maxLength) inp.maxLength = f.maxLength;
+          if (f.readOnly) inp.readOnly = true;
+        }
+        inp.classList.add('sd-input');
+        inp.dataset.name = f.name;
+        const id = 'sd' + Math.random().toString(36).slice(2, 8);
+        inp.id = id;
+        const lab = wrap.querySelector('label');
+        if (lab && f.type !== 'choice') lab.htmlFor = id;
+        inputs[f.name] = inp;
+        if (f.copy) {
+          const row = el('div', 'sd-copyrow');
+          const cp = el('button', 'ghost', '复制');
+          cp.type = 'button';
+          cp.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(inp.value); flashHint('已复制'); } catch (e) { inp.select(); flashHint('请按 Ctrl + C 复制'); }
+          });
+          row.append(inp, cp);
+          wrap.append(row);
+        } else wrap.append(inp);
+        card.append(wrap);
+      }
+      const err = el('div', 'sd-err');
+      err.hidden = true;
+      err.setAttribute('role', 'alert');
+      card.append(err);
+      if (o.extra) card.append(o.extra((v) => close(v)));
+      const row = el('div', 'btn-row');
+      const cancel = el('button', 'ghost', o.cancel || '取消');
+      cancel.type = 'button';
+      const ok = el('button', 'primary' + (o.danger ? ' danger' : ''), o.ok || '确定');
+      ok.type = 'submit';
+      if (o.cancel === false) cancel.hidden = true;
+      row.append(cancel, ok);
+      card.append(row);
+      ov.append(card);
+      document.body.append(ov);
+      const values = () => { const v = {}; for (const [k, i] of Object.entries(inputs)) v[k] = i.getValue ? i.getValue() : String(i.value || '').trim(); return v; };
+      let closed = false;
+      function close(result) {
+        if (closed) return;
+        closed = true;
+        ov.remove();
+        document.removeEventListener('keydown', onKey, true);
+        try { if (back && back.focus) back.focus({ preventScroll: true }); } catch (e) {}
+        resolve(result);
+      }
+      const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(null); } };
+      document.addEventListener('keydown', onKey, true);
+      cancel.addEventListener('click', () => close(null));
+      ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(null); });
+      card.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const v = values();
+        const m = o.validate ? o.validate(v) : '';
+        if (m) { err.textContent = m; err.hidden = false; return; }
+        close(v);
+      });
+      // 多行输入框里 Ctrl + Enter 提交
+      card.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.tagName === 'TEXTAREA') { e.preventDefault(); card.requestSubmit(); } });
+      const first = card.querySelector('input.sd-input:not([readonly]), textarea.sd-input, select.sd-input, .sd-opt.on') || ok;
+      const focusFirst = () => { if (closed || document.activeElement === first) return; first.focus(); if (first.tagName === 'INPUT' || first.tagName === 'TEXTAREA') first.select(); };
+      focusFirst();
+      setTimeout(focusFirst, 0);
+    });
+  }
+  const askConfirm = (title, sub, okText, danger) => ask({ title, sub, ok: okText || '确定', danger }).then((v) => !!v);
   async function loadSpaces(force) {
     if (S.spaces && !force) return S.spaces;
     const r = await api('/spaces');
@@ -226,6 +349,21 @@ export function mountSpaces(ctx) {
   const SVGNS = 'http://www.w3.org/2000/svg';
   let cv = null;
   let cvClip = null;
+  let providersP = null;
+  let providersCache = null;
+  function loadProviders() {
+    if (!providersP) {
+      providersP = api('/ai/providers').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => {
+        const fb = [{ id: 'openai', name: 'OpenAI', available: true }];
+        providersCache = j && (Array.isArray(j.image) || Array.isArray(j.text))
+          ? { image: Array.isArray(j.image) && j.image.length ? j.image : fb, text: Array.isArray(j.text) && j.text.length ? j.text : fb }
+          : { image: fb, text: fb, fallback: true };
+        return providersCache;
+      });
+    }
+    return providersP;
+  }
+  const providerName = (kind, id) => { const list = (providersCache && providersCache[kind]) || []; const f = list.find((x) => x.id === id); return f ? f.name : (id === 'openai' || !id ? 'OpenAI' : id); };
   const cvAlias = new Map();
   const cvViews = new Map();
   const cvHist = new Map();
@@ -237,7 +375,7 @@ export function mountSpaces(ctx) {
   }
   function normPayload(e) {
     const p = e.payload = { ...(e.payload || {}) };
-    p.type = ['text', 'image', 'file', 'page'].includes(p.type) ? p.type : 'text';
+    p.type = ['text', 'image', 'file', 'page', 'ai-image', 'ai-text'].includes(p.type) ? p.type : 'text';
     p.w = clamp(Math.round(Number(p.w) || 240), CV.MINW, CV.MAXW);
     p.h = clamp(Math.round(Number(p.h) || 160), CV.MINH, CV.MAXH);
     p.x = clamp(Math.round(Number(p.x) || 0), 0, CV.WORLD);
@@ -264,7 +402,7 @@ export function mountSpaces(ctx) {
     for (const e of ents()) normPayload(e);
     if (!cvHist.has(res.id)) cvHist.set(res.id, { undo: [], redo: [] });
     const hist = cvHist.get(res.id);
-    const st = cv = { res, sel: new Set(), edgeSel: -1, edgeSet: new Set(), editing: null, cards: new Map(), spaceDown: false, gesture: null };
+    const st = cv = { res, sel: new Set(), edgeSel: -1, edgeSet: new Set(), running: new Set(), errors: new Map(), rel: null, editing: null, cards: new Map(), spaceDown: false, gesture: null };
     let view = cvViews.get(res.id) || (() => { try { const v = JSON.parse(readLS('ai.canvasView.' + res.id) || 'null'); return v && isFinite(v.x) && isFinite(v.y) && isFinite(v.z) ? v : null; } catch (e) { return null; } })();
     const needFit = !view;
     if (!view) view = { x: 40, y: 40, z: 1 };
@@ -284,14 +422,17 @@ export function mountSpaces(ctx) {
     const tools = el('div', 'cv-tools');
     const empty = el('div', 'cv-empty');
     empty.innerHTML = '双击空白处新建卡片<br>或用下方工具条添加';
-    const help = el('button', 'cv-help', '?');
+    const help = el('button', 'cv-help', '? 操作说明');
     help.type = 'button';
-    help.title = '画布快捷键';
+    help.title = '画布操作说明';
     const helpBox = el('div', 'cv-helpbox');
     helpBox.hidden = true;
-    helpBox.innerHTML = '<b>缩放</b>：鼠标滚轮 / 触控板双指捏合<br><b>移动画布</b>：按住右键、中键或空格拖动；触控板两指滑动；Shift + 滚轮横向移动<br><b>新建卡片</b>：双击空白处<br><b>编辑文字</b>：双击卡片，Esc 结束<br><b>多选</b>：Shift / Ctrl + 点击，或在空白处拖框<br><b>连线</b>：按住 Shift 从一张卡拖到另一张卡（或拖卡片边上的圆点）<br><b>选中连线</b>：点击，或拖框框住<br><b>放卡片</b>：把底部的文本、便签等直接拖到画布上<br><b>删除</b>：Delete / Backspace<br><b>撤销 / 重做</b>：Ctrl + Z / Ctrl + Shift + Z<br><b>复制粘贴</b>：Ctrl + C / X / V（截图、图片、文字、图片链接都能直接粘贴）<br><b>原地复制</b>：Ctrl + D　<b>全选</b>：Ctrl + A<br><b>连线文字</b>：双击连线<br><b>不吸附对齐</b>：拖动时按住 Alt<br><b>微调</b>：方向键（Shift 加大步长）<br><b>适应画布</b>：Shift + 1';
+    helpBox.innerHTML = '<div class="hb-head"><b>画布操作说明</b><button type="button" class="hb-x" aria-label="关闭">×</button></div><div class="hb-sec">看画布</div><div class="hb-row"><span>缩放</span><em>鼠标滚轮；触控板双指捏合；Ctrl + 滚轮</em></div><div class="hb-row"><span>移动画布</span><em>按住右键 / 中键 / 空格拖动；触控板两指滑动；Shift + 滚轮横向</em></div><div class="hb-row"><span>看全部</span><em>底部「适应」，或 Shift + 1；点百分比回到 100%</em></div><div class="hb-sec">卡片</div><div class="hb-row"><span>新建</span><em>双击空白处；或把底部的文本、便签、图片、页面拖到画布上（点一下放在画面中央）</em></div><div class="hb-row"><span>编辑文字</span><em>双击卡片，或选中后按 Enter；Esc 结束</em></div><div class="hb-row"><span>移动 / 改大小</span><em>拖动卡片；拖右下角；方向键微调（Shift 步长 10）</em></div><div class="hb-row"><span>对齐</span><em>拖动时靠近其他卡片会出现红色辅助线并吸附；按住 Alt 不吸附</em></div><div class="hb-row"><span>样式</span><em>选中后在浮出的工具条里改颜色、形状、字号、对齐、层级，或用 AI 修改文字</em></div><div class="hb-sec">选择</div><div class="hb-row"><span>多选</span><em>Shift / Ctrl + 点击；在空白处拖框（连线也能框中）；Ctrl + A 全选</em></div><div class="hb-row"><span>删除</span><em>Delete / Backspace</em></div><div class="hb-sec">连线</div><div class="hb-row"><span>连线</span><em>按住 Shift，从一张卡拖到另一张卡；或拖卡片边上的小圆点</em></div><div class="hb-row"><span>文字 / 样式</span><em>双击连线写文字；单击连线可改虚线、箭头、方向或删除</em></div><div class="hb-sec">AI 节点</div><div class="hb-row"><span>新建</span><em>底部「AI」选生图 / 生文 / 改图 / 改文；或选中图片、文字卡后点工具条「AI」</em></div><div class="hb-row"><span>输入</span><em>连进节点的卡片就是素材（文字、图片、上游节点的结果）</em></div><div class="hb-row"><span>生成</span><em>点「生成」或 Ctrl + Enter；下方可展开 AI 实际使用的提示词</em></div><div class="hb-row"><span>结果</span><em>「存为新卡片」；改文可「替换原卡片」；选中卡片会高亮它的上游和下游</em></div><div class="hb-sec">复制与粘贴</div><div class="hb-row"><span>复制</span><em>Ctrl + C / X / V（连同卡片之间的连线，可跨画布）；Ctrl + D 原地复制</em></div><div class="hb-row"><span>粘贴外部内容</span><em>截图或图片直接 Ctrl + V 上传；文字变文本卡；图片链接变图片卡；也可以把图片文件拖进来</em></div><div class="hb-row"><span>撤销 / 重做</span><em>Ctrl + Z / Ctrl + Shift + Z</em></div>';
     box.append(world, marquee, bar, tools, empty, help, helpBox);
     on(help, 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = !helpBox.hidden; });
+    on(helpBox.querySelector('.hb-x'), 'click', (ev) => { ev.stopPropagation(); helpBox.hidden = true; });
+    // 第一次打开画布时自动弹出一次说明
+    if (readLS('ai.canvasHelpSeen') !== '1') { helpBox.hidden = false; writeLS('ai.canvasHelpSeen', '1'); }
 
     /* 视图 */
     let viewTimer = null;
@@ -363,6 +504,8 @@ export function mountSpaces(ctx) {
         const img = document.createElement('img');
         img.src = p.url.startsWith('/files/') || p.url.startsWith('/oss/') ? base() + p.url : p.url; img.alt = p.text || '图片'; img.draggable = false; img.loading = 'lazy';
         card.append(img);
+      } else if (p.type === 'ai-image' || p.type === 'ai-text') {
+        buildAiNode(e, card);
       } else if (p.type === 'page') {
         const pg = el('div', 'cc-page');
         const r = pageOf(p);
@@ -396,6 +539,275 @@ export function mountSpaces(ctx) {
       world.append(card);
       return card;
     }
+    /* ---------------- AI 节点 ---------------- */
+    const AI_ICON = {
+      image: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg>',
+      text: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 11h16M4 16h10"/></svg>',
+      spark: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="m12 8 1.5 2.5L16 12l-2.5 1.5L12 16l-1.5-2.5L8 12l2.5-1.5z"/></svg>',
+    };
+    const AI_CHIPS = {
+      'ai-text': ['润色这段文字', '总结成三条要点', '翻译成英文', '扩写成一段完整的介绍', '提取关键词', '描述这张图片'],
+      'ai-image': ['换个画风', '换个背景', '增加细节，画质更高', '改成夜景'],
+    };
+    const SIZES = [['1024x1024', '方形'], ['1536x1024', '横版'], ['1024x1536', '竖版']];
+    /** 连进这个节点的卡片就是输入：文字卡、便签、图片卡、上游节点的结果 */
+    function nodeInputs(e) {
+      const k = keyOf(e);
+      const out = [];
+      for (const ed of edges()) {
+        if (resolveKey(ed.to) !== k) continue;
+        const src = byKey(ed.from);
+        if (!src) continue;
+        const sp = src.payload, from = keyOf(src);
+        if ((sp.type === 'image' || sp.type === 'ai-image') && sp.url) out.push({ type: 'image', url: sp.url, from });
+        else if (sp.type === 'ai-text' && (sp.output || '').trim()) out.push({ type: 'text', text: sp.output, from });
+        else if ((sp.type === 'text' || sp.type === 'file') && (sp.text || '').trim()) out.push({ type: 'text', text: sp.text, from });
+        else if (sp.type === 'page') { const r = pageOf(sp); if (r) out.push({ type: 'text', text: '（空间里的页面：' + (r.title || '未命名') + '）', from }); }
+      }
+      return out;
+    }
+    function aiTitle(p, ins) {
+      if (p.type === 'ai-image') return p.mode === 'edit' || ins.some((i) => i.type === 'image') ? '改图' : '生图';
+      return p.mode === 'edit' ? '改文' : '生文';
+    }
+    function buildAiNode(e, card) {
+      const p = e.payload;
+      const kind = p.type === 'ai-image' ? 'image' : 'text';
+      const wrap = el('div', 'an-wrap');
+      const head = el('div', 'an-head');
+      const ic = el('span', 'an-ic'); ic.innerHTML = AI_ICON[kind];
+      const title = el('span', 'an-title');
+      const prov = el('button', 'an-chip an-ui an-prov'); prov.type = 'button'; prov.title = '选择 AI 服务';
+      head.append(ic, title, el('span', 'an-gap'), prov);
+      if (kind === 'image') { const sz = el('button', 'an-chip an-ui an-size'); sz.type = 'button'; sz.title = '图片尺寸'; head.append(sz); }
+      const run = el('button', 'an-run an-ui'); run.type = 'button';
+      head.append(run);
+      const ta = document.createElement('textarea');
+      ta.className = 'an-ins';
+      ta.value = p.text || '';
+      ta.readOnly = true;
+      ta.dataset.eid = e.id || '';
+      ta.placeholder = kind === 'image' ? '双击写需求，比如：一只在雨里打伞的柴犬，水彩风' : '双击写要求，比如：把连进来的要点整理成一段介绍';
+      on(ta, 'input', () => { e.payload = { ...e.payload, text: ta.value }; scheduleSave(); });
+      on(ta, 'blur', () => stopEdit());
+      on(ta, 'keydown', (ev) => {
+        if (ev.key === 'Escape') { ev.preventDefault(); ta.blur(); box.focus({ preventScroll: true }); }
+        else if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); ta.blur(); runNode(keyOf(e)); }
+        ev.stopPropagation();
+      });
+      const chips = el('div', 'an-chips an-ui');
+      for (const c of AI_CHIPS[p.type]) {
+        const b = el('button', 'an-pre', c.replace(/(这段文字|成三条要点|成一段完整的介绍|这张图片|，画质更高)$/, ''));
+        b.type = 'button'; b.title = c;
+        b.addEventListener('click', () => { const cur = byKey(card.dataset.key); if (!cur) return; const s0 = snap(); cur.payload = { ...cur.payload, text: c }; ta.value = c; pushUndo(s0); scheduleSave(); });
+        chips.append(b);
+      }
+      const ins = el('div', 'an-inputs');
+      const out = el('div', 'an-out');
+      const det = document.createElement('details');
+      det.className = 'an-prompt an-ui';
+      const sum = document.createElement('summary'); sum.textContent = 'AI 实际使用的提示词';
+      const pre = el('div', 'an-ptext an-scroll');
+      const cp = el('button', 'an-mini', '复制'); cp.type = 'button';
+      cp.addEventListener('click', async () => { const cur = byKey(card.dataset.key); try { await navigator.clipboard.writeText((cur && cur.payload.usedPrompt) || ''); flashHint('已复制提示词'); } catch (er) { flashHint('复制失败'); } });
+      det.append(sum, pre, cp);
+      const acts = el('div', 'an-acts an-ui');
+      wrap.append(head, ta, chips, ins, out, det, acts);
+      card.append(wrap);
+      prov.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const pv = await loadProviders();
+        const cur = byKey(card.dataset.key); if (!cur) return;
+        const list = pv[kind] || [];
+        const now = cur.payload.provider || (list.find((x) => x.default) || list[0] || {}).id || 'openai';
+        popMenu(prov, list.map((x) => ({
+          label: x.name, sub: x.available === false ? '即将接入' : (Array.isArray(x.models) && x.models.length ? x.models.slice(0, 2).join(' / ') : ''), on: x.id === now,
+          onClick: () => { if (x.available === false) { flashHint(x.name + ' 还没接入，先用其他服务'); return; } const s0 = snap(); cur.payload = { ...cur.payload, provider: x.id, model: '' }; pushUndo(s0); renderAiNode(cur); scheduleSave(); },
+        })).concat(pv.fallback ? [{ note: '后端还没有服务列表接口，暂时只显示 OpenAI' }] : []));
+      });
+      const szBtn = head.querySelector('.an-size');
+      if (szBtn) szBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const cur = byKey(card.dataset.key); if (!cur) return;
+        const now = cur.payload.size || '1024x1024';
+        popMenu(szBtn, SIZES.map(([v, t]) => ({ label: t, sub: v.replace('x', ' × '), on: v === now, onClick: () => { const s0 = snap(); cur.payload = { ...cur.payload, size: v }; pushUndo(s0); renderAiNode(cur); scheduleSave(); } })));
+      });
+      run.addEventListener('click', (ev) => { ev.stopPropagation(); runNode(card.dataset.key); });
+      loadProviders().then(() => { const cur = byKey(card.dataset.key); if (cur) renderAiNode(cur); });
+      renderAiNode(e);
+    }
+    function renderAiNode(e) {
+      const card = st.cards.get(keyOf(e));
+      if (!card || !card.querySelector('.an-wrap')) return;
+      const p = e.payload, k = keyOf(e);
+      const kind = p.type === 'ai-image' ? 'image' : 'text';
+      const ins = nodeInputs(e);
+      const running = st.running.has(k), err = st.errors.get(k);
+      card.querySelector('.an-title').textContent = aiTitle(p, ins);
+      card.querySelector('.an-prov').textContent = providerName(kind, p.provider) + ' ▾';
+      const sz = card.querySelector('.an-size');
+      if (sz) sz.textContent = ((SIZES.find((x) => x[0] === (p.size || '1024x1024')) || SIZES[0])[1]) + ' ▾';
+      const run = card.querySelector('.an-run');
+      run.disabled = running;
+      run.textContent = running ? '生成中…' : (p.url || p.output ? '重新生成' : '生成');
+      run.title = 'Ctrl + Enter 也能生成';
+      const ta = card.querySelector('.an-ins');
+      if (document.activeElement !== ta && ta.value !== (p.text || '')) ta.value = p.text || '';
+      const insBox = card.querySelector('.an-inputs');
+      const insSig = JSON.stringify([p.mode, ins.map((i) => i.type === 'image' ? i.url : i.text.length)]);
+      const outSig = JSON.stringify([running, err || '', p.url || '', (p.output || '').length, p.output ? p.output.slice(0, 40) : '']);
+      const insSame = card._insSig === insSig, outSame = card._outSig === outSig;
+      card._insSig = insSig; card._outSig = outSig;
+      if (!insSame) insBox.textContent = '';
+      if (insSame) { /* 输入没变 */ }
+      else if (!ins.length) {
+        insBox.append(el('span', 'an-hint', p.mode === 'edit' ? (kind === 'image' ? '把要改的图片连到这里（Shift + 拖动）' : '把要改的文字卡连到这里（Shift + 拖动）') : '可选：把文字卡或图片连到这里作为素材'));
+      } else {
+        const nt = ins.filter((i) => i.type === 'text').length, ni = ins.filter((i) => i.type === 'image').length;
+        insBox.append(el('span', 'an-hint', '输入：' + [nt ? nt + ' 段文字' : '', ni ? ni + ' 张图片' : ''].filter(Boolean).join('，')));
+        for (const i of ins.filter((x) => x.type === 'image').slice(0, 4)) {
+          const im = document.createElement('img');
+          im.src = /^\/(files|oss)\//.test(i.url) ? base() + i.url : i.url; im.alt = ''; im.draggable = false;
+          insBox.append(im);
+        }
+      }
+      const out = card.querySelector('.an-out');
+      if (!outSame) out.textContent = '';
+      out.className = 'an-out' + (kind === 'text' ? ' an-scroll an-ui' : '');
+      if (outSame) { /* 结果没变 */ }
+      else if (running) out.append(el('div', 'an-status', kind === 'image' ? 'AI 正在写提示词并画图…' : 'AI 正在写…'));
+      else if (err) { const d = el('div', 'an-err', err); d.setAttribute('role', 'alert'); out.append(d); }
+      else if (kind === 'image' && p.url) {
+        const im = document.createElement('img');
+        im.src = /^\/(files|oss)\//.test(p.url) ? base() + p.url : p.url; im.alt = p.usedPrompt || '生成的图片'; im.draggable = false;
+        out.append(im);
+      } else if (kind === 'text' && p.output) out.append(el('div', 'an-otext', p.output));
+      else out.append(el('div', 'an-empty', kind === 'image' ? '生成的图片会显示在这里' : '生成的文字会显示在这里'));
+      const det = card.querySelector('.an-prompt');
+      det.hidden = !p.usedPrompt;
+      det.querySelector('.an-ptext').textContent = p.usedPrompt || '';
+      const acts = card.querySelector('.an-acts');
+      acts.textContent = '';
+      const has = kind === 'image' ? !!p.url : !!p.output;
+      if (has && !running) {
+        const keep = el('button', 'an-mini', '存为新卡片'); keep.type = 'button';
+        keep.addEventListener('click', () => saveNodeResult(k));
+        acts.append(keep);
+        const src = kind === 'text' && p.mode === 'edit' ? ins.find((i) => i.type === 'text') : null;
+        if (src) {
+          const rp = el('button', 'an-mini', '替换原卡片'); rp.type = 'button';
+          rp.addEventListener('click', () => replaceSource(k, src.from));
+          acts.append(rp);
+        }
+        if (p.ranAt) acts.append(el('span', 'an-meta', providerName(kind, p.provider) + (p.model ? ' · ' + p.model : '')));
+      }
+    }
+    /** 运行节点：把需求和连进来的输入交给后端，结果和实际提示词写回节点 */
+    async function runNode(k0) {
+      const e = byKey(k0);
+      if (!e) return;
+      const k = keyOf(e), p = e.payload;
+      if (st.running.has(k)) return;
+      const kind = p.type === 'ai-image' ? 'image' : 'text';
+      const instruction = (p.text || '').trim();
+      const ins = nodeInputs(e);
+      if (!instruction && !ins.length) { flashHint('先写需求（双击节点），或者把卡片连进来'); startEdit(k); return; }
+      if (p.mode === 'edit' && kind === 'image' && !ins.some((i) => i.type === 'image')) { flashHint('改图要先把一张图片连到这个节点'); return; }
+      if (p.mode === 'edit' && kind === 'text' && !ins.some((i) => i.type === 'text')) { flashHint('改文要先把一张文字卡连到这个节点'); return; }
+      st.running.add(k); st.errors.delete(k);
+      renderAiNode(e);
+      const sid = S.space.id, rid = res.id;
+      let j = {}, err = '';
+      try {
+        const r = await api('/spaces/' + encodeURIComponent(sid) + '/resources/' + encodeURIComponent(rid) + '/generate', {
+          method: 'POST', timeout: 240000,
+          body: { nodeId: e.id || undefined, kind, mode: p.mode || 'gen', instruction, inputs: ins.map((i) => (i.type === 'text' ? { type: 'text', text: String(i.text).slice(0, 8000) } : { type: 'image', url: i.url })), provider: p.provider || 'openai', model: p.model || undefined, size: kind === 'image' ? (p.size || '1024x1024') : undefined },
+        });
+        j = await r.json().catch(() => ({}));
+        if (r.status === 404 || r.status === 405) err = '后端还没有画布生成接口，等后端上线后就能用';
+        else if (!r.ok) err = j.error || ('生成失败（HTTP ' + r.status + '）');
+        else if (kind === 'image' && !j.url) err = '没有拿到图片，可以换个说法再试';
+      } catch (ex) { err = '生成失败：' + String((ex && ex.message) || ex); }
+      const kk = resolveKey(k);
+      st.running.delete(kk); st.running.delete(k);
+      if (cv !== st) return;
+      const cur = byKey(kk);
+      if (!cur) return;
+      if (err) { st.errors.set(kk, err); renderAiNode(cur); return; }
+      const s0 = snap();
+      const np = { ...cur.payload, usedPrompt: String(j.usedPrompt || '').slice(0, 8000), provider: j.provider || cur.payload.provider || 'openai', model: String(j.model || '').slice(0, 80), ranAt: Date.now() };
+      if (kind === 'image') np.url = String(j.url); else np.output = String(j.text || '').slice(0, 20000);
+      cur.payload = np;
+      pushUndo(s0);
+      renderAiNode(cur);
+      for (const ed of edges()) if (resolveKey(ed.from) === kk) { const d = byKey(ed.to); if (d && d.payload.type && d.payload.type.startsWith('ai-')) renderAiNode(d); }
+      scheduleSave();
+    }
+    function saveNodeResult(k) {
+      const e = byKey(k);
+      if (!e) return;
+      const p = e.payload;
+      const x = p.x + p.w + 80, y = p.y;
+      const n = p.type === 'ai-image'
+        ? addCard({ type: 'image', url: p.url, text: (p.usedPrompt || '').slice(0, 200), w: 300, h: 220 }, x, y)
+        : addCard({ text: (p.output || '').slice(0, 4000), w: 280, h: clamp(Math.ceil((p.output || '').length / 18) * 22 + 40, 100, CV.MAXH) }, x, y);
+      edges().push({ from: k, to: keyOf(n) });
+      refresh(); scheduleSave();
+    }
+    function replaceSource(k, srcKey) {
+      const e = byKey(k), src = byKey(srcKey);
+      if (!e || !src || !e.payload.output) return;
+      const s0 = snap();
+      src.payload = { ...src.payload, text: e.payload.output.slice(0, 4000) };
+      const ta = st.cards.get(keyOf(src)) && st.cards.get(keyOf(src)).querySelector('textarea');
+      if (ta) ta.value = src.payload.text;
+      pushUndo(s0); refresh(); scheduleSave();
+      flashHint('已替换原卡片的文字，可以 Ctrl + Z 撤销');
+    }
+    /** 找一个不压住已有卡片的位置：从卡片右边发起时先往下找，否则先往右找 */
+    function freeSpot(x, y, w, h, down) {
+      const hit = (ax, ay) => ents().some((e) => { const q = e.payload; return ax < q.x + q.w + 24 && ax + w + 24 > q.x && ay < q.y + q.h + 24 && ay + h + 24 > q.y; });
+      for (let i = 0; i < 40; i++) {
+        const nx = down ? x + Math.floor(i / 8) * (w + 40) : x + (i % 8) * 40 + Math.floor(i / 8) * (w + 40);
+        const ny = down ? y + (i % 8) * 60 : y + Math.floor(i / 8) * 0;
+        if (!hit(nx, ny)) return { x: clamp(nx, 0, CV.WORLD), y: clamp(ny, 0, CV.WORLD) };
+      }
+      return { x, y };
+    }
+    /** 新建 AI 节点；from 是发起的卡片（改图 / 改文 / 用它生成），会自动连线 */
+    function createAiNode(type, mode, at, fromKey, text) {
+      const w = 320, h = type === 'ai-image' ? 470 : 420;
+      let x = at ? at.x - w / 2 : 0, y = at ? at.y - 60 : 0;
+      const src = fromKey ? byKey(fromKey) : null;
+      if (src) { x = src.payload.x + src.payload.w + 80; y = src.payload.y; }
+      else if (!at) { const c = viewCenter(); x = c.x - w / 2; y = c.y - h / 2; }
+      ({ x, y } = freeSpot(x, y, w, h, !!src));
+      const n = addCard({ type, mode, text: text || '', w, h, provider: 'openai', color: '' }, x, y);
+      if (src) { edges().push({ from: keyOf(src), to: keyOf(n) }); refresh(); scheduleSave(); }
+      setTimeout(() => startEdit(keyOf(n)), 0);
+      return n;
+    }
+    function aiMenuForSelection(anchor) {
+      const items = [...st.sel].map(byKey).filter(Boolean);
+      const one = items.length === 1 ? items[0] : null;
+      const t = one && one.payload.type;
+      const list = [];
+      if (t === 'image' || t === 'ai-image') {
+        list.push({ html: AI_ICON.image, label: '改图', sub: '以这张图为参考', onClick: () => createAiNode('ai-image', 'edit', null, keyOf(one)) });
+        list.push({ html: AI_ICON.text, label: '看图写文字', sub: '描述、提取内容', onClick: () => createAiNode('ai-text', 'gen', null, keyOf(one), '描述这张图片') });
+      }
+      if (t === 'text' || t === 'ai-text') {
+        list.push({ html: AI_ICON.text, label: '改文', sub: '新节点，保留原文', onClick: () => createAiNode('ai-text', 'edit', null, keyOf(one)) });
+        if (t === 'text' && one.id) list.push({ label: '就地修改', sub: '直接改这张卡', onClick: () => aiEditCard(one) });
+        list.push({ html: AI_ICON.image, label: '用它生图', sub: '这段文字当描述', onClick: () => createAiNode('ai-image', 'gen', null, keyOf(one)) });
+        list.push({ html: AI_ICON.text, label: '用它写文', sub: '当素材写新内容', onClick: () => createAiNode('ai-text', 'gen', null, keyOf(one)) });
+      }
+      if (t === 'ai-image' || t === 'ai-text') {
+        list.unshift({ html: AI_ICON.spark, label: one.payload.url || one.payload.output ? '重新生成' : '生成', onClick: () => runNode(keyOf(one)) });
+      }
+      if (!list.length) return;
+      popMenu(anchor, list);
+    }
     function placeCard(e) {
       const card = st.cards.get(keyOf(e));
       if (!card) return;
@@ -420,19 +832,34 @@ export function mountSpaces(ctx) {
       for (const grp of svg.querySelectorAll('.eg .edge')) {
         const on = edgeOn(Number(grp.dataset.i));
         grp.classList.toggle('on', on);
+        grp.classList.toggle('rel', !!(st.rel && st.rel.es.has(Number(grp.dataset.i))));
         const ln = grp.querySelector('.ed');
         if (ln) ln.setAttribute('marker-end', edges()[Number(grp.dataset.i)].arrow === false ? 'none' : on ? 'url(#cvArrowOn)' : 'url(#cvArrow)');
       }
       st.edgeMid = st.edgeSel >= 0 ? (st.edgeMids || [])[st.edgeSel] || null : null;
     }
+    /** 选中一张卡时：连进来的是上游，连出去的是下游 */
+    function relInfo() {
+      const focus = st.sel.size === 1 ? resolveKey([...st.sel][0]) : null;
+      const up = new Set(), down = new Set(), es = new Set();
+      if (focus) edges().forEach((ed, i) => {
+        const f = resolveKey(ed.from), t = resolveKey(ed.to);
+        if (t === focus) { up.add(f); es.add(i); }
+        if (f === focus) { down.add(t); es.add(i); }
+      });
+      return { focus, up, down, es };
+    }
     function refresh(opts) {
       const solo = st.sel.size === 1;
+      st.rel = relInfo();
+      box.classList.toggle('focus-mode', !!(st.rel.focus && st.rel.es.size));
       for (const e of ents()) {
         const k = keyOf(e);
         const c = st.cards.get(k);
         if (!c) continue;
         const p = e.payload;
-        c.className = 'canvas-card' + (p.color && p.type !== 'image' ? ' c-' + p.color : '') + (st.sel.has(k) ? ' sel' : '') + (st.sel.has(k) && solo ? ' solo' : '') + (st.editing === k ? ' editing' : '');
+        c.className = 'canvas-card' + (p.type === 'ai-image' || p.type === 'ai-text' ? ' ai-node' : '') + (p.color && p.type !== 'image' ? ' c-' + p.color : '') + (st.sel.has(k) ? ' sel' : '') + (st.sel.has(k) && solo ? ' solo' : '') + (st.editing === k ? ' editing' : '') + (st.rel.up.has(k) ? ' rel-up' : '') + (st.rel.down.has(k) ? ' rel-down' : '');
+        if (p.type === 'ai-image' || p.type === 'ai-text') renderAiNode(e);
       }
       if (solo) { const e = byKey([...st.sel][0]); S.activeEntity = e && e.id; }
       empty.hidden = ents().length > 0;
@@ -478,7 +905,7 @@ export function mountSpaces(ctx) {
         st.edgeMids[i] = mid;
         if (on) st.edgeMid = mid;
         const grp = document.createElementNS(SVGNS, 'g');
-        grp.setAttribute('class', 'edge' + (on ? ' on' : ''));
+        grp.setAttribute('class', 'edge' + (on ? ' on' : '') + (st.rel && st.rel.es.has(i) ? ' rel' : ''));
         grp.dataset.i = String(i);
         const line = document.createElementNS(SVGNS, 'path');
         line.setAttribute('d', d);
@@ -537,17 +964,76 @@ export function mountSpaces(ctx) {
         gg.append(ln);
       }
     }
+    /** 连线文字：在连线中间就地编辑，Enter 保存，Esc 取消，点别处也保存 */
     function editEdgeLabel(i) {
       const ed = edges()[i];
-      if (!ed) return;
-      const v = prompt('连线上的文字（最多 80 字，留空就去掉）', ed.label || '');
-      if (v == null) return;
-      const label = v.trim().slice(0, 80);
-      if (label === (ed.label || '')) return;
-      const s0 = snap();
-      if (label) ed.label = label; else delete ed.label;
-      pushUndo(s0); refresh(); scheduleSave();
+      const mid = (st.edgeMids || [])[i];
+      if (!ed || !mid) return;
+      const inp = el('input', 'cv-label-input');
+      inp.value = ed.label || '';
+      inp.maxLength = 80;
+      inp.placeholder = '连线文字';
+      inp.setAttribute('aria-label', '连线文字');
+      inp.style.left = (mid.x * view.z + view.x) + 'px';
+      inp.style.top = (mid.y * view.z + view.y) + 'px';
+      box.append(inp);
+      bar.style.display = 'none';
+      let done = false;
+      const finish = (save) => {
+        if (done) return;
+        done = true;
+        const v = inp.value.trim().slice(0, 80);
+        inp.remove();
+        box.focus({ preventScroll: true });
+        if (!save || v === (ed.label || '')) { refresh({ keepEdges: true }); return; }
+        const s0 = snap();
+        if (v) ed.label = v; else delete ed.label;
+        pushUndo(s0); refresh(); scheduleSave();
+      };
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); } });
+      for (const evName of ['pointerdown', 'dblclick', 'paste', 'wheel']) inp.addEventListener(evName, (e) => e.stopPropagation());
+      inp.addEventListener('blur', () => finish(true));
+      setTimeout(() => { inp.focus({ preventScroll: true }); inp.select(); }, 0);
     }
+    /** 小菜单：anchor 是按钮元素，或屏幕坐标 {x, y} */
+    let menuEl = null;
+    function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
+    function popMenu(anchor, items) {
+      closeMenu();
+      const m = el('div', 'cv-menu');
+      m.setAttribute('role', 'menu');
+      for (const it of items) {
+        if (it.note) { m.append(el('div', 'cm-note', it.note)); continue; }
+        const b = el('button', 'cm-item' + (it.on ? ' on' : ''));
+        b.type = 'button';
+        b.setAttribute('role', 'menuitem');
+        b.innerHTML = (it.html || '') + '<span>' + it.label + '</span>' + (it.sub ? '<em>' + it.sub + '</em>' : '');
+        if (it.style) b.querySelector('span').style.cssText = it.style;
+        b.addEventListener('click', (ev) => { ev.stopPropagation(); closeMenu(); it.onClick(); });
+        b.addEventListener('keydown', (ev) => {
+          const all = [...m.querySelectorAll('.cm-item')], i = all.indexOf(b);
+          if (ev.key === 'ArrowDown') { ev.preventDefault(); all[(i + 1) % all.length].focus(); }
+          if (ev.key === 'ArrowUp') { ev.preventDefault(); all[(i - 1 + all.length) % all.length].focus(); }
+          if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeMenu(); box.focus({ preventScroll: true }); }
+        });
+        m.append(b);
+      }
+      for (const evName of ['pointerdown', 'wheel', 'dblclick']) m.addEventListener(evName, (e) => e.stopPropagation());
+      box.append(m);
+      menuEl = m;
+      const r = rect();
+      const a = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.x, right: anchor.x, top: anchor.y, bottom: anchor.y, width: 0 };
+      const mw = m.offsetWidth, mh = m.offsetHeight;
+      let left = a.left + a.width / 2 - mw / 2 - r.left;
+      left = clamp(left, 8, Math.max(8, r.width - mw - 8));
+      let top = a.bottom - r.top + 6;
+      if (top + mh > r.height - 8) top = a.top - r.top - mh - 6;
+      m.style.left = left + 'px';
+      m.style.top = Math.max(8, top) + 'px';
+      const first = m.querySelector('.cm-item.on') || m.querySelector('.cm-item');
+      if (first) first.focus({ preventScroll: true });
+    }
+    on(document, 'pointerdown', (ev) => { if (menuEl && !menuEl.contains(ev.target)) closeMenu(); }, { capture: true });
     function selBox() {
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const k of st.sel) { const e = byKey(k); if (!e) continue; const p = e.payload; x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h); }
@@ -583,26 +1069,50 @@ export function mountSpaces(ctx) {
       }
       if (!st.sel.size) return;
       const items = [...st.sel].map(byKey).filter(Boolean);
-      for (const [key,label,options] of [
-        ['shape','形状',[['rect','矩形'],['circle','圆形'],['diamond','菱形']]],
-        ['align','对齐',[['left','左对齐'],['center','居中'],['right','右对齐']]],
-        ['fontSize','字号',[12,16,20,24,32,48].map(n=>[n,n+'px'])],
-        ['layer','层级',[['front','置顶'],['back','置底']]]
-      ]) {
-        const select = el('select'); select.title = label; select.setAttribute('aria-label',label);
-        select.add(new Option(label,''));
-        for (const [v,t] of options) select.add(new Option(t,v));
-        select.onchange = () => {
-          if (!select.value) return;
-          pushUndo(snap());
-          const layers = ents().map(e=>e.payload.layer || 0);
-          const value = key === 'layer' ? (select.value === 'front' ? Math.max(...layers)+1 : Math.min(...layers)-1) : key === 'fontSize' ? Number(select.value) : select.value;
-          for (const e of items) e.payload[key] = value;
-          rebuild(); scheduleSave();
-        };
-        bar.append(select);
+      if (st.rel && st.rel.focus && st.rel.es.size) {
+        bar.append(el('span', 'cb-rel', '上游 ' + st.rel.up.size + ' · 下游 ' + st.rel.down.size));
+        bar.append(el('span', 'sep'));
       }
-      const colorable = items.filter((e) => e.payload.type !== 'image');
+      const same = (key, def) => { const vals = items.map((e) => e.payload[key] == null ? def : e.payload[key]); return vals.every((v) => v === vals[0]) ? vals[0] : null; };
+      const setAll = (key, value) => {
+        const s0 = snap();
+        let v = value;
+        if (key === 'layer') { const layers = ents().map((e) => e.payload.layer || 0); v = value === 'front' ? Math.max(...layers) + 1 : Math.min(...layers) - 1; }
+        for (const e of items) e.payload[key] = v;
+        pushUndo(s0); rebuild(); scheduleSave();
+      };
+      // AI 节点不需要形状、字号、对齐、颜色
+      const plain = items.every((e) => !String(e.payload.type).startsWith('ai-'));
+      const textual = plain && items.some((e) => e.payload.type !== 'image');
+      const shapeNow = same('shape', 'rect');
+      const SHAPE_ICON = {
+        rect: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="6" width="16" height="12" rx="2"/></svg>',
+        circle: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.5"/></svg>',
+        diamond: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5 20.5 12 12 20.5 3.5 12z"/></svg>',
+      };
+      const ALIGN_ICON = {
+        left: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></svg>',
+        center: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></svg>',
+        right: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></svg>',
+      };
+      const LAYER_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 4 8 4-8 4-8-4z"/><path d="m4 12 8 4 8-4"/><path d="m4 16 8 4 8-4"/></svg>';
+      const menuBtn = (html, title, menuItems) => {
+        const b = el('button', 'cb-btn');
+        b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.setAttribute('aria-haspopup', 'menu');
+        b.innerHTML = html + '<svg class="caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+        b.addEventListener('click', (ev) => { ev.stopPropagation(); popMenu(b, menuItems()); });
+        bar.append(b);
+      };
+      if (plain) menuBtn(SHAPE_ICON[shapeNow] || SHAPE_ICON.rect, '形状', () => [['rect', '矩形'], ['circle', '圆形'], ['diamond', '菱形']].map(([v, t]) => ({ html: SHAPE_ICON[v], label: t, on: shapeNow === v, onClick: () => setAll('shape', v) })));
+      if (textual) {
+        const fsNow = same('fontSize', 14);
+        menuBtn('<span class="cb-txt">' + (fsNow || '字号') + '</span>', '字号', () => [12, 14, 16, 20, 24, 32, 48].map((n) => ({ label: n + ' 号', style: 'font-size:' + Math.min(n, 22) + 'px', on: fsNow === n, onClick: () => setAll('fontSize', n) })));
+        const alNow = same('align', 'left');
+        menuBtn(ALIGN_ICON[alNow] || ALIGN_ICON.left, '文字对齐', () => [['left', '左对齐'], ['center', '居中'], ['right', '右对齐']].map(([v, t]) => ({ html: ALIGN_ICON[v], label: t, on: alNow === v, onClick: () => setAll('align', v) })));
+      }
+      menuBtn(LAYER_ICON, '层级', () => [{ label: '移到最上层', onClick: () => setAll('layer', 'front') }, { label: '移到最下层', onClick: () => setAll('layer', 'back') }]);
+      bar.append(el('span', 'sep'));
+      const colorable = items.filter((e) => e.payload.type !== 'image' && !String(e.payload.type).startsWith('ai-'));
       if (colorable.length) {
         for (const [name, hex, label] of CARD_COLORS) {
           const d = el('button', 'dot' + (colorable.every((e) => (e.payload.color || '') === name) ? ' on' : ''));
@@ -612,10 +1122,11 @@ export function mountSpaces(ctx) {
         }
         bar.append(el('span', 'sep'));
       }
-      if (items.length === 1 && items[0].payload.type === 'text' && items[0].id) {
-        const ai = el('button', null, 'AI 修改');
-        ai.type = 'button';
-        ai.addEventListener('click', () => aiEditCard(items[0]));
+      if (items.length === 1 && ['text', 'image', 'ai-image', 'ai-text'].includes(items[0].payload.type)) {
+        const ai = el('button', 'cb-ai');
+        ai.type = 'button'; ai.title = 'AI：改图、改文、生成'; ai.setAttribute('aria-haspopup', 'menu');
+        ai.innerHTML = AI_ICON.spark + '<span>AI</span><svg class="caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+        ai.addEventListener('click', (ev) => { ev.stopPropagation(); aiMenuForSelection(ai); });
         bar.append(ai);
       }
       if (items.length === 1 && items[0].payload.type === 'page') {
@@ -632,13 +1143,15 @@ export function mountSpaces(ctx) {
       del.addEventListener('click', () => deleteSelected());
       bar.append(dup, del);
     }
+    /** 浮动工具条按实际宽度限制在画布里（居中定位，所以算中心点） */
+    function barX(cx) { const half = (bar.offsetWidth || 240) / 2; return clamp(cx, half + 8, Math.max(half + 8, box.clientWidth - half - 8)); }
     function placeBar() {
       if (!st.sel.size && st.edgeSet.size && !st.gesture) {
         const ms = [...st.edgeSet].map((i) => (st.edgeMids || [])[i]).filter(Boolean);
         if (ms.length) {
           const cx = ms.reduce((a, m) => a + m.x, 0) / ms.length, cy = Math.min(...ms.map((m) => m.y));
           bar.style.display = 'flex';
-          bar.style.left = clamp(cx * view.z + view.x, 120, Math.max(120, box.clientWidth - 120)) + 'px';
+          bar.style.left = barX(cx * view.z + view.x) + 'px';
           bar.style.top = (cy * view.z + view.y - 14) + 'px';
           bar.style.transform = 'translate(-50%,-100%)';
           return;
@@ -646,7 +1159,7 @@ export function mountSpaces(ctx) {
       }
       if (st.edgeSel >= 0 && !st.sel.size && st.edgeMid && !st.gesture) {
         bar.style.display = 'flex';
-        bar.style.left = clamp(st.edgeMid.x * view.z + view.x, 120, Math.max(120, box.clientWidth - 120)) + 'px';
+        bar.style.left = barX(st.edgeMid.x * view.z + view.x) + 'px';
         bar.style.top = (st.edgeMid.y * view.z + view.y - 14) + 'px';
         bar.style.transform = 'translate(-50%,-100%)';
         return;
@@ -659,7 +1172,7 @@ export function mountSpaces(ctx) {
       let below = false;
       if (top < 48) { top = b.y1 * view.z + view.y + 12; below = true; }
       const w = box.clientWidth;
-      bar.style.left = clamp(cx, 120, Math.max(120, w - 120)) + 'px';
+      bar.style.left = barX(cx) + 'px';
       bar.style.top = top + 'px';
       bar.style.transform = below ? 'translate(-50%,0)' : 'translate(-50%,-100%)';
     }
@@ -797,6 +1310,8 @@ export function mountSpaces(ctx) {
       if (c) { st.cards.delete(oldKey); st.cards.set(newKey, c); c.dataset.key = newKey; c.dataset.eid = newKey; const ta = c.querySelector('textarea'); if (ta) ta.dataset.eid = newKey; }
       if (st.sel.delete(oldKey)) st.sel.add(newKey);
       if (st.editing === oldKey) st.editing = newKey;
+      if (st.running.delete(oldKey)) st.running.add(newKey);
+      if (st.errors.has(oldKey)) { st.errors.set(newKey, st.errors.get(oldKey)); st.errors.delete(oldKey); }
       buildBar();
     };
     st.syncRevs = () => {
@@ -807,6 +1322,7 @@ export function mountSpaces(ctx) {
     /* 底部工具条 */
     const tb = (label, title, fn, cls) => { const b = el('button', cls || null); b.type = 'button'; b.title = title; b.innerHTML = label; b.addEventListener('click', (ev) => { if (b._dragged) return; fn(ev); }); tools.append(b); return b; };
     /** 按住工具条按钮拖到画布上：在松手的位置放卡片（直接点击仍然放在画面中央） */
+    let lastScreen = { x: 0, y: 0 };
     function dragFromTool(btn, make) {
       if (!btn) return;
       btn.title += '；也可以直接拖到画布上';
@@ -833,6 +1349,7 @@ export function mountSpaces(ctx) {
           window.removeEventListener('pointercancel', up);
           if (!ghost) return;
           ghost.remove();
+          lastScreen = { x: u.clientX, y: u.clientY };
           if (inBoard(u.clientX, u.clientY)) make(toWorld(u.clientX, u.clientY));
           setTimeout(() => { btn._dragged = false; }, 0);
         };
@@ -841,13 +1358,9 @@ export function mountSpaces(ctx) {
         window.addEventListener('pointercancel', up);
       });
     }
-    tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg><span class="lbl">上传</span>','从本地上传图片',()=>{ const picker=document.createElement('input'); picker.type='file'; picker.accept='image/png,image/jpeg,image/webp,image/gif'; picker.multiple=true; picker.onchange=()=>uploadImages(picker.files,viewCenter()); picker.click(); });
     tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg><span class="lbl">文本</span>', '新建文本卡（也可以双击空白处）', () => addAtCenter({}, true));
     tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 4h16v10l-6 6H4z" fill="#fff3b0" stroke="#c9a92c"/><path d="M14 20v-6h6" stroke="#c9a92c"/></svg><span class="lbl">便签</span>', '新建便签', () => addAtCenter({ color: 'yellow', w: 200, h: 200 }, true));
-    tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg><span class="lbl">图片</span>', '用图片链接新建图片卡', () => {
-      const url = (prompt('图片链接（站内 /files/... 或 https://...）') || '').trim();
-      if (url) addAtCenter({ type: 'image', url, w: 300, h: 220 });
-    });
+    tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg><span class="lbl">图片</span>', '图片：上传本地图片或用链接', (ev) => imageMenu(ev.currentTarget, null));
     tb('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h4"/></svg><span class="lbl">页面</span>', '放一张链到本空间页面的卡片', () => {
       const list = (S.space.resources || []).filter((r) => r.id !== res.id);
       if (!list.length) { flashHint('这个空间还没有别的页面'); return; }
@@ -856,7 +1369,36 @@ export function mountSpaces(ctx) {
         onClick: () => { const d = $('#dlgList'); if (d) d.hidden = true; addAtCenter({ type: 'page', ref: r.id, text: r.title || '', w: 240, h: 110 }); },
       })));
     });
+    tb(AI_ICON.spark + '<span class="lbl">AI</span>', 'AI 节点：生图、生文、改图、改文', (ev) => aiToolMenu(ev.currentTarget, null));
+    function aiToolMenu(anchor, pt) {
+      const one = st.sel.size === 1 ? byKey([...st.sel][0]) : null;
+      const t = one && one.payload.type;
+      popMenu(anchor, [
+        { html: AI_ICON.image, label: '生图', sub: '写需求，AI 写提示词再画', onClick: () => createAiNode('ai-image', 'gen', pt) },
+        { html: AI_ICON.text, label: '生文', sub: '写作、总结、看图说话', onClick: () => createAiNode('ai-text', 'gen', pt) },
+        { html: AI_ICON.image, label: '改图', sub: t === 'image' || t === 'ai-image' ? '改选中的图' : '先选中一张图，或建好后把图连进来', onClick: () => createAiNode('ai-image', 'edit', pt, t === 'image' || t === 'ai-image' ? keyOf(one) : null) },
+        { html: AI_ICON.text, label: '改文', sub: t === 'text' || t === 'ai-text' ? '改选中的文字' : '先选中一张文字卡，或建好后连进来', onClick: () => createAiNode('ai-text', 'edit', pt, t === 'text' || t === 'ai-text' ? keyOf(one) : null) },
+        { note: '节点的输入就是连进来的卡片（Shift + 拖动连线）；结果可以继续连给下一个节点' },
+      ]);
+    }
     const toolBtn = (t) => [...tools.querySelectorAll('button')].find((b) => b.title.startsWith(t));
+    /** 图片：上传本地图片，或填图片链接；pt 为空时放在画面中央 */
+    function imageMenu(anchor, pt) {
+      const at = () => { const p = pt || viewCenter(); return { x: p.x - 150, y: p.y - 110 }; };
+      popMenu(anchor, [
+        { label: '上传本地图片', sub: 'PNG / JPG / WebP / GIF', onClick: () => {
+          const picker = document.createElement('input');
+          picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp,image/gif'; picker.multiple = true;
+          picker.onchange = () => { if (picker.files.length) { flashHint('正在上传 ' + picker.files.length + ' 张图片…'); uploadImages(picker.files, at()); } };
+          picker.click();
+        } },
+        { label: '用图片链接', sub: 'https://… 或站内 /files/…', onClick: async () => {
+          const got = await ask({ title: '用图片链接', fields: [{ name: 'url', label: '图片链接', placeholder: 'https://… 或 /files/…', maxLength: 500 }], ok: '放到画布', validate: (v) => /^(https?:\/\/|\/files\/|\/oss\/)\S+$/i.test(v.url) ? '' : '请填写 http(s):// 或 /files/ 开头的图片链接' });
+          if (got) { const p = at(); addCard({ type: 'image', url: got.url, w: 300, h: 220 }, p.x, p.y); }
+        } },
+        { note: '也可以直接 Ctrl + V 粘贴截图，或把图片文件拖进画布' },
+      ]);
+    }
     const askPageAt = (pt) => {
       const list = (S.space.resources || []).filter((r) => r.id !== res.id);
       if (!list.length) { flashHint('这个空间还没有别的页面'); return; }
@@ -867,9 +1409,9 @@ export function mountSpaces(ctx) {
     };
     dragFromTool(toolBtn('新建文本卡'), (pt) => addCard({}, pt.x - 120, pt.y - 40, true));
     dragFromTool(toolBtn('新建便签'), (pt) => addCard({ color: 'yellow', w: 200, h: 200 }, pt.x - 100, pt.y - 100, true));
-    dragFromTool(toolBtn('用图片链接'), (pt) => { const url = (prompt('图片链接（站内 /files/... 或 https://...）') || '').trim(); if (url) addCard({ type: 'image', url, w: 300, h: 220 }, pt.x - 150, pt.y - 110); });
+    dragFromTool(toolBtn('图片：'), (pt) => imageMenu({ x: lastScreen.x, y: lastScreen.y }, pt));
     dragFromTool(toolBtn('放一张链到'), (pt) => askPageAt(pt));
-    dragFromTool(toolBtn('从本地上传图片'), (pt) => { const picker = document.createElement('input'); picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp,image/gif'; picker.multiple = true; picker.onchange = () => uploadImages(picker.files, { x: pt.x - 150, y: pt.y - 110 }); picker.click(); });
+    dragFromTool(toolBtn('AI 节点'), (pt) => aiToolMenu({ x: lastScreen.x, y: lastScreen.y }, pt));
     tools.append(el('span', 'sep'));
     tb('−', '缩小（滚轮）', () => zoomCenter(1 / 1.25));
     const zoomBtn = tb('100%', '恢复 100%', () => zoomCenter(1 / view.z), 'zoom');
@@ -879,7 +1421,7 @@ export function mountSpaces(ctx) {
     /* 指针：平移、移动、改大小、连线、框选、双指缩放 */
     const pointers = new Map();
     let pinch = null;
-    const isUi = (t) => !!(t.closest && t.closest('.cv-tools,.cv-cardbar,.cv-help,.cv-helpbox'));
+    const isUi = (t) => !!(t.closest && t.closest('.cv-tools,.cv-cardbar,.cv-help,.cv-helpbox,.cv-menu,.cv-label-input'));
     on(box, 'pointerdown', (ev) => {
       if (isUi(ev.target)) return;
       if (st.editing && ev.target.closest('.canvas-card.editing')) return;
@@ -894,6 +1436,13 @@ export function mountSpaces(ctx) {
       if (st.editing) stopEdit();
       box.focus({ preventScroll: true });
       const cardEl = ev.target.closest('.canvas-card');
+      // 节点里的按钮、提示词、结果文字：选中节点但不开始拖动，让点击和选字正常进行
+      if (cardEl && ev.target.closest('.an-ui')) {
+        const k = cardEl.dataset.key;
+        if (!st.sel.has(k) || st.sel.size > 1) { st.sel = new Set([k]); clearEdgeSel(); refresh(); }
+        pointers.delete(ev.pointerId);
+        return;
+      }
       const port = ev.target.closest('.cc-port');
       const rz = ev.target.closest('.cc-resize');
       const hit = ev.target.closest('.hit,.elabel');
@@ -1020,7 +1569,8 @@ export function mountSpaces(ctx) {
       st.gesture = null;
       box.classList.remove('panning');
       drawGuides([]);
-      if (!g) { refresh({ keepEdges: true }); return; }
+      // 没有手势（比如点的是浮动工具条上的按钮）：什么都不重画，否则按钮在 click 之前就被换掉了
+      if (!g) return;
       if (g.type === 'move') {
         if (g.moved) { pushUndo(g.s); scheduleSave(); }
         else if (!(ev.shiftKey || ev.metaKey || ev.ctrlKey) && st.sel.size > 1) st.sel = new Set([g.k]);
@@ -1054,7 +1604,7 @@ export function mountSpaces(ctx) {
     on(box, 'dblclick', (ev) => {
       // 按下时画布捕获了指针，dblclick 的 target 会变成画布本身：按坐标取真正点到的元素
       const tgt = document.elementFromPoint(ev.clientX, ev.clientY) || ev.target;
-      if (isUi(tgt)) return;
+      if (isUi(tgt) || tgt.closest('.an-ui')) return;
       const cardEl = tgt.closest('.canvas-card');
       if (cardEl) {
         const e = byKey(cardEl.dataset.key);
@@ -1072,6 +1622,8 @@ export function mountSpaces(ctx) {
     on(box, 'contextmenu', (ev) => { if (!(st.editing && ev.target.closest('.canvas-card.editing'))) ev.preventDefault(); });
     on(box, 'wheel', (ev) => {
       if (isUi(ev.target)) return;
+      const sc = ev.target.closest && ev.target.closest('.an-scroll');
+      if (sc && !(ev.ctrlKey || ev.metaKey) && sc.scrollHeight > sc.clientHeight + 1) return;
       if (st.editing && ev.target.closest('.canvas-card.editing') && !(ev.ctrlKey || ev.metaKey)) return;
       ev.preventDefault();
       const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
@@ -1182,7 +1734,8 @@ export function mountSpaces(ctx) {
     if (!S.space || !S.resource) return;
     const text = String((e.payload && e.payload.text) || '');
     if (!text.trim()) { flashHint('这张卡还没有文字'); return; }
-    const instruction = (prompt('用 AI 修改这张卡：希望怎么改？', '润色这段文字') || '').trim();
+    const got = await ask({ title: '用 AI 修改这张卡', sub: '说说希望怎么改，AI 改完直接写回卡片，可以 Ctrl + Z 撤销。', fields: [{ name: 'ins', type: 'textarea', rows: 3, value: '润色这段文字' }], ok: '修改', validate: (v) => v.ins ? '' : '请写一下怎么改' });
+    const instruction = got && got.ins;
     if (!instruction) return;
     $('#spaceSaveState').textContent = 'AI 修改中…';
     const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/ai', {
@@ -1336,7 +1889,7 @@ export function mountSpaces(ctx) {
                 label: '回滚到 v' + v.version,
                 sub: '会生成新版本，保留历史',
                 onClick: async () => {
-                  if (!confirm('回滚到 v' + v.version + '？会生成新版本。')) return;
+                  if (!await askConfirm('回滚到 v' + v.version + '？', '会生成一个新版本，原来的历史都保留。', '回滚')) return;
                   const rr = await api(base + '/rollback', { method: 'POST', body: { version: v.version } });
                   const jj = await rr.json().catch(() => ({}));
                   if (!rr.ok) { flashHint(jj.error || '回滚失败'); return; }
@@ -1354,7 +1907,7 @@ export function mountSpaces(ctx) {
           const del = el('button', null, '删除');
           del.type = 'button';
           del.addEventListener('click', async () => {
-            if (!confirm('删除扩展「' + (x.name || x.id) + '」？')) return;
+            if (!await askConfirm('删除扩展「' + (x.name || x.id) + '」？', '删除后空间成员都不能再打开它。', '删除', true)) return;
             const rr = await api('/spaces/' + encodeURIComponent(sp.id) + '/extensions/' + encodeURIComponent(x.id), { method: 'DELETE' });
             if (rr.ok) { await openSpace(sp.id); flashHint('已删除'); } else flashHint('删除失败');
           });
@@ -1388,7 +1941,7 @@ export function mountSpaces(ctx) {
           const del = el('button', null, '移除');
           del.type = 'button';
           del.addEventListener('click', async () => {
-            if (!confirm('移除 ' + (m.name || m.userId) + '？')) return;
+            if (!await askConfirm('移除「' + (m.name || m.userId) + '」？', '移除后对方不再是成员；如果是私人空间，对方将看不到这个空间。', '移除', true)) return;
             const r = await api('/spaces/' + encodeURIComponent(sp.id) + '/members/' + encodeURIComponent(m.userId), { method: 'DELETE' });
             const j = await r.json().catch(() => ({}));
             if (r.ok) { await openSpace(sp.id); flashHint('已移除'); } else flashHint(j.error || '移除失败');
@@ -1469,10 +2022,12 @@ export function mountSpaces(ctx) {
 
   async function installExtension() {
     if (!S.space) return;
-    const name = (prompt('扩展名称', '新扩展') || '').trim();
-    if (!name) return;
-    const html = (prompt('粘贴扩展的 HTML（内联脚本可用，禁止外部资源）') || '').trim();
-    if (!html) return;
+    const got = await ask({ title: '安装扩展', sub: '扩展是一个网页小工具，在沙箱里打开。脚本要写在页面里，不能引用外部资源。', fields: [
+      { name: 'name', label: '名称', value: '新扩展', maxLength: 60 },
+      { name: 'html', label: 'HTML', type: 'textarea', rows: 8, placeholder: '<!doctype html>…' },
+    ], ok: '安装', validate: (v) => !v.name ? '请填写名称' : !v.html ? '请粘贴扩展的 HTML' : '' });
+    if (!got) return;
+    const { name, html } = got;
     const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/extensions', { method: 'POST', body: { name, html, manifest: { name, apiVersion: 1 } } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '安装失败'); return; }
@@ -1486,7 +2041,8 @@ export function mountSpaces(ctx) {
 
   async function generateExtension() {
     if (!S.space) return;
-    const promptText = (prompt('描述你要的扩展（例如：一个字帖小工具）', '') || '').trim();
+    const got = await ask({ title: 'AI 生成扩展', sub: '描述你要的小工具，AI 会写成一个扩展装进这个空间。', fields: [{ name: 'p', type: 'textarea', rows: 4, placeholder: '例如：一个练字用的字帖小工具，可以选字体和格子大小' }], ok: '生成', validate: (v) => v.p ? '' : '请描述一下要什么扩展' });
+    const promptText = got && got.p;
     if (!promptText) return;
     flashHint('AI 正在生成扩展…');
     const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/extensions/generate', { method: 'POST', timeout: 120000, body: { prompt: promptText } });
@@ -1501,7 +2057,8 @@ export function mountSpaces(ctx) {
 
 
   async function joinSpace() {
-    const code = (prompt('输入空间邀请码') || '').trim();
+    const got = await ask({ title: '用邀请码加入空间', sub: '邀请码由空间所有者生成，7 天内有效。', fields: [{ name: 'code', label: '邀请码', placeholder: '粘贴邀请码' }], ok: '加入', validate: (v) => v.code ? '' : '请填写邀请码' });
+    const code = got && got.code;
     if (!code) return;
     const r = await api('/spaces/join', { method: 'POST', body: { code } });
     const j = await r.json().catch(() => ({}));
@@ -1513,18 +2070,27 @@ export function mountSpaces(ctx) {
   }
   async function inviteToSpace() {
     if (!S.space) return;
-    const role = (prompt('邀请角色：editor / commenter / viewer', 'editor') || 'editor').trim();
-    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/invites', { method: 'POST', body: { role } });
+    const got = await ask({ title: '生成邀请码', sub: '拿到邀请码的人可以加入「' + (S.space.title || '空间') + '」。', fields: [{ name: 'role', label: '加入后的角色', type: 'choice', options: ROLE_OPTIONS, value: 'editor' }], ok: '生成' });
+    if (!got) return;
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/invites', { method: 'POST', body: { role: got.role } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '生成失败'); return; }
-    prompt('邀请码（7 天有效，可发给同事）', j.invite.code);
+    await ask({ title: '邀请码', sub: '7 天内有效。发给同事，对方在空间标签栏「＋」→「用邀请码加入」里输入。', fields: [{ name: 'code', value: j.invite.code, readOnly: true, copy: true }], ok: '完成', cancel: false });
   }
 
   async function addMember() {
     if (!S.space) return;
-    const name = (prompt('成员昵称（需已登录过本站）') || '').trim();
-    if (!name) return;
-    const role = (prompt('角色：editor / commenter / viewer', 'editor') || 'editor').trim();
+    const got = await ask({ title: '邀请成员', sub: '对方要在本站登录过一次，才能被加进来。', fields: [
+      { name: 'name', label: '昵称', placeholder: '对方登录用的昵称' },
+      { name: 'role', label: '角色', type: 'choice', options: ROLE_OPTIONS, value: 'editor' },
+    ], ok: '加入空间', validate: (v) => v.name ? '' : '请填写昵称', extra: (close) => {
+      const a = el('button', 'sd-link', '对方还没登录过？生成一个邀请码发给他');
+      a.type = 'button';
+      a.addEventListener('click', () => { close(null); inviteToSpace(); });
+      return a;
+    } });
+    if (!got) return;
+    const { name, role } = got;
     const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/members', { method: 'POST', body: { name, role } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '添加失败'); return; }
@@ -1532,17 +2098,20 @@ export function mountSpaces(ctx) {
     flashHint('已加入空间');
   }
   function closeList() { const d = $('#dlgList'); if (d) d.hidden = true; }
-  function addSpaceMenu() {
-    openListPanel('新建或加入空间', '公开 / 私人之后可以随时切换', [
-      { label: '新建公开空间', sub: '所有人能看能编辑，不用邀请', onClick: () => createSpace('public') },
-      { label: '🔒 新建私人空间', sub: '只有你和你加进来的成员能看', onClick: () => createSpace('private') },
-      { label: '用邀请码加入', sub: '别人发给你的空间邀请码', onClick: () => { closeList(); joinSpace(); } },
-    ]);
-  }
-  async function createSpace(visibility) {
+  function addSpaceMenu() { createSpace(); }
+  async function createSpace() {
     closeList();
-    const title = (prompt(visibility === 'private' ? '私人空间名称' : '空间名称', '新空间') || '').trim();
-    if (!title) return;
+    const got = await ask({ title: '新建空间', fields: [
+      { name: 'title', label: '名称', value: '新空间', maxLength: 120 },
+      { name: 'visibility', label: '谁能看', type: 'choice', value: 'public', options: [['public', '公开', '所有人能看能编辑，不用邀请'], ['private', '🔒 私人', '只有你和你加进来的成员能看']] },
+    ], ok: '新建', validate: (v) => v.title ? '' : '请填写名称', extra: (close) => {
+      const a = el('button', 'sd-link', '有邀请码？加入别人的空间');
+      a.type = 'button';
+      a.addEventListener('click', () => { close(null); joinSpace(); });
+      return a;
+    } });
+    if (!got) return;
+    const { title, visibility } = got;
     const r = await api('/spaces', { method: 'POST', body: { title, visibility } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '创建失败'); return; }
@@ -1558,7 +2127,7 @@ export function mountSpaces(ctx) {
     const tip = next === 'private'
       ? '设为私人空间？之后只有成员能看，没加入的人会立刻失去访问。'
       : '设为公开空间？所有人都能看到并编辑这个空间里的页面。';
-    if (!confirm(tip)) return;
+    if (!await askConfirm(next === 'private' ? '设为私人空间？' : '设为公开空间？', tip.replace(/^设为(私人|公开)空间？/, ''), next === 'private' ? '设为私人' : '设为公开', next === 'private')) return;
     const r = await api('/spaces/' + encodeURIComponent(S.space.id), { method: 'PATCH', body: { visibility: next } });
     const j = await r.json().catch(() => ({}));
     if (r.status === 404 || r.status === 405) { flashHint('后端还不支持切换公开 / 私人'); return; }
@@ -1572,16 +2141,18 @@ export function mountSpaces(ctx) {
     if (!S.space) return;
     const make = async (type) => {
       closeList();
-      const title = (prompt(type === 'canvas' ? '画布标题' : '页面标题', type === 'canvas' ? '新画布' : '新页面') || '').trim();
-      if (!title) return;
+      const title = type === 'canvas' ? '未命名画布' : '未命名页面';
       const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources', { method: 'POST', body: { type, title } });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { flashHint(j.error || '新建失败'); return; }
       await openSpace(S.space.id, j.resource && j.resource.id);
+      // 标题选中：直接打字就是改名
+      const t = $('#spaceResTitle');
+      if (t && !t.disabled) { t.focus(); t.select(); }
     };
     openListPanel('新建', '在「' + (S.space.title || '空间') + '」里', [
-      { label: '页面', sub: '写文字，按段落分块', onClick: () => make('page') },
-      { label: '画布', sub: '白板：卡片、便签、图片、连线', onClick: () => make('canvas') },
+      { label: '页面', sub: '写文字，按段落分块；建好后直接改标题', onClick: () => make('page') },
+      { label: '画布', sub: '白板：卡片、便签、图片、连线；建好后直接改标题', onClick: () => make('canvas') },
     ]);
   }
   async function showNotifications() {
@@ -1665,6 +2236,13 @@ export function mountSpaces(ctx) {
     if (tas.length) tas[tas.length - 1].focus();
   });
   $('#spaceResTitle').addEventListener('input', () => scheduleSave());
+  $('#spaceResTitle').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== 'Escape') return;
+    e.preventDefault();
+    const ed = $('#pageEditor');
+    const firstTa = ed && ed.querySelector('.page-block textarea');
+    if (firstTa) firstTa.focus(); else if (ed && ed.tabIndex >= 0) ed.focus({ preventScroll: true }); else e.target.blur();
+  });
   $('#tabComments').addEventListener('click', () => { S.tab = 'comments'; $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on'); $('#tabApps').classList.remove('on'); renderSide(); });
   $('#tabMembers').addEventListener('click', () => { S.tab = 'members'; $('#tabMembers').classList.add('on'); $('#tabComments').classList.remove('on'); $('#tabApps').classList.remove('on'); renderSide(); });
   $('#tabApps').addEventListener('click', () => { S.tab = 'apps'; $('#tabApps').classList.add('on'); $('#tabComments').classList.remove('on'); $('#tabMembers').classList.remove('on'); renderSide(); });
@@ -1713,8 +2291,10 @@ export function mountSpaces(ctx) {
   async function runSelectionAction(action) {
     const sel = selTarget;
     if (!sel || !S.resource || !S.space) return;
-    const label = action === 'ask' ? '问 AI：想了解这段什么？' : '修改：希望怎么改？';
-    const instruction = (prompt(label, action === 'ask' ? '解释这段内容' : '润色这段文字') || '').trim();
+    const got = await ask(action === 'ask'
+      ? { title: '问 AI', sub: '针对选中的文字提问，只回答，不改原文。', fields: [{ name: 'ins', type: 'textarea', rows: 3, value: '解释这段内容' }], ok: '提问', validate: (v) => v.ins ? '' : '请写一下想问什么' }
+      : { title: '用 AI 修改选中的文字', sub: '先给出修改建议，确认后才写入页面。', fields: [{ name: 'ins', type: 'textarea', rows: 3, value: '润色这段文字' }], ok: '生成建议', validate: (v) => v.ins ? '' : '请写一下怎么改' });
+    const instruction = got && got.ins;
     if (!instruction) return;
     hideSelBar();
     $('#spaceSaveState').textContent = action === 'ask' ? 'AI 思考中…' : 'AI 修改中…';
