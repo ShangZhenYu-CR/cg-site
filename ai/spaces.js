@@ -92,6 +92,7 @@ export function mountSpaces(ctx) {
             lab.title = im.label || im.save || '';
             cb.addEventListener('change', () => { if (cb.checked) picked.add(i); else picked.delete(i); upd(); });
             lab.append(cb, img);
+            if (im.kind) lab.append(el("span","canvas-import-kind",im.kind));
             grid.append(lab);
             boxes.push({ cb, lab });
           });
@@ -450,6 +451,13 @@ export function mountSpaces(ctx) {
     render();
     loadComments();
   }
+  async function openSharedSection() {
+    const link = new URLSearchParams(location.hash.slice(1));
+    if (!link.get('space') || !link.get('canvas') || !link.get('section')) return false;
+    if (!await openPage(link.get('space'), link.get('canvas')) || cv?.res.id !== link.get('canvas')) return false;
+    return cv.focusSection(link.get('section'));
+  }
+  window.addEventListener('hashchange', openSharedSection);
   const ICON_PAGE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></svg>';
   const ICON_CANVAS = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="7" rx="1.5"/><rect x="13" y="14" width="8" height="7" rx="1.5"/><path d="M7 10v4a3 3 0 0 0 3 3h3"/></svg>';
   function renderTree() {
@@ -464,6 +472,7 @@ export function mountSpaces(ctx) {
       ic.innerHTML = r.type === 'canvas' ? ICON_CANVAS : ICON_PAGE;
       ic.title = r.type === 'canvas' ? '画布' : '页面';
       b.append(ic, el('span', 'rn', r.title || '未命名'));
+      if (r.template) b.append(el('span', 'cv-template-label', '模板'));
       b.addEventListener('click', () => {
         if (narrow()) setTree(false);
         if (S.resource?.id === r.id) return;
@@ -582,8 +591,56 @@ export function mountSpaces(ctx) {
       if (ed.from === oldKey) { ed.from = newKey; changed = true; }
       if (ed.to === oldKey) { ed.to = newKey; changed = true; }
     }
+    for (const e of S.resource?.entities || []) {
+      const purposes = e.payload.refPurposes;
+      if (purposes && Object.hasOwn(purposes, oldKey)) {
+        purposes[newKey] = purposes[oldKey];
+        delete purposes[oldKey];
+        changed = true;
+      }
+    }
     if (cv && cv.rekey) cv.rekey(oldKey, newKey);
     return changed;
+  }
+  // Compare against the last revision seen by this browser. An absent entry means a deletion.
+  function mergeCanvas(before, local, remote, choices = new Map(), preferRemote = false) {
+    const conflicts = [];
+    const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const change = (old, mine, theirs, label) => {
+      if (equal(old, mine)) return theirs;
+      if (equal(old, theirs) || equal(mine, theirs)) return mine;
+      const choice = preferRemote ? 'remote' : choices.get(label);
+      if (!choice) conflicts.push({ label, mine, theirs });
+      return choice === 'remote' ? theirs : mine;
+    };
+    function mergeRow(old, mine, theirs, label) {
+      if (!old || !mine || !theirs) return change(old, mine, theirs, label);
+      const out = {};
+      for (const key of new Set([...Object.keys(old), ...Object.keys(mine), ...Object.keys(theirs)])) {
+        const field = label + ' / ' + key;
+        const value = key === 'refPurposes' && mine[key] && theirs[key]
+          ? mergeRow(old[key] || {}, mine[key], theirs[key], field)
+          : change(old[key], mine[key], theirs[key], field);
+        if (value !== undefined) out[key] = value;
+      }
+      return out;
+    }
+    const cards = r => new Map(r.entities.map(e => [keyOf(e), e]));
+    const [b, m, t] = [before, local, remote].map(cards);
+    const entities = [];
+    for (const id of new Set([...m.keys(), ...t.keys(), ...b.keys()])) {
+      const payload = mergeRow(b.get(id)?.payload, m.get(id)?.payload, t.get(id)?.payload, '卡片 ' + id);
+      if (payload) entities.push({ ...(t.get(id) || m.get(id)), payload });
+    }
+    const links = r => new Map(r.edges.map(e => [JSON.stringify([e.from, e.to]), e]));
+    const [bl, ml, tl] = [before, local, remote].map(links);
+    const ids = new Set(entities.map(keyOf));
+    const edges = [];
+    for (const k of new Set([...ml.keys(), ...tl.keys(), ...bl.keys()])) {
+      const edge = mergeRow(bl.get(k), ml.get(k), tl.get(k), '连线 ' + k);
+      if (edge && ids.has(edge.from) && ids.has(edge.to)) edges.push(edge);
+    }
+    return { entities, edges, title: change(before.title, local.title, remote.title, '画布名称'), conflicts };
   }
   function renderCanvas(box, res) {
     const ac = new AbortController();
@@ -593,6 +650,7 @@ export function mountSpaces(ctx) {
     for (const e of ents()) normPayload(e);
     if (!cvHist.has(res.id)) cvHist.set(res.id, { undo: [], redo: [] });
     const hist = cvHist.get(res.id);
+    if (hist.revision != null && hist.revision !== res.revision) { hist.undo.length = 0; hist.redo.length = 0; }
     const st = cv = { res, sel: new Set(), edgeSel: -1, edgeSet: new Set(), running: new Set(), errors: new Map(), rel: null, editing: null, cards: new Map(), spaceDown: false, gesture: null };
     let view = cvViews.get(res.id) || (() => { try { const v = JSON.parse(readLS('ai.canvasView.' + res.id) || 'null'); return v && isFinite(v.x) && isFinite(v.y) && isFinite(v.z) ? v : null; } catch (e) { return null; } })();
     const needFit = !view;
@@ -607,7 +665,8 @@ export function mountSpaces(ctx) {
     svg.setAttribute('width', String(CV.WORLD + CV.MAXW));
     svg.setAttribute('height', String(CV.WORLD + CV.MAXH));
     svg.innerHTML = '<defs><marker id="cvArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--dim)"/></marker><marker id="cvArrowOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--accent)"/></marker></defs><g class="eg"></g><g class="guides"></g><path class="tmp" d="" style="display:none" marker-end="url(#cvArrowOn)"/>';
-    world.append(bounds, svg);
+    const sectionLayer = el('div','cv-sections');
+    world.append(bounds, sectionLayer, svg);
     const marquee = el('div', 'cv-marquee');
     const bar = el('div', 'cv-cardbar');
     const tools = el('div', 'cv-tools');
@@ -718,12 +777,60 @@ export function mountSpaces(ctx) {
         scheduleSave();
       }, error => { if (cv === st) flashHint('无法读取原图：'+error.message); });
     }
+    function photoRect(img) {
+      const r = img.getBoundingClientRect();
+      if (!img.naturalWidth || !r.width || !r.height) return null;
+      const fit = getComputedStyle(img).objectFit;
+      const scale = (fit === 'cover' ? Math.max : Math.min)(r.width/img.naturalWidth,r.height/img.naturalHeight);
+      const w = img.naturalWidth*scale, h = img.naturalHeight*scale;
+      return {x:r.left+(r.width-w)/2,y:r.top+(r.height-h)/2,w,h,clip:r};
+    }
+    function paintPins(e, card) {
+      for (const pin of card.querySelectorAll('.cv-comment-pin')) pin.remove();
+      const img = card.querySelector('.an-out img') || (e.payload.type==='image' && card.querySelector('img'));
+      if (!img) return;
+      const photo = photoRect(img);
+      if (!photo) return;
+      const r=card.getBoundingClientRect();
+      for (const c of S.comments || []) {
+        if (c.resourceId!==res.id || c.anchor?.entityId!==e.id || !c.anchor.imagePoint || c.resolved) continue;
+        const x=photo.x+c.anchor.imagePoint.x*photo.w, y=photo.y+c.anchor.imagePoint.y*photo.h;
+        if(x<photo.clip.left || x>photo.clip.right || y<photo.clip.top || y>photo.clip.bottom) continue;
+        const pin=el('button','cv-comment-pin','●'); pin.type='button'; pin.title=c.body; pin.setAttribute('aria-label','查看评论：'+c.body);
+        pin.style.left=((x-r.left)/r.width*100)+'%'; pin.style.top=((y-r.top)/r.height*100)+'%';
+        pin.addEventListener('click',event=>{
+          event.stopPropagation(); $('#tabComments').click(); setSide(true);
+          const row=[...$('#spaceSideBody').querySelectorAll('[data-comment]')].find(v=>v.dataset.comment===c.id);
+          row?.scrollIntoView({block:'nearest'}); row?.focus();
+        });
+        card.append(pin);
+      }
+    }
+    st.paintCommentPins=()=>{for(const e of ents()){const card=st.cards.get(keyOf(e));if(card)paintPins(e,card);}};
+    const pinSizes=new ResizeObserver(entries=>{
+      for(const {target} of entries){
+        const e=byKey(target.dataset.key);if(e && target.isConnected) paintPins(e,target);else pinSizes.unobserve(target);
+      }
+    });
+    async function commentOnImage(e, point) {
+      const sid=S.space.id, rid=res.id;
+      if (!await flushSave() || !e.id) { flashHint('请等图片保存后再评论'); return; }
+      const got=await ask({title:'评论图片这个位置',fields:[{name:'body',type:'textarea',label:'评论',maxLength:4000}],ok:'发评论',validate:v=>!v.body.trim()?'请填写评论':''});
+      if (!got || cv!==st) return;
+      const r=await api('/spaces/'+sid+'/resources/'+rid+'/comments',{method:'POST',body:{body:got.body.trim(),anchor:{entityId:e.id,imagePoint:point}}});
+      if (!r.ok) {flashHint((await r.json()).error);return;}
+      if(cv===st) await loadComments();
+    }
     function buildCard(e) {
       const p = e.payload;
       const card = el('div', 'canvas-card');
       const k = keyOf(e);
       card.dataset.key = k;
       card.dataset.eid = e.id || '';
+      if (p.type==='image' || p.type==='ai-image') {
+        pinSizes.observe(card);
+        card.addEventListener('load',()=>paintPins(e,card),true);
+      }
       if (p.type === 'image' && p.url) {
         const img = document.createElement('img');
         img.src = p.url.startsWith('/files/') || p.url.startsWith('/oss/') ? base() + p.url : fixWikiThumb(p.url); img.alt = p.text || '图片'; img.draggable = false; img.loading = 'lazy';
@@ -851,10 +958,14 @@ export function mountSpaces(ctx) {
       const ic = el('span', 'an-ic'); ic.innerHTML = AI_ICON[kind];
       const title = el('span', 'an-title');
       const prov = el('button', 'an-chip an-ui an-prov'); prov.type = 'button'; prov.title = '选择 AI 服务';
-      head.append(ic, title, el('span', 'an-gap'), prov);
-      if (kind === 'image') { const sz = el('button', 'an-chip an-ui an-size'); sz.type = 'button'; sz.title = '图片尺寸'; head.append(sz); }
+      const toggle = el('button', 'an-chip an-ui an-toggle');
+      toggle.type = 'button';
+      head.append(ic, title, el('span', 'an-gap'), toggle);
+      const settings = el('div', 'an-settings an-ui');
+      settings.append(prov);
+      if (kind === 'image') { const sz = el('button', 'an-chip an-ui an-size'); sz.type = 'button'; sz.title = '图片尺寸'; settings.append(sz); }
       const run = el('button', 'an-run an-ui'); run.type = 'button';
-      head.append(run);
+      settings.append(run);
       const ta = document.createElement('textarea');
       ta.className = 'an-ins';
       ta.value = p.text || '';
@@ -886,20 +997,36 @@ export function mountSpaces(ctx) {
       cp.addEventListener('click', async () => { const cur = byKey(card.dataset.key); try { await navigator.clipboard.writeText((cur && cur.payload.usedPrompt) || ''); flashHint('已复制提示词'); } catch (er) { flashHint('复制失败'); } });
       det.append(sum, pre, cp);
       const acts = el('div', 'an-acts an-ui');
-      wrap.append(head, ta, chips, ins, out, det, acts);
+      const controls = el('div', 'an-controls');
+      controls.append(ta, chips, ins, settings, det, acts);
+      wrap.append(head, out, controls);
       card.append(wrap);
+      toggle.onclick = () => {
+        card._controlsOpen = !card._controlsOpen;
+        renderAiNode(e);
+      };
+      let point;
+      out.addEventListener('pointerdown', ev => {
+        if (kind==='image' && ev.button===0 && e.payload.url) point={x:ev.clientX,y:ev.clientY};
+      });
+      on(box, 'pointerup', ev => {
+        if (point && Math.hypot(ev.clientX-point.x,ev.clientY-point.y)<3 && card.isConnected) toggle.click();
+        point=null;
+      });
+      on(ta, 'pointerdown', ev => { ev.stopPropagation(); if (ta.readOnly) startEdit(keyOf(e)); });
       prov.addEventListener('click', async (ev) => {
         ev.stopPropagation();
         const pv = await loadProviders();
         const cur = byKey(card.dataset.key); if (!cur) return;
         const list = pv[kind] || [];
         const now = cur.payload.provider || (list.find((x) => x.default) || list[0] || {}).id || 'openai';
-        popMenu(prov, list.map((x) => ({
-          label: x.name, sub: x.available === false ? '即将接入' : (Array.isArray(x.models) && x.models.length ? x.models.slice(0, 2).join(' / ') : ''), on: x.id === now,
-          onClick: () => { if (x.available === false) { flashHint(x.name + ' 还没接入，先用其他服务'); return; } const s0 = snap(); cur.payload = { ...cur.payload, provider: x.id, model: '' }; pushUndo(s0); renderAiNode(cur); scheduleSave(); },
-        })).concat(pv.fallback ? [{ note: '后端还没有服务列表接口，暂时只显示 OpenAI' }] : []));
+        popMenu(prov, list.flatMap(x => (x.models?.length ? x.models : ['']).map(model => ({
+          label: model || x.name, sub: x.available === false ? '即将接入' : x.name,
+          on: x.id === now && (cur.payload.model || x.models?.[0] || '') === model,
+          onClick: () => { if (x.available === false) { flashHint(x.name + ' 还没接入'); return; } const s0 = snap(); cur.payload = { ...cur.payload, provider: x.id, model }; pushUndo(s0); renderAiNode(cur); scheduleSave(); },
+        }))));
       });
-      const szBtn = head.querySelector('.an-size');
+      const szBtn = settings.querySelector('.an-size');
       if (szBtn) szBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const cur = byKey(card.dataset.key); if (!cur) return;
@@ -917,8 +1044,18 @@ export function mountSpaces(ctx) {
       const kind = p.type === 'ai-image' ? 'image' : 'text';
       const ins = nodeInputs(e);
       const running = st.running.has(k), err = st.errors.get(k);
-      card.querySelector('.an-title').textContent = aiTitle(p, ins);
-      card.querySelector('.an-prov').textContent = providerName(kind, p.provider) + ' ▾';
+      const has = kind === 'image' ? !!p.url : !!p.output;
+      const wrap = card.querySelector('.an-wrap');
+      const toggle = card.querySelector('.an-toggle');
+      wrap.classList.toggle('an-result', has);
+      wrap.classList.toggle('an-first', !has);
+      card.toggleAttribute('data-gen-open', has && !!card._controlsOpen);
+      toggle.hidden = !has;
+      toggle.textContent = card._controlsOpen ? '收起' : '展开';
+      toggle.setAttribute('aria-expanded', String(!has || !!card._controlsOpen));
+      card.querySelector('.an-controls').hidden = has && !card._controlsOpen;
+      card.querySelector('.an-title').textContent = has && p.text ? p.text.split('\n')[0].slice(0,32) : aiTitle(p, ins);
+      card.querySelector('.an-prov').textContent = (p.model || providerName(kind, p.provider)) + ' ▾';
       const sz = card.querySelector('.an-size');
       if (sz) sz.textContent = ((SIZES.find((x) => x[0] === (p.size || '1024x1024')) || SIZES[0])[1]) + ' ▾';
       const run = card.querySelector('.an-run');
@@ -928,8 +1065,8 @@ export function mountSpaces(ctx) {
       const ta = card.querySelector('.an-ins');
       if (document.activeElement !== ta && ta.value !== (p.text || '')) ta.value = p.text || '';
       const insBox = card.querySelector('.an-inputs');
-      const insSig = JSON.stringify([p.mode, ins.map((i) => i.type === 'image' ? i.url : i.text.length)]);
-      const outSig = JSON.stringify([running, err || '', p.url || '', (p.output || '').length, p.output ? p.output.slice(0, 40) : '']);
+      const insSig = JSON.stringify([p.mode, ins.map(i => i.type === 'image' ? [i.from,i.url] : 'text')]);
+      const outSig = JSON.stringify([running, err, p.url, p.output]);
       const insSame = card._insSig === insSig, outSame = card._outSig === outSig;
       card._insSig = insSig; card._outSig = outSig;
       if (!insSame) insBox.textContent = '';
@@ -939,18 +1076,38 @@ export function mountSpaces(ctx) {
       } else {
         const nt = ins.filter((i) => i.type === 'text').length, ni = ins.filter((i) => i.type === 'image').length;
         insBox.append(el('span', 'an-hint', '输入：' + [nt ? nt + ' 段文字' : '', ni ? ni + ' 张图片' : ''].filter(Boolean).join('，')));
-        for (const i of ins.filter((x) => x.type === 'image').slice(0, 4)) {
+        for (const i of ins.filter(x => x.type === 'image')) {
+          const row = el('label', 'an-ref an-ui');
           const im = document.createElement('img');
-          im.src = /^\/(files|oss)\//.test(i.url) ? base() + i.url : i.url; im.alt = ''; im.draggable = false;
-          insBox.append(im);
+          im.src = shownUrl(i.url); im.alt = '参考图'; im.draggable = false;
+          const input = el('input', 'an-purpose');
+          input.placeholder = '用途，如配色、构图、人物';
+          input.setAttribute('aria-label','参考图用途');
+          input.maxLength = 300;
+          input.dataset.from = i.from;
+          const thumb = el('button','an-ref-preview');
+          thumb.type = 'button'; thumb.title = '查看参考图'; thumb.append(im);
+          thumb.onclick = () => openPreview([{url:i.url,title:'参考图'}],0);
+          input.onpointerdown = ev => ev.stopPropagation();
+          input.onkeydown = ev => ev.stopPropagation();
+          input.oninput = () => {
+            const key=resolveKey(input.dataset.from);
+            if (input.value.trim()) e.payload.refPurposes = {...e.payload.refPurposes,[key]:input.value};
+            else if (e.payload.refPurposes) delete e.payload.refPurposes[key];
+            scheduleSave();
+          };
+          row.append(thumb,input); insBox.append(row);
         }
+      }
+      for (const input of insBox.querySelectorAll('.an-purpose')) {
+        if (document.activeElement !== input) input.value = p.refPurposes?.[resolveKey(input.dataset.from)] || '';
       }
       const out = card.querySelector('.an-out');
       if (!outSame) out.textContent = '';
       out.className = 'an-out' + (kind === 'text' ? ' an-scroll an-ui' : '');
       if (outSame) { /* 结果没变 */ }
-      else if (running) out.append(el('div', 'an-status', kind === 'image' ? 'AI 正在写提示词并画图…' : 'AI 正在写…'));
-      else if (err) { const d = el('div', 'an-err', err); d.setAttribute('role', 'alert'); out.append(d); }
+      else if (!has && running) out.append(el('div', 'an-status', kind === 'image' ? 'AI 正在写提示词并画图…' : 'AI 正在写…'));
+      else if (!has && err) { const d = el('div', 'an-err', err); d.setAttribute('role', 'alert'); out.append(d); }
       else if (kind === 'image' && p.url) {
         const im = document.createElement('img');
         im.src = /^\/(files|oss)\//.test(p.url) ? base() + p.url : p.url; im.alt = p.usedPrompt || '生成的图片'; im.draggable = false;
@@ -962,7 +1119,10 @@ export function mountSpaces(ctx) {
       det.querySelector('.an-ptext').textContent = p.usedPrompt || '';
       const acts = card.querySelector('.an-acts');
       acts.textContent = '';
-      const has = kind === 'image' ? !!p.url : !!p.output;
+      if (has && err) acts.append(el('div','an-err',err));
+      const history = el('button','an-mini','生成记录'); history.type = 'button';
+      history.onclick = () => generationHistory(e);
+      acts.append(history);
       if (has && !running) {
         const keep = el('button', 'an-mini', '存为新卡片'); keep.type = 'button';
         keep.addEventListener('click', () => saveNodeResult(k));
@@ -975,6 +1135,107 @@ export function mountSpaces(ctx) {
         }
         if (p.ranAt) acts.append(el('span', 'an-meta', providerName(kind, p.provider) + (p.model ? ' · ' + p.model : '')));
       }
+    }
+    async function generationHistory(e) {
+      if (!await flushSave() || cv !== st || !e.id) return;
+      const reply = await api('/spaces/'+encodeURIComponent(S.space.id)+'/resources/'+encodeURIComponent(res.id)+'/generate');
+      const data = await reply.json();
+      if (cv !== st) return;
+      if (!reply.ok) { flashHint(data.error || '读取生成记录失败'); return; }
+      const entries = data.entries;
+      if (!entries.length) { flashHint('这个画布还没有生成记录'); return; }
+      const dlg = document.createElement('dialog');
+      dlg.className = 'cv-gen-history';
+      dlg.setAttribute('aria-label', '画布生成记录');
+      const top = el('div', 'gh-top'), close = el('button', 'an-mini', '关闭');
+      close.type = 'button'; close.onclick = () => dlg.close();
+      top.append(el('strong',null,'生成记录'),close);
+      const lists = el('div','gh-choices'), left = el('select'), right = el('select');
+      left.setAttribute('aria-label','查看版本'); right.setAttribute('aria-label','对比版本');
+      right.append(new Option('选择第二个版本',''));
+      entries.forEach((item,index) => {
+        const who = item.actor || '发起人未记录';
+        const when = item.at ? new Date(item.at).toLocaleString() : '早期结果';
+        const label = (item.nodeId===e.id ? '本卡 · ' : '')+when+' · '+who+' · '+(item.instruction || item.usedPrompt || (item.url ? '图片' : '文字')).slice(0,32);
+        left.append(new Option(label,String(index)));
+        if (item.url) right.append(new Option(label,String(index)));
+      });
+      const thisCard = entries.findIndex(item=>item.nodeId===e.id);
+      left.value = String(thisCard < 0 ? 0 : thisCard);
+      const mode = el('select'); mode.setAttribute('aria-label','对比方式');
+      mode.append(new Option('并排对比','side'),new Option('叠图对比','over'));
+      const zoom = el('input'); zoom.type='range'; zoom.min='1'; zoom.max='5'; zoom.step='0.05'; zoom.value='1';
+      const zl = el('label','gh-slider','同步缩放 '); zl.append(zoom);
+      const alpha = el('input'); alpha.type='range'; alpha.min='0'; alpha.max='100'; alpha.value='50';
+      const al = el('label','gh-slider','叠图透明度 '); al.append(alpha);
+      lists.append(left,right,mode,zl,al);
+      const stage = el('div','gh-stage'), detail = el('div','gh-details');
+      function draw() {
+        const a=entries[Number(left.value)], b=right.value==='' ? null : entries[Number(right.value)];
+        stage.replaceChildren(); detail.replaceChildren();
+        right.hidden=!a.url;
+        const compare=!!(a.url && b && a.id!==b.id);
+        mode.hidden=!compare; zl.hidden=!a.url; al.hidden=!compare || mode.value!=='over';
+        stage.dataset.mode=compare ? mode.value : 'single';
+        for (const [n, item] of (compare ? [a,b] : [a]).entries()) {
+          const panel=el('div','gh-frame');
+          if (item.url) {
+            const im=el('img'); im.alt=item.instruction || '生成结果'; im.src=shownUrl(item.url); im.draggable=false;
+            panel.append(im);
+          } else panel.append(el('div','an-otext',item.text || ''));
+          stage.append(panel);
+          const record=el('section','gh-record');
+          record.append(el('strong',null,(compare ? (n?'右图 · ':'左图 · ') : '')+(item.actor || '发起人未记录')+(item.at ? ' · '+new Date(item.at).toLocaleString() : '')));
+          const prompt=el('details'), summary=el('summary',null,'实际提示词');
+          prompt.append(summary,el('pre',null,item.usedPrompt || '这次没有留下提示词')); record.append(prompt);
+          if (item.references?.length) {
+            const refs=el('details'); refs.append(el('summary',null,'当次参考图'));
+            for (const ref of item.references) {
+              const row=el('div','gh-ref'), im=el('img'); im.alt='参考图'; im.src=shownUrl(ref.url);
+              row.append(im,el('span',null,ref.purpose || '未填写用途')); refs.append(row);
+            }
+            record.append(refs);
+          }
+          const actions=el('div','gh-actions');
+          if (item.usedPrompt) {
+            const copy=el('button','an-mini','复制实际提示词'); copy.type='button';
+            copy.onclick=async()=>{await navigator.clipboard.writeText(item.usedPrompt); flashHint('已复制这次的提示词');};
+            actions.append(copy);
+          }
+          const cont=el('button','an-mini','从此版本继续'); cont.type='button';
+          cont.onclick=()=>{
+            if(cv!==st) {dlg.close();return;}
+            const source=e.payload;
+            const at=freeSpot(source.x+source.w+60,source.y,280,220,true);
+            const material=item.url ? {type:'image',url:item.url,text:(item.instruction || '').slice(0,200)} : {type:'ai-text',output:item.text || '',text:item.instruction || '',usedPrompt:item.usedPrompt || ''};
+            const next=addCard({...material,w:280,h:220},at.x,at.y);
+            createAiNode(item.url?'ai-image':'ai-text','edit',null,keyOf(next),'');
+            dlg.close();
+          };
+          actions.append(cont); record.append(actions); detail.append(record);
+        }
+        applyZoom();
+      }
+      let offset={x:0,y:0}, drag=null;
+      function applyZoom() {
+        if (+zoom.value===1) offset={x:0,y:0};
+        const target=stage.querySelector('.gh-frame');
+        if (target) {
+          const maxX=target.clientWidth*(+zoom.value-1)/2, maxY=target.clientHeight*(+zoom.value-1)/2;
+          offset.x=clamp(offset.x,-maxX,maxX); offset.y=clamp(offset.y,-maxY,maxY);
+        }
+        stage.style.setProperty('--gen-transform','translate('+offset.x+'px,'+offset.y+'px) scale('+zoom.value+')');
+        stage.style.setProperty('--gen-alpha',String(+alpha.value/100));
+      }
+      stage.onpointerdown=ev=>{if (+zoom.value===1 || !ev.target.closest('.gh-frame img')) return; drag={x:ev.clientX-offset.x,y:ev.clientY-offset.y};stage.setPointerCapture(ev.pointerId);};
+      stage.onpointermove=ev=>{if (drag) {offset={x:ev.clientX-drag.x,y:ev.clientY-drag.y};applyZoom();}};
+      stage.onlostpointercapture=()=>{drag=null;};
+      left.onchange=right.onchange=mode.onchange=draw;
+      zoom.oninput=alpha.oninput=applyZoom;
+      dlg.append(top,lists,stage,detail); document.body.append(dlg);
+      dlg.addEventListener('close',()=>dlg.remove(),{once:true});
+      ac.signal.addEventListener('abort',()=>dlg.close(),{once:true});
+      dlg.showModal(); draw();
     }
     /** 运行节点：把需求和连进来的输入交给后端，结果和实际提示词写回节点 */
     /** 生成前把连进来的外链图片复制进空间：后端只拿站内图片，避免模型服务去外站下载被限流（429）；
@@ -1033,10 +1294,12 @@ export function mountSpaces(ctx) {
       const sid = S.space.id, rid = res.id;
       let j = {}, err = '';
       try {
-        if (await localizeInputs(e)) ins = nodeInputs(byKey(k) || e);
+        await localizeInputs(e);
+        if (!await flushSave() || !e.id || cv !== st) throw new Error('画布尚未保存，未开始生成');
+        ins = nodeInputs(e);
         const r = await api('/spaces/' + encodeURIComponent(sid) + '/resources/' + encodeURIComponent(rid) + '/generate', {
           method: 'POST', timeout: 240000,
-          body: { nodeId: e.id || undefined, kind, mode: p.mode || 'gen', instruction, inputs: ins.map((i) => (i.type === 'text' ? { type: 'text', text: String(i.text).slice(0, 8000) } : { type: 'image', url: i.url })), provider: p.provider || 'openai', model: p.model || undefined, size: kind === 'image' ? (p.size || '1024x1024') : undefined },
+          body: { nodeId: e.id, kind, mode: p.mode || 'gen', instruction, inputs: ins.map((i) => (i.type === 'text' ? { type: 'text', text: String(i.text).slice(0, 8000) } : { type: 'image', url: i.url, purpose:e.payload.refPurposes?.[i.from] || '' })), provider: p.provider || 'openai', model: p.model || undefined, size: kind === 'image' ? (p.size || '1024x1024') : undefined },
         });
         j = await r.json().catch(() => ({}));
         if (r.status === 404 || r.status === 405) err = '后端还没有画布生成接口，等后端上线后就能用';
@@ -1616,11 +1879,19 @@ export function mountSpaces(ctx) {
       const p = e.payload;
       const items = [];
       if (!multi && (u || (p.type === 'img-search' && (p.results || []).length))) items.push({ label: '看大图', sub: p.type === 'image' ? '双击' : '', onClick: () => previewCard(e) });
+      if (!multi && (p.type==='image'||p.type==='ai-image') && S.space.role!=='viewer') {
+        const card=st.cards.get(keyOf(e)), img=card.querySelector('.an-out img') || card.querySelector('img');
+        const r=img && photoRect(img);
+        if(r && pt.x>=r.clip.left && pt.x<=r.clip.right && pt.y>=r.clip.top && pt.y<=r.clip.bottom){
+          const x=(pt.x-r.x)/r.w, y=(pt.y-r.y)/r.h;
+          if(x>=0 && x<=1 && y>=0 && y<=1) items.push({label:'评论图片这个位置',onClick:()=>commentOnImage(e,{x,y})});
+        }
+      }
       const asImage = p.type === 'text' && pastedLink(p.text, true);
       if (!multi && (asImage || (p.type === 'image' && p.url))) {
         items.push({ label: asImage ? '切换为图片' : '切换为文字', onClick: () => {
           const before = snap();
-          if (asImage) Object.assign(p, { ...asImage, url: p.originalUrl === asImage.url && p.url.startsWith('/files/') ? p.url : asImage.url, originalUrl: asImage.url }, { source: asImage.source || (asImage.url === p.url ? p.source : ''), type: 'image', pastedText: p.text, text: '' });
+          if (asImage) Object.assign(p, { ...asImage, url: (p.originalUrl === asImage.url || p.pastedText === p.text) && p.url?.startsWith('/files/') ? p.url : asImage.url, originalUrl: p.pastedText===p.text && p.originalUrl ? p.originalUrl : asImage.url }, { source: asImage.source || (asImage.url === p.url || p.pastedText===p.text ? p.source : ''), type: 'image', pastedText: p.text, text: '' });
           else Object.assign(p, { type: 'text', text: p.pastedText || p.url });
           pushUndo(before); rebuild(); scheduleSave();
         } });
@@ -1888,6 +2159,7 @@ export function mountSpaces(ctx) {
       return { focus, up, down, es };
     }
     function refresh(opts) {
+      paintSections();
       const solo = st.sel.size === 1;
       st.rel = relInfo();
       box.classList.toggle('focus-mode', !!(st.rel.focus && st.rel.es.size));
@@ -1897,6 +2169,7 @@ export function mountSpaces(ctx) {
         if (!c) continue;
         const p = e.payload;
         c.className = 'canvas-card' + (isNodeType(p.type) ? ' ai-node' : '') + (p.type === 'img-search' ? ' sn-node' : '') + (p.type === 'annot' ? ' ann-node' : '') + (p.color && p.type !== 'image' ? ' c-' + p.color : '') + (st.sel.has(k) ? ' sel' : '') + (st.sel.has(k) && solo ? ' solo' : '') + (st.editing === k ? ' editing' : '') + (st.rel.up.has(k) ? ' rel-up' : '') + (st.rel.down.has(k) ? ' rel-down' : '');
+        c.classList.toggle('cv-locked',!!p.locked);
         if (p.type === 'ai-image' || p.type === 'ai-text') renderAiNode(e);
         else if (p.type === 'img-search') renderSearchNode(e);
         else if (p.type === 'annot') renderAnnotNode(e);
@@ -2077,6 +2350,239 @@ export function mountSpaces(ctx) {
       if (first) first.focus({ preventScroll: true });
     }
     on(document, 'pointerdown', (ev) => { if (menuEl && !menuEl.contains(ev.target)) closeMenu(); }, { capture: true });
+    function sectionCards(id) { return ents().filter(e => e.payload.section === id); }
+    function cardBounds(list) {
+      const cards = list.map(e=>e.payload);
+      return {x0:Math.min(...cards.map(p=>p.x)), y0:Math.min(...cards.map(p=>p.y)),
+        x1:Math.max(...cards.map(p=>p.x+p.w)), y1:Math.max(...cards.map(p=>p.y+p.h))};
+    }
+    function paintSections() {
+      const groups = new Map();
+      for (const e of ents()) {
+        const id = e.payload.section;
+        if (!id) continue;
+        if (!groups.has(id)) groups.set(id,[]);
+        groups.get(id).push(e);
+      }
+      const oldFrames = new Map([...sectionLayer.children].map(f=>[f.dataset.section,f]));
+      for (const [id,list] of groups) {
+        let frame = oldFrames.get(id);
+        if (!frame) {
+          frame = el('div','cv-section');
+          frame.dataset.section = id;
+          const handle = el('button','cv-section-handle');
+          handle.type = 'button';
+          handle.title = '选中分区 · 拖动标题移动整组';
+          handle.onclick = event => {
+            if (event.detail === 0) selectSection(id);
+          };
+          frame.append(handle);
+          sectionLayer.append(frame);
+        }
+        oldFrames.delete(id);
+        frame.firstChild.textContent = list[0].payload.sectionName;
+        const b = cardBounds(list);
+        Object.assign(frame.style,{left:b.x0-12+'px',top:b.y0-36+'px',width:b.x1-b.x0+24+'px',height:b.y1-b.y0+48+'px'});
+      }
+      for (const f of oldFrames.values()) f.remove();
+    }
+    function selectSection(id) {
+      st.sel = new Set(sectionCards(id).map(keyOf));
+      clearEdgeSel(); refresh();
+    }
+    st.focusSection = id => {
+      const list = sectionCards(id);
+      if (!list.length) { flashHint('这个分区已移除'); return false; }
+      const b = cardBounds(list), r = rect();
+      const z = clamp(Math.min((r.width-80)/(b.x1-b.x0),(r.height-130)/(b.y1-b.y0)),CV.MIN_Z,1);
+      view = {z,x:r.width/2-(b.x0+b.x1)*z/2,y:r.height/2-(b.y0+b.y1)*z/2};
+      st.locatedSection=true; selectSection(id); applyView();
+      return true;
+    };
+    async function nameSection(list, oldId) {
+      const got = await ask({title:oldId?'分区改名':'建立分区',fields:[{name:'name',label:'分区名',maxLength:100,value:oldId?list[0].payload.sectionName:''}],validate:v=>v.name.trim()?'':'请填写分区名'});
+      if (!got || cv!==st) return;
+      const s=snap(), id=oldId || crypto.randomUUID();
+      for (const e of list) Object.assign(e.payload,{section:id,sectionName:got.name.trim()});
+      pushUndo(s); refresh(); scheduleSave();
+    }
+    async function copySectionLink(id) {
+      if (!await flushSave()) { flashHint('请先保存分区');return; }
+      const url=new URL(location.href);
+      url.hash=new URLSearchParams({space:S.space.id,canvas:res.id,section:id});
+      await navigator.clipboard.writeText(url.href);
+      flashHint('已复制分区链接，访问权限与空间一致');
+    }
+    async function saveTemplate(list) {
+      const got=await ask({title:'存为共享流程模板',sub:'保留选中卡片内的连线和生成设置。使用模板时可以更换图片和文字素材。',fields:[{name:'title',label:'模板名',maxLength:120}],validate:v=>v.title.trim()?'':'请填写模板名'});
+      if(!got || cv!==st || !await flushSave())return;
+      const path='/spaces/'+S.space.id+'/resources';
+      const response=await api(path,{method:'POST',body:{type:'canvas',title:got.title.trim(),templateSource:{resourceId:res.id,cards:list.map(e=>e.id)}}});
+      const result=await response.json();
+      if(!response.ok) throw new Error(result.error);
+      if(cv!==st)return;
+      S.space.resources.unshift(result.resource); renderTree();
+      flashHint('模板已存入这个空间');
+    }
+    async function showTemplates(anchor){
+      const path='/spaces/'+S.space.id;
+      const response=await api(path+'?full=1');
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error);
+      if(cv!==st)return;
+      const templates=result.space.resources.filter(r=>r.template);
+      popMenu(anchor,templates.length?templates.map(r=>({label:r.title,onClick:()=>useTemplate(r).catch(err=>flashHint(err.message))})):[{note:'选中流程卡片，在「整理」里存为模板'}]);
+    }
+    async function useTemplate(template){
+      if(!await flushSave())return;
+      const sid=S.space.id, path='/spaces/'+sid+'/resources';
+      const response=await api(path+'/'+template.id), data=await response.json();
+      if(!response.ok)throw new Error(data.error);
+      if(cv!==st)return;
+      const material=data.resource.entities.filter(e=>['text','image'].includes(e.payload.type));
+      const fields=[{name:'title',label:'新画布名称',maxLength:120,value:template.title+' 副本'}];
+      material.forEach((slot,i)=>{
+        const type=slot.payload.type;
+        const options=ents().filter(e=>e.id && e.payload.type===type).map((e,n)=>[e.id,(e.payload.text || (type==='image'?'图片':'文字')+' '+(n+1)).slice(0,80)]);
+        fields.push({name:slot.id,type:'select',label:(type==='image'?'图片':'文字')+'素材 '+(i+1)+' · '+(slot.payload.text || '').slice(0,60),options:[['','使用模板原素材'],...options]});
+      });
+      const got=await ask({title:'使用流程模板',fields,ok:'新建画布',validate:v=>v.title.trim()?'':'请填写画布名'});
+      if(!got || cv!==st)return;
+      const replacements={};
+      for(const slot of material) if(got[slot.id]) replacements[slot.id]={resourceId:res.id,entityId:got[slot.id]};
+      const created=await api(path,{method:'POST',body:{type:'canvas',title:got.title.trim(),templateSource:{resourceId:template.id,instantiate:true,replacements}}});
+      const result=await created.json();
+      if(!created.ok)throw new Error(result.error);
+      if(cv===st)await openSpace(sid,result.resource.id);
+    }
+    async function exportSection(id){
+      const list=sectionCards(id);
+      const sectionName=list[0].payload.sectionName;
+      const got=await ask({title:'导出分区图片',fields:[
+        {name:'resolution',type:'select',label:'图片长边',value:'4096',options:[['2048','2048 像素'],['4096','4096 像素'],['8192','8192 像素']]},
+        {name:'heading',type:'check',text:'附上分区标题',value:true},
+        {name:'numbers',type:'check',text:'标出卡片序号'},
+        {name:'sources',type:'check',text:'附上图片来源网页'}
+      ],ok:'下载 PNG'});
+      if(!got || cv!==st)return;
+      const listByPosition=[...list].sort((a,b)=>a.payload.y-b.payload.y || a.payload.x-b.payload.x);
+      const nameByCard=new Map(listByPosition.map((e,i)=>[e,i+1]));
+      const b=cardBounds(list), margin=24, header=got.heading?44:0;
+      const width=b.x1-b.x0+margin*2;
+      const canvas=document.createElement('canvas');
+      const ctx2=canvas.getContext('2d');
+      const wrapText=(value,lineWidth)=>{
+        const lines=[];
+        for(const paragraph of String(value).split('\n')){
+          let line='';
+          for(const ch of paragraph){
+            if(line && ctx2.measureText(line+ch).width>lineWidth){lines.push(line);line='';}
+            line+=ch;
+          }
+          lines.push(line);
+        }
+        return lines;
+      };
+      ctx2.font='13px sans-serif';
+      const sourceLines=[];
+      if(got.sources) for(const e of listByPosition){
+        const p=e.payload, result=p.type==='img-search' && p.results?.[p.picked];
+        const src=result?.source || sourceOfCard(p);
+        if(src)sourceLines.push(...wrapText((got.numbers?nameByCard.get(e)+' · ':'')+(p.text || result?.title || '图片')+' — '+src,width-margin*2));
+      }
+      const contentHeight=b.y1-b.y0+margin*2+header;
+      const height=contentHeight+sourceLines.length*18+(sourceLines.length?margin:0);
+      const scale=Number(got.resolution)/Math.max(width,height);
+      canvas.width=Math.ceil(width*scale);canvas.height=Math.ceil(height*scale);
+      ctx2.scale(scale,scale);ctx2.fillStyle='#fff';ctx2.fillRect(0,0,width,height);
+      ctx2.translate(margin-b.x0,margin+header-b.y0);
+      if(got.heading){ctx2.fillStyle='#182032';ctx2.font='bold 24px sans-serif';ctx2.fillText(sectionName,b.x0,b.y0-16,width-margin*2);}
+      const members=new Set(list.map(keyOf));
+      for(const link of edges()){
+        if(!members.has(resolveKey(link.from)) || !members.has(resolveKey(link.to)))continue;
+        const start=byKey(link.from).payload,end=byKey(link.to).payload;
+        const shape=edgeGeom(start,end);
+        ctx2.strokeStyle='#7c8794';ctx2.lineWidth=2;ctx2.setLineDash(link.dashed?[7,5]:[]);
+        ctx2.stroke(new Path2D(shape.d));
+        if(link.arrow!==false){
+          const [,side]=pickSides(start,end),p=sideAnchor(end,side);
+          ctx2.beginPath();ctx2.moveTo(p.x,p.y);
+          ctx2.lineTo(p.x+p.nx*10-p.ny*5,p.y+p.ny*10+p.nx*5);
+          ctx2.lineTo(p.x+p.nx*10+p.ny*5,p.y+p.ny*10-p.nx*5);
+          ctx2.closePath();ctx2.fillStyle='#7c8794';ctx2.fill();
+        }
+        if(link.label){ctx2.font='13px sans-serif';ctx2.fillStyle='#424b56';ctx2.fillText(link.label,shape.mid.x,shape.mid.y);}
+      }
+      ctx2.setLineDash([]);
+      for(const e of [...list].sort((a,b)=>(a.payload.layer || 0)-(b.payload.layer || 0))){
+        const p=e.payload, url=imageOfCard(e);
+        const card=st.cards.get(keyOf(e));
+        ctx2.save();ctx2.beginPath();ctx2.rect(p.x,p.y,p.w,p.h);ctx2.clip();
+        ctx2.fillStyle=card?getComputedStyle(card).backgroundColor:'#f4f3ef';ctx2.fillRect(p.x,p.y,p.w,p.h);
+        if(url){
+          const image=await createImageBitmap(await loadImageBlob(url));
+          const ratio=Math.min(p.w/image.width,p.h/image.height),w=image.width*ratio,h=image.height*ratio;
+          ctx2.drawImage(image,p.x+(p.w-w)/2,p.y+(p.h-h)/2,w,h);image.close();
+        }else{
+          const size=p.fontSize || 16;
+          ctx2.fillStyle='#25262b';ctx2.font=size+'px sans-serif';ctx2.textBaseline='top';
+          const lines=wrapText(textOfCard(e) || p.text || pageOf(p)?.title || '',p.w-16);
+          lines.forEach((line,i)=>ctx2.fillText(line,p.x+8,p.y+8+i*size*1.35));
+        }
+        if(got.numbers){
+          const label=String(nameByCard.get(e));ctx2.font='bold 14px sans-serif';ctx2.textBaseline='middle';
+          const w=ctx2.measureText(label).width+14;
+          ctx2.fillStyle='#22364d';ctx2.fillRect(p.x+6,p.y+6,w,22);ctx2.fillStyle='#fff';ctx2.fillText(label,p.x+13,p.y+17);
+        }
+        ctx2.restore();
+      }
+      ctx2.font='13px sans-serif';ctx2.fillStyle='#353b47';
+      sourceLines.forEach((line,i)=>ctx2.fillText(line,b.x0,b.y1+margin+18+i*18));
+      const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+      if(!blob) throw new Error('浏览器无法生成所选尺寸的图片');
+      const href=URL.createObjectURL(blob), link=document.createElement('a');
+      link.href=href;link.download=sectionName+'.png';link.click(); setTimeout(()=>URL.revokeObjectURL(href),1000);
+    }
+    function arrangeImages(list, layout) {
+      const b=cardBounds(list), before=snap(), gap=16;
+      list.sort((a,b)=>a.payload.y-b.payload.y || a.payload.x-b.payload.x);
+      if (layout==='equal') {
+        const height=Math.min(...list.map(e=>e.payload.h));
+        let x=b.x0;
+        for (const e of list) {
+          const p=e.payload;
+          const w=clamp(Math.round(height/ratioOfCard(e)),CV.MINW,CV.MAXW);
+          Object.assign(p,{x,y:b.y0,w,h:height});
+          x+=w+gap;
+        }
+      } else if (layout==='space') {
+        const horizontal=b.x1-b.x0>=b.y1-b.y0;
+        const axis=horizontal?'x':'y', size=horizontal?'w':'h';
+        list.sort((a,b)=>a.payload[axis]-b.payload[axis]);
+        const start=list[0].payload[axis];
+        const extent=(horizontal?b.x1:b.y1)-start;
+        const distance=Math.max(gap,(extent-list.reduce((n,e)=>n+e.payload[size],0))/(list.length-1));
+        let next=start;
+        for (const e of list) { e.payload[axis]=Math.round(next); next+=e.payload[size]+distance; }
+      } else {
+        const maxWidth=Math.max(...list.map(e=>e.payload.w));
+        const target=Math.max(maxWidth, Math.sqrt(list.reduce((n,e)=>n+(e.payload.w+gap)*(e.payload.h+gap),0)*1.5));
+        let x=0,y=0,rowHeight=0;
+        for (const e of list) {
+          const p=e.payload;
+          if(x && x+p.w>target){x=0;y+=rowHeight+gap;rowHeight=0;}
+          Object.assign(p,{x:b.x0+x,y:b.y0+y}); x+=p.w+gap; rowHeight=Math.max(rowHeight,p.h);
+        }
+      }
+      const overflowX=Math.max(0,...list.map(e=>e.payload.x-CV.WORLD));
+      const overflowY=Math.max(0,...list.map(e=>e.payload.y-CV.WORLD));
+      if (list.some(e=>e.payload.x<overflowX || e.payload.y<overflowY)) {
+        for (const e of list) e.payload=before.ents.find(c=>c.k===keyOf(e)).payload;
+        flashHint('这些图片排成一行超出画布，请使用紧凑排布'); return;
+      }
+      for (const e of list) { e.payload.x-=overflowX;e.payload.y-=overflowY;placeCard(e); }
+      pushUndo(before); refresh(); scheduleSave();
+    }
     function selBox() {
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const k of st.sel) { const e = byKey(k); if (!e) continue; const p = e.payload; x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h); }
@@ -2193,6 +2699,25 @@ export function mountSpaces(ctx) {
         bar.append(op);
       }
       const dup = el('button', null, '副本');
+      menuBtn('<span>整理</span>', '整理选中的卡片', () => {
+        const active=items.filter(e=>!e.payload.locked);
+        const pics=active.filter(e=>e.payload.type==='image' || (e.payload.type==='ai-image' && e.payload.url));
+        const section=items[0].payload.section;
+        const inOne=section && items.every(e=>e.payload.section===section);
+        const actions=[];
+        if(canEdit(S.space)){
+          if(pics.length>1) for(const [kind,label] of [['equal','图片等高排列'],['space','图片等间距排列'],['pack','图片紧凑排布']])
+            actions.push({label,onClick:()=>arrangeImages(pics,kind)});
+          actions.push({label:active.length?'锁定选中卡片':'解锁选中卡片',onClick:()=>setAll('locked',!!active.length)},
+            {label:'建成命名分区',onClick:()=>nameSection(items)}, {label:'存为共享流程模板',onClick:()=>saveTemplate(items).catch(err=>flashHint(err.message))});
+          if(inOne) actions.push({label:'分区改名',onClick:()=>nameSection(sectionCards(section),section)},
+            {label:'选中卡片移出分区',onClick:()=>{const s=snap();for(const e of items){delete e.payload.section;delete e.payload.sectionName;}pushUndo(s);refresh();scheduleSave();}});
+        }
+        if(inOne) actions.push({label:'选中整个分区',onClick:()=>selectSection(section)},
+          {label:'复制分区链接',onClick:()=>copySectionLink(section).catch(err=>flashHint(err.message))},
+          {label:'导出分区图片',onClick:()=>exportSection(section).catch(err=>flashHint('导出失败：'+err.message))});
+        return actions.length ? actions : [{note:'请选择分区内的卡片'}];
+      });
       dup.type = 'button'; dup.title = '创建副本（Ctrl + D）。复制到剪贴板用 Ctrl + C，右键有更多复制方式';
       dup.addEventListener('click', () => duplicate());
       const del = el('button', 'danger', '删除');
@@ -2225,7 +2750,8 @@ export function mountSpaces(ctx) {
       if (!b) { bar.style.display = 'none'; return; }
       bar.style.display = 'flex';
       const cx = (b.x0 + b.x1) / 2 * view.z + view.x;
-      let top = b.y0 * view.z + view.y - 10;
+      const withSection = [...st.sel].some(k => byKey(k)?.payload.section);
+      let top = (b.y0 - (withSection ? 36 : 0)) * view.z + view.y - 10;
       let below = false;
       if (top < 48) { top = b.y1 * view.z + view.y + 12; below = true; }
       const w = box.clientWidth;
@@ -2295,7 +2821,8 @@ export function mountSpaces(ctx) {
       const s = snap();
       if (idx.size) S.resource.edges = edges().filter((_, i) => !idx.has(i));
       if (st.sel.size) {
-        const ks = new Set([...st.sel].map(resolveKey));
+        const ks = new Set([...st.sel].map(resolveKey).filter(k=>!byKey(k)?.payload.locked));
+        if (!ks.size && !idx.size) {flashHint('请先解锁卡片');return;}
         S.resource.entities = ents().filter((e) => !ks.has(keyOf(e)));
         S.resource.edges = edges().filter((x) => !ks.has(resolveKey(x.from)) && !ks.has(resolveKey(x.to)));
         for (const k of ks) { const c = st.cards.get(k); if (c) c.remove(); st.cards.delete(k); }
@@ -2320,9 +2847,9 @@ export function mountSpaces(ctx) {
     }
     /** 复制选中的卡片和它们之间的连线；跨画布也能粘贴 */
     function copySel(cut) {
-      const keys = new Set([...st.sel].map(resolveKey));
+      const keys = new Set([...st.sel].map(resolveKey).filter(k=>!cut || !byKey(k)?.payload.locked));
       const cards = ents().filter((e) => keys.has(keyOf(e))).map((e) => ({ k: keyOf(e), payload: { ...e.payload } }));
-      if (!cards.length) return;
+      if (!cards.length) { if(cut) flashHint('请先解锁卡片');return; }
       const links = edges().filter((x) => keys.has(resolveKey(x.from)) && keys.has(resolveKey(x.to))).map((x) => ({ ...x, from: resolveKey(x.from), to: resolveKey(x.to) }));
       // 系统剪贴板写入卡片文字（空卡片写一个标记），粘贴时据此判断剪贴板里还是不是这几张卡
       const plain = cards.map((c) => c.payload.text || c.payload.url || '').filter(Boolean).join('\n\n') || '[毛豆画布卡片 ' + cards.length + ' 张]';
@@ -2354,7 +2881,9 @@ export function mountSpaces(ctx) {
     function nudge(dx, dy) {
       if (!st.sel.size) return;
       const s = snap();
-      for (const k of st.sel) { const e = byKey(k); if (!e) continue; e.payload = { ...e.payload, x: clamp(e.payload.x + dx, 0, CV.WORLD), y: clamp(e.payload.y + dy, 0, CV.WORLD) }; placeCard(e); }
+      const movable=[...st.sel].map(byKey).filter(e=>e && !e.payload.locked);
+      if(!movable.length)return;
+      for (const e of movable) { e.payload = { ...e.payload, x: clamp(e.payload.x + dx, 0, CV.WORLD), y: clamp(e.payload.y + dy, 0, CV.WORLD) }; placeCard(e); }
       pushUndo(s); refresh(); scheduleSave();
     }
     function openPageCard(e) {
@@ -2427,6 +2956,29 @@ export function mountSpaces(ctx) {
       })));
     });
     tb(AI_ICON.spark + '<span class="lbl">AI</span>', 'AI 节点：生图、生文、改图、改文', (ev) => aiToolMenu(ev.currentTarget, null));
+    tb('<span class="lbl">历史</span>', '画布版本与内容修改记录', async () => {
+      const r = await api(resourcePath + '/history');
+      if (!r.ok) { flashHint((await r.json()).error); return; }
+      const {versions, activity} = await r.json();
+      if (cv !== st) return;
+      const fields = [];
+      if (versions.length) fields.push({name:'rev',type:'select',label:'选择要恢复成副本的版本',options:versions.map(v=>[String(v.revision),'版本 '+v.revision+' · '+new Date(v.at).toLocaleString()+(v.actor?' · '+v.actor:'')])});
+      const got = await ask({title:'画布历史',fields,extra:()=>{
+        const list=el('div','cv-activity'); list.append(el('b',null,'内容修改记录'));
+        if (!activity.length) list.append(el('p',null,'还没有内容修改记录'));
+        for (const entry of activity) list.append(el('p',null,new Date(entry.at).toLocaleString()+' · '+entry.actor+' '+entry.action+' · '+entry.card));
+        return list;
+      },ok:versions.length?'恢复为新画布':'关闭'});
+      if (!got?.rev || cv!==st || !await flushSave()) return;
+      const copy=await api(resourcePath+'/history',{method:'POST',body:{revision:Number(got.rev)}});
+      const data=await copy.json(); if (!copy.ok) {flashHint(data.error);return;}
+      await openSpace(res.spaceId,data.resource.id);
+    });
+    tb('分区', '查找画布上的分区', ev=>{
+      const groups=new Map(ents().filter(e=>e.payload.section).map(e=>[e.payload.section,e.payload.sectionName]));
+      popMenu(ev.currentTarget,groups.size?[...groups].map(([id,label])=>({label,onClick:()=>st.focusSection(id)})):[{note:'选中卡片，在「整理」里建立分区'}]);
+    });
+    if(canEdit(S.space)) tb('模板','从这个空间的模板新建画布', ev=>showTemplates(ev.currentTarget).catch(err=>flashHint(err.message)));
     function aiToolMenu(anchor, pt) {
       const one = st.sel.size === 1 ? byKey([...st.sel][0]) : null;
       const t = one && one.payload.type;
@@ -2479,7 +3031,7 @@ export function mountSpaces(ctx) {
     /* 指针：平移、移动、改大小、连线、框选、双指缩放 */
     const pointers = new Map();
     let pinch = null;
-    const isUi = (t) => !!(t.closest && t.closest('.cv-tools,.cv-cardbar,.cv-help,.cv-helpbox,.cv-menu,.cv-label-input'));
+    const isUi = (t) => !!(t.closest && t.closest('.cv-tools,.cv-cardbar,.cv-help,.cv-helpbox,.cv-menu,.cv-label-input,.cv-comment-pin'));
     on(box, 'pointerdown', (ev) => {
       if (isUi(ev.target)) return;
       if (st.editing && ev.target.closest('.canvas-card.editing')) return;
@@ -2505,7 +3057,7 @@ export function mountSpaces(ctx) {
       const rz = ev.target.closest('.cc-resize');
       const hit = ev.target.closest('.hit,.elabel');
       try { box.setPointerCapture(ev.pointerId); } catch (e) {}
-      if (ev.button === 1 || ev.button === 2 || st.spaceDown || (ev.pointerType === 'touch' && !cardEl)) {
+      if (ev.button === 1 || ev.button === 2 || st.spaceDown || (ev.pointerType === 'touch' && !cardEl && !ev.target.closest('.cv-section-handle'))) {
         ev.preventDefault();
         st.gesture = { type: 'pan', sx: ev.clientX, sy: ev.clientY, ox: view.x, oy: view.y };
         st.rdown = ev.button === 2 ? { x: ev.clientX, y: ev.clientY } : null;
@@ -2516,10 +3068,20 @@ export function mountSpaces(ctx) {
       if (port && cardEl) { st.gesture = { type: 'link', from: cardEl.dataset.key, side: port.dataset.port }; bar.style.display = 'none'; return; }
       if (rz && cardEl) {
         const e = byKey(cardEl.dataset.key);
+        if (e.payload.locked) return;
         st.gesture = { type: 'resize', e, sx: ev.clientX, sy: ev.clientY, ow: e.payload.w, oh: e.payload.h, s: snap(), moved: false };
         return;
       }
       if (hit) { st.sel.clear(); st.edgeSel = Number(hit.dataset.i); refresh({ keepEdges: true }); return; }
+      const sectionHandle=ev.target.closest('.cv-section-handle');
+      if(sectionHandle) {
+        const list=sectionCards(sectionHandle.parentElement.dataset.section);
+        selectSection(list[0].payload.section);
+        if(!canEdit(S.space))return;
+        if(list.some(e=>e.payload.locked)){flashHint('整组移动前请先解锁组内卡片');return;}
+        st.gesture={type:'move',k:keyOf(list[0]),sx:ev.clientX,sy:ev.clientY,items:list.map(e=>({e,ox:e.payload.x,oy:e.payload.y})),s:snap(),moved:false};
+        return;
+      }
       if (cardEl) {
         const k = cardEl.dataset.key;
         clearEdgeSel();
@@ -2533,7 +3095,8 @@ export function mountSpaces(ctx) {
           st.sel.add(k);
         } else if (!st.sel.has(k)) st.sel = new Set([k]);
         refresh();
-        st.gesture = { type: 'move', sx: ev.clientX, sy: ev.clientY, k, items: [...st.sel].map(byKey).filter(Boolean).map((e) => ({ e, ox: e.payload.x, oy: e.payload.y })), s: snap(), moved: false };
+        if (byKey(k).payload.locked) return;
+        st.gesture = { type: 'move', sx: ev.clientX, sy: ev.clientY, k, items: [...st.sel].map(byKey).filter(e=>e && !e.payload.locked).map((e) => ({ e, ox: e.payload.x, oy: e.payload.y })), s: snap(), moved: false };
         return;
       }
       if (!ev.shiftKey) { st.sel.clear(); clearEdgeSel(); refresh(); }
@@ -2569,12 +3132,14 @@ export function mountSpaces(ctx) {
         let mx = dx / view.z, my = dy / view.z;
         const snapRes = ev.altKey ? null : snapMove(g, mx, my);
         if (snapRes) { mx += snapRes.ax; my += snapRes.ay; }
+        mx=clamp(mx,-Math.min(...g.items.map(i=>i.ox)),CV.WORLD-Math.max(...g.items.map(i=>i.ox)));
+        my=clamp(my,-Math.min(...g.items.map(i=>i.oy)),CV.WORLD-Math.max(...g.items.map(i=>i.oy)));
         for (const it of g.items) {
           it.e.payload = { ...it.e.payload, x: clamp(Math.round(it.ox + mx), 0, CV.WORLD), y: clamp(Math.round(it.oy + my), 0, CV.WORLD) };
           placeCard(it.e);
         }
         drawEdges();
-        drawGuides(snapRes ? snapRes.lines : []);
+        paintSections(); drawGuides(snapRes ? snapRes.lines : []);
         return;
       }
       if (g.type === 'resize') {
@@ -2679,7 +3244,7 @@ export function mountSpaces(ctx) {
         if (!e) return;
         if (e.payload.type === 'page') { openPageCard(e); return; }
         if (e.payload.type === 'annot') { openAnnotEditor(cardEl.dataset.key); return; }
-        if (e.payload.type === 'image') { previewCard(e); return; }
+        if (e.payload.type === 'image' || (e.payload.type === 'ai-image' && e.payload.url && tgt.closest('.an-out'))) { previewCard(e); return; }
         startEdit(cardEl.dataset.key);
         return;
       }
@@ -2789,6 +3354,30 @@ export function mountSpaces(ctx) {
       }
       return forceImage || /\.(png|jpe?g|gif|webp|svg)$/i.test(link.pathname) ? { url: href, source: '' } : null;
     }
+    async function choosePageImages(text, link, at) {
+      const path='/spaces/'+S.space.id+'/resources/'+res.id+'/images';
+      const r=await api(path,{method:'POST',body:{pageUrl:link.url}});
+      if (cv!==st) return;
+      const j=await r.json();
+      const images=(j.images || []).map(im=>({src:base()+path+'?preview='+encodeURIComponent(im.preview),label:im.title || im.kind,save:im.url,kind:im.kind}));
+      const got=await ask({title:images.length?'选要放进画布的图片':'保留网页链接',sub:images.length?'点选需要的图，保存网页实际提供的尺寸。':j.error || '网页没有提供可提取的图片。',fields:[
+        ...(images.length?[{name:'picked',type:'images',images,value:images.length===1?[0]:[]}]:[]),
+        {name:'keepText',type:'check',text:'将原链接保存为文字卡',value:!images.length}
+      ],validate:v=>v.keepText || v.picked?.length?'':'请选择图片或保留文字链接',ok:'放入画布'});
+      if (!got || cv!==st) return;
+      if(got.keepText) addCard({text,pastedText:text,w:300,h:160},at.x,at.y);
+      const failures=[];
+      for(const [n,index] of (got.picked||[]).entries()){
+        if(cv!==st) break;
+        const im=images[index];
+        const rr=await api(path,{method:'POST',body:{sourceUrl:im.save},timeout:90000});
+        const result=await rr.json();
+        if(!rr.ok){failures.push(im.label+'：'+result.error);continue;}
+        if(cv!==st) break;
+        addCard({type:'image',url:result.url,originalUrl:im.save,source:j.source,pastedText:text,text:j.images[index].title || '',ar:result.width/result.height,w:260,h:clamp(Math.round(260*result.height/result.width),CV.MINH,CV.MAXH)},at.x+(n%4)*276,at.y+Math.floor(n/4)*320);
+      }
+      if(failures.length) flashHint('未导入 '+failures.join('；'));
+    }
     function onPaste(ev) {
       if (st.editing) return;
       const cd = ev.clipboardData;
@@ -2816,8 +3405,10 @@ export function mountSpaces(ctx) {
       ev.preventDefault();
       const image = pastedLink(t);
       if (image) { addCard({ type: 'image', ...image, pastedText: text, w: 300, h: 220 }, at.x - 150, at.y - 110); return; }
+      const pageLink=pastedLink(t,true);
+      if(pageLink) {choosePageImages(text,pageLink,at).catch(error=>flashHint('读取网页失败：'+error.message));return;}
       const long = t.length > 160;
-      addCard({ ...(pastedLink(t, true) ? { text, pastedText: text } : { text: t.slice(0, 4000) }), w: long ? 320 : 240, h: clamp(Math.ceil(t.length / (long ? 22 : 16)) * 22 + 30, 100, CV.MAXH) }, at.x - 120, at.y - 40);
+      addCard({ text:t.slice(0,4000), w: long ? 320 : 240, h: clamp(Math.ceil(t.length / (long ? 22 : 16)) * 22 + 30, 100, CV.MAXH) }, at.x - 120, at.y - 40);
     }
     on(box, 'paste', onPaste);
     // 焦点不在画布上（比如刚点过页面别处）也能把东西粘到当前画布；输入框里的粘贴不拦
@@ -2830,12 +3421,125 @@ export function mountSpaces(ctx) {
     });
     // 画布容器不能自己滚动（聚焦卡片里的输入框时浏览器会自动滚动），否则坐标全部错位
     on(box, 'scroll', () => { if (box.scrollTop || box.scrollLeft) { box.scrollTop = 0; box.scrollLeft = 0; } });
-    st.cleanup = () => { ac.abort(); clearTimeout(viewTimer); };
+    st.baseline = structuredClone(res);
+    let reading = false, conflictVersion = null;
+    const resourcePath = '/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(res.id);
+    const status = $('#spaceSaveState');
+    const resolveButton = el('button', 'set-chip', '处理修改冲突');
+    resolveButton.type = 'button';
+    resolveButton.hidden = true;
+    status.after(resolveButton);
+    function acceptRemote(remote, choices) {
+      if (cv !== st || remote.revision <= res.revision) return true;
+      remote.entities.forEach(normPayload);
+      const current = { ...res, title: $('#spaceResTitle').value };
+      const merged = mergeCanvas(st.baseline, current, remote, choices);
+      if (merged.conflicts.length) {
+        conflictVersion = remote;
+        st.conflicts = merged.conflicts;
+        resolveButton.hidden = false;
+        status.textContent = '两人改了同一处，你的输入已保留';
+        S.conflict = true;
+        return false;
+      }
+      // Undo acts on this user's edit. Carry later changes by other people into each saved undo position.
+      for (const stack of [hist.undo, hist.redo]) {
+        for (const saved of stack) {
+          const prior = { title:current.title, entities:saved.ents.map(e => ({id:resolveKey(e.k),payload:e.payload})),
+            edges:saved.edges.map(edge => ({...edge,from:resolveKey(edge.from),to:resolveKey(edge.to)})) };
+          const rebased = mergeCanvas(current, prior, merged, undefined, true);
+          saved.ents = rebased.entities.map(e => ({k:keyOf(e),payload:e.payload}));
+          saved.edges = rebased.edges;
+        }
+      }
+      const edgeKey = edge => edge && JSON.stringify([edge.from,edge.to]);
+      const selectedEdge = edgeKey(edges()[st.edgeSel]);
+      const selectedEdges = new Set([...st.edgeSet].map(i => edgeKey(edges()[i])));
+      st.edgeSel = merged.edges.findIndex(edge => edgeKey(edge) === selectedEdge);
+      st.edgeSet = new Set(merged.edges.flatMap((edge,i) => selectedEdges.has(edgeKey(edge)) ? [i] : []));
+      const remoteIds = new Set(remote.entities.map(e => e.id));
+      const toAdd = [];
+      const old = new Map(ents().map(e => [keyOf(e), e]));
+      res.entities = merged.entities.map(next => {
+        const key = keyOf(next);
+        const previous = old.get(key);
+        old.delete(key);
+        if (!previous) { toAdd.push(next); return next; }
+        const was = previous.payload;
+        const visibleChange = was.type !== next.payload.type ||
+          (was.type === 'image' && (was.url !== next.payload.url || was.text !== next.payload.text)) ||
+          (was.type === 'page' && (was.ref !== next.payload.ref || was.text !== next.payload.text));
+        previous.payload = next.payload;
+        previous.revision = next.revision;
+        const card = st.cards.get(key);
+        if (visibleChange) {
+          card?.remove(); st.cards.delete(key); toAdd.push(previous);
+        } else if (card) {
+          const area = card.querySelector('textarea');
+          if (area && ['text','file','ai-image','ai-text','img-search'].includes(next.payload.type) && area.value !== (next.payload.text || '')) {
+            const from = area.selectionStart, to = area.selectionEnd;
+            area.value = next.payload.text || '';
+            if (area === document.activeElement) area.setSelectionRange(from, to);
+          }
+        }
+        return previous;
+      });
+      res.edges = merged.edges;
+      for (const [k] of old) { st.cards.get(k)?.remove(); st.cards.delete(k); st.sel.delete(k); }
+      // Keeping a locally edited card after someone deleted it creates a new card.
+      for (const entity of ents()) {
+        if (entity.id && !remoteIds.has(entity.id)) {
+          const gone = entity.id;
+          entity.id = ''; entity._tmp = '';
+          const fresh = keyOf(entity);
+          canvasRekey(gone, fresh);
+          entity.revision = 0;
+        }
+      }
+      res.title = merged.title;
+      $('#spaceResTitle').value = merged.title;
+      res.revision = remote.revision;
+      st.baseline = structuredClone(remote);
+      for (const e of toAdd) buildCard(e);
+      for (const e of ents()) placeCard(e);
+      refresh();
+      conflictVersion = null; resolveButton.hidden = true; S.conflict = false;
+      loadComments();
+      status.textContent = dirty ? '未保存…' : '';
+      return true;
+    }
+    resolveButton.onclick = async () => {
+      const version = conflictVersion, problems = st.conflicts;
+      if (!version) return;
+      const print = value => value === undefined ? '已删除' : typeof value === 'string' ? value : JSON.stringify(value);
+      const got = await ask({ title:'处理同时修改的内容', fields:problems.map((p,i) => ({
+        name:'c'+i, type:'choice', label:p.label.replace(/^卡片 ([^ ]+)/, (_label,id)=>{
+          const title=(byKey(id)?.payload.text || '').slice(0,26); return title?'卡片「'+title+'」':'卡片';
+        }).replace(/ \/ (text|x|y|w|h|url|refPurposes)\b/g,(_,k)=>' · '+({text:'文字',x:'横向位置',y:'纵向位置',w:'宽度',h:'高度',url:'图片',refPurposes:'参考用途'})[k]), options:[['mine','保留我的',print(p.mine)],['remote','采用对方的',print(p.theirs)]]
+      })), ok:'合并并保存' });
+      if (!got || st !== cv) return;
+      if (acceptRemote(version,new Map(problems.map((p,i)=>[p.label,got['c'+i]])))) scheduleSave();
+    };
+    async function checkRemote(afterConflict = false) {
+      if (cv !== st || (!afterConflict && (reading || S.saving || st.gesture || S.conflict || state.view !== 'spaces'))) return false;
+      reading = true;
+      const revision = res.revision;
+      try {
+        const r = await api(resourcePath + '?since=' + revision);
+        if (!r.ok) { status.textContent = '同步失败（' + r.status + '）'; return false; }
+        const j = await r.json();
+        if (st !== cv || (!afterConflict && (S.saving || st.gesture)) || res.revision !== revision) return false;
+        return j.resource ? acceptRemote(j.resource) : true;
+      } finally { reading = false; }
+    }
+    st.checkRemote = checkRemote;
+    const poll = setInterval(() => checkRemote().catch(() => { if (cv === st) status.textContent = '连接中断，正在重试'; }), 1500);
+    st.cleanup = () => { hist.revision = res.revision; clearInterval(poll); resolveButton.remove(); pinSizes.disconnect(); ac.abort(); clearTimeout(viewTimer); };
     st.fit = fit;
     st.view = () => ({ ...view });
     rebuild();
     applyView();
-    if (needFit) requestAnimationFrame(() => fit());
+    if (needFit) requestAnimationFrame(() => { if(!st.locatedSection)fit(); });
     $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
   }
 
@@ -2882,7 +3586,7 @@ export function mountSpaces(ctx) {
   }
   async function savePage() {
     if (!S.resource || !S.space) return true;
-    if (S.saving) return;
+    if (S.saving || S.conflict && S.resource.type === 'canvas') return false;
     const titleEl = $('#spaceResTitle');
     let blocks;
     let edgesOut = null;
@@ -2901,6 +3605,7 @@ export function mountSpaces(ctx) {
       }));
     }
     const submitted = [...S.resource.entities];
+    const sentPayloads = submitted.map(e => structuredClone(e.payload));
     S.saving = true;
     $('#spaceSaveState').textContent = '保存中…';
     try {
@@ -2909,6 +3614,15 @@ export function mountSpaces(ctx) {
         body: { baseRevision: S.resource.revision, title: titleEl ? titleEl.value : S.resource.title, entities: blocks, edges: S.resource.type === 'canvas' ? (edgesOut || S.resource.edges || []) : undefined },
       });
       const j = await r.json().catch(() => ({}));
+      if (r.status === 409 && S.resource.type === 'canvas' && cv) {
+        const sentRevision = S.resource.revision;
+        if (!await cv.checkRemote(true) || sentRevision === S.resource.revision) {
+          if (!S.conflict) $('#spaceSaveState').textContent = j.error || '保存冲突';
+          return false;
+        }
+        dirty = true;
+        return true;
+      }
       if (r.status === 409) { S.conflict = true; $('#spaceSaveState').textContent = '有冲突，已保留你的输入'; flashHint(j.error || '页面已被其他人修改'); return; }
       if (!r.ok) { $('#spaceSaveState').textContent = '保存失败'; flashHint(j.error || '保存失败'); return; }
       S.resource.revision = j.resource.revision;
@@ -2918,7 +3632,7 @@ export function mountSpaces(ctx) {
       const fresh = savedList.filter((x) => !sentIds.has(x.id));
       let fi = 0;
       let edgesChanged = false;
-      for (const entity of submitted) {
+      for (const [index,entity] of submitted.entries()) {
         const saved = entity.id ? savedList.find((x) => x.id === entity.id) : fresh[fi++];
         if (!saved) continue;
         if (!entity.id) {
@@ -2927,9 +3641,23 @@ export function mountSpaces(ctx) {
           if (oldKey && canvasRekey(oldKey, saved.id)) edgesChanged = true;
         }
         entity.revision = saved.revision;
+        if (S.resource.type === 'canvas') {
+          for (const field of new Set([...Object.keys(sentPayloads[index]), ...Object.keys(saved.payload)])) {
+            if (JSON.stringify(entity.payload[field]) !== JSON.stringify(sentPayloads[index][field])) continue;
+            if (field in saved.payload) entity.payload[field] = structuredClone(saved.payload[field]);
+            else delete entity.payload[field];
+          }
+          normPayload(entity);
+        }
       }
       if (S.resource.type === 'canvas') {
         if (cv && cv.syncRevs) cv.syncRevs();
+        if (cv) {
+          cv.baseline = structuredClone(j.resource);
+          cv.baseline.entities.forEach(normPayload);
+          if (!edgesChanged && JSON.stringify(S.resource.edges) === JSON.stringify(edgesOut)) S.resource.edges = structuredClone(j.resource.edges);
+        }
+        S.resource.title = j.resource.title;
         // 连线里还有临时 id：再存一次，把正式 id 写进连线
         if (edgesChanged) dirty = true;
       } else {
@@ -2943,20 +3671,25 @@ export function mountSpaces(ctx) {
       return true;
     } finally { S.saving = false; }
   }
+  let commentRead = 0;
   async function loadComments() {
     if (!S.space || !S.resource) return;
-    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/comments');
+    const rid=S.resource.id, read=++commentRead;
+    const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(rid) + '/comments');
     const j = await r.json().catch(() => ({ comments: [] }));
+    if(S.resource?.id!==rid || read!==commentRead) return;
     S.comments = Array.isArray(j.comments) ? j.comments : [];
+    cv?.paintCommentPins?.();
     const open = S.comments.filter((c) => !c.resolved).length;
     const sb = $('#sidePanelBtn');
     if (sb) sb.textContent = open ? '评论 ' + open : '评论';
-    if (S.tab === 'comments') renderSide();
+    if (S.tab === 'comments') renderSide(true);
   }
-  function renderSide() {
+  function renderSide(updateComments = false) {
     const box = $('#spaceSideBody');
     if (!box) return;
-    box.textContent = '';
+    const oldList = updateComments && S.tab === 'comments' && box.querySelector('.space-cmt-form') && box.querySelector('.space-comment-list');
+    if (!oldList) box.textContent = '';
     if (S.tab === 'apps') {
       const sp = S.space;
       const list = el('div');
@@ -3069,9 +3802,10 @@ export function mountSpaces(ctx) {
       return;
     }
     if (!S.resource) { box.append(el('div', 'set-hint', '先打开一个页面。')); return; }
-    const list = el('div');
+    const list = el('div', 'space-comment-list');
     for (const c of (S.comments || [])) {
       const row = el('div', 'space-comment');
+      row.dataset.comment=c.id; row.tabIndex=-1;
       row.append(el('div', 'cm-meta', (c.authorName || '成员') + ' · ' + new Date(c.createdAt).toLocaleString() + (c.resolved ? ' · 已解决' : '')));
       row.append(el('div', 'cm-body', c.body || ''));
       const act = el('button', 'cm-act', c.resolved ? '重新打开' : '标记解决');
@@ -3084,6 +3818,7 @@ export function mountSpaces(ctx) {
       list.append(row);
     }
     if (!(S.comments || []).length) list.append(el('div', 'set-hint', '还没有评论。'));
+    if (oldList) { oldList.replaceWith(list); return; }
     box.append(list);
     const form = el('div', 'space-cmt-form');
     const ta = document.createElement('textarea');
@@ -3468,5 +4203,5 @@ export function mountSpaces(ctx) {
   }
   document.addEventListener('mousedown', (e) => { if (selBar && !selBar.hidden && !selBar.contains(e.target)) hideSelBar(); });
   bindSelection();
-  return { render, openSpace, openPage, saveToSpace };
+  return { render, openSpace, openPage, openSharedSection, saveToSpace };
 }

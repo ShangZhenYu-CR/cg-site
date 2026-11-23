@@ -1183,3 +1183,51 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .cv-preview .pv-close{right:12px;top:12px}
 .cv-preview [hidden]{display:none}
 @media (max-width:600px){.cv-preview .pv-stage{padding:56px 8px 8px}.cv-preview .pv-nav{top:auto;bottom:76px;transform:none}}
+
+.cv-comment-pin{position:absolute;z-index:4;transform:translate(-50%,-50%);width:22px;height:22px;padding:0;border:2px solid white;border-radius:50%;background:#235c9c;color:white;font-size:11px;cursor:pointer}
+.cv-comment-pin:focus-visible,.space-comment:focus{outline:2px solid var(--accent)}
+.canvas-import-kind{position:absolute;bottom:0;left:0;right:0;padding:2px 4px;background:#161616ce;color:white;font-size:11px;text-align:center}
+.cv-sections{position:absolute;inset:0;pointer-events:none}
+.cv-section{position:absolute;border:1px dashed #8d9db3;border-radius:10px;background:rgba(115,145,182,.04);box-sizing:border-box}
+.cv-section-handle{pointer-events:auto;position:absolute;top:0;left:6px;max-width:calc(100% - 12px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;height:24px;padding:1px 8px;border:0;background:var(--panel);color:var(--dim);font-size:13px;cursor:grab}
+.cv-section-handle:active{cursor:grabbing}
+.canvas-card.cv-locked .cc-resize{display:none}
+.canvas-card.cv-locked::before{content:'锁定';position:absolute;right:4px;top:4px;z-index:3;padding:1px 5px;border-radius:4px;background:var(--panel);color:var(--dim);font-size:10px;pointer-events:none}
+.cv-template-label{margin-left:auto;color:var(--dim);font-size:11px}
+
+.an-wrap .an-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-wrap .an-controls{display:grid;gap:8px;align-content:start;min-height:0;overflow:auto}
+.an-wrap .an-controls[hidden],.an-wrap .an-toggle[hidden]{display:none}
+.canvas-card.ai-node .an-wrap.an-first{overflow:auto}
+.an-first .an-controls{order:1;flex:none}
+.an-first .an-out{order:2;min-height:34px}
+.canvas-card.ai-node .an-wrap.an-result{overflow:visible}
+.an-result .an-controls{position:absolute;top:100%;left:-1px;right:-1px;padding:10px;max-height:340px;background:var(--panel);border:1px solid var(--line);border-radius:0 0 9px 9px;box-shadow:0 8px 18px rgba(0,0,0,.15)}
+.canvas-card[data-gen-open]{z-index:1000001!important}
+.an-controls .an-settings,.an-controls .an-inputs{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.an-controls .an-settings .an-chip{max-width:57%;overflow:hidden;text-overflow:ellipsis}
+.an-controls .an-hint,.an-controls .an-ref{width:100%}
+.an-controls .an-ref{display:flex;align-items:center;gap:6px}
+.an-ref-preview{padding:0}
+.an-ref .an-purpose{min-width:0;flex:1;border:1px solid var(--line);border-radius:5px;padding:4px;background:var(--bg);color:var(--text)}
+.an-controls textarea.an-ins{pointer-events:auto;cursor:text}
+.cv-gen-history{width:min(94vw,940px);max-height:92vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--panel);color:var(--text)}
+.cv-gen-history::backdrop{background:rgba(0,0,0,.55)}
+.cv-gen-history [hidden]{display:none}
+.gh-top,.gh-choices,.gh-details,.gh-actions,.gh-ref,.gh-slider{display:flex;align-items:center;gap:8px}
+.gh-top{justify-content:space-between}
+.gh-choices,.gh-actions{flex-wrap:wrap;margin:10px 0}
+.gh-choices select{min-width:0;max-width:100%;border:1px solid var(--line);color:var(--text);background:var(--bg);padding:5px}
+.gh-choices select:nth-child(-n+2){flex:1 1 38%}
+.gh-stage{display:grid;position:relative;height:min(50vh,440px);overflow:hidden;touch-action:none;background:var(--panel2)}
+.gh-stage[data-mode="side"]{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.gh-stage[data-mode="over"]>.gh-frame{grid-area:1/1}
+.gh-stage[data-mode="over"]>.gh-frame:nth-child(2){opacity:var(--gen-alpha)}
+.gh-frame{min-width:0;min-height:0;overflow:auto}
+.gh-frame:has(img){overflow:hidden}
+.gh-frame img{display:block;width:100%;height:100%;object-fit:contain;transform:var(--gen-transform);user-select:none;cursor:grab}
+.gh-details{align-items:start;flex-wrap:wrap;margin-top:10px}
+.gh-record{min-width:0;flex:1 1 260px}
+.gh-record summary{cursor:pointer}
+.gh-record pre{max-height:130px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.gh-ref img{width:48px;height:48px;object-fit:contain}

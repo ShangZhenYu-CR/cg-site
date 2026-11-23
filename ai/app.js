@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-23 09:00';
+const APP_BUILD = '2026-11-23 T-0080';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -696,6 +696,7 @@ $('#loginOk').addEventListener('click', async () => {
     $('#dlgLogin').hidden = true;
     renderIdentity(); renderModels();
     await bootData();
+    await spacesApi?.openSharedSection();
     startSync();
   } catch { $('#loginErr').textContent = '连不上后端'; }
   finally { $('#loginOk').disabled = false; }
@@ -8309,7 +8310,8 @@ async function boot() {
   renderGreeting();
   renderIdentity(); renderModels();
   await bootData();
-  input.focus();
+  await spacesApi?.openSharedSection();
+  if (state.view !== 'spaces') input.focus();
   startSync();
 }
 
