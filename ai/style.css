@@ -1231,3 +1231,9 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .gh-record summary{cursor:pointer}
 .gh-record pre{max-height:130px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 .gh-ref img{width:48px;height:48px;object-fit:contain}
+
+.cv-import-pending{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:8;padding:7px 14px;border-radius:18px;color:var(--accent);background:var(--bg);border:1px solid currentColor}
+.source-import{display:grid;gap:10px}.source-import a{color:var(--accent)}.source-import small{overflow-wrap:anywhere;color:var(--dim)}
+.source-drop{min-height:72px;padding:12px;border:1px dashed var(--accent);border-radius:8px;background:var(--bg);color:var(--accent);cursor:pointer}
+.source-files{max-height:36vh;overflow:auto}.source-file{display:grid;grid-template-columns:74px minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 0}
+.source-file img{width:74px;height:60px;object-fit:contain}.source-file strong,.source-file small{display:block;overflow-wrap:anywhere}.source-file input{width:100%;box-sizing:border-box;margin-top:4px}

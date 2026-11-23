@@ -3,7 +3,9 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-23 T-0080';
+import { mountDocEditor, markdownEntities, documentMarkdown, documentPayloads } from './doc-editor.js?v=20261123docs1';
+import { exportDocument } from './doc-export.js?v=20261123docs1';
+const APP_BUILD = '2026-11-23 文档与作品页导入';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -6492,33 +6494,24 @@ function artifactToSpaceBlocks(file, kind) {
       return lines.join('\n');
     });
     if (!blocks.length && text.trim()) blocks = [text];
-  } else if (kind === 'doc') {
-    // 遇到 Markdown 标题开新块；代码围栏里的 # 不算
-    let cur = [];
-    let fence = false;
-    for (const line of text.split(/\r?\n/)) {
-      if (/^\s*(```|~~~)/.test(line)) fence = !fence;
-      if (!fence && /^#{1,6}\s/.test(line) && cur.join('').trim()) { blocks.push(cur.join('\n')); cur = []; }
-      cur.push(line);
-    }
-    blocks.push(cur.join('\n'));
-    blocks = blocks.map((b) => b.replace(/^\n+/, '').replace(/\s+$/, '')).filter((b) => b);
   } else {
     blocks = [text];
   }
-  let out = blocks.flatMap((b) => chunkSpaceText(b, SPACE_BLOCK_MAX));
+  const payloads = kind === 'doc' ? documentPayloads(text) : blocks.map(text => ({ text }));
+  let out = payloads.flatMap(payload => chunkSpaceText(payload.text, SPACE_BLOCK_MAX).map((text, i) =>
+    i ? { text } : { ...payload, text }));
   if (out.length > SPACE_BLOCK_LIMIT) {
     // 块太多：相邻块合并，尽量装满每块
     const packed = [];
     for (const b of out) {
       const last = packed[packed.length - 1];
-      if (last != null && last.length + 2 + b.length <= SPACE_BLOCK_MAX) packed[packed.length - 1] = last + '\n\n' + b;
+      if (last && !last.figures?.length && !b.figures?.length && last.text.length + 2 + b.text.length <= SPACE_BLOCK_MAX) last.text += '\n\n' + b.text;
       else packed.push(b);
     }
     out = packed;
   }
   if (out.length > SPACE_BLOCK_LIMIT) return null;
-  return out.length ? out : [''];
+  return out.length ? out : [{text:''}];
 }
 function spaceTitleOf(name) {
   const t = String(name || '').replace(/\.deck\.json$/i, '').replace(/\.[A-Za-z0-9]{1,8}$/, '').trim();
@@ -6613,7 +6606,7 @@ async function doSaveArtifactToSpace(cv, file, kind, sp) {
       method: 'PUT',
       timeout: 60000,
       // 不带旧块的 id：新页面自带的那个空块会被替换掉
-      body: { baseRevision: resource.revision, title, entities: blocks.map((text) => ({ payload: { text } })) },
+      body: { baseRevision: resource.revision, title, entities: blocks.map(payload => ({ payload })) },
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
@@ -6998,6 +6991,7 @@ function openArtifactPane(kind, name) {
 }
 
 function closeArtifactPane() {
+  if (chatDocument) { chatDocument.destroy(); chatDocument = null; }
   const pane = $('#artPane');
   if (pane) { pane.hidden = true; pane.classList.remove('expanded'); }
   document.body.classList.remove('artopen', 'artfull');
@@ -7047,6 +7041,7 @@ $('#artFiles').addEventListener('click', (e) => { e.stopPropagation(); toggleFil
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#artFileMenu') && !e.target.closest('#artFiles')) closeFileMenu();
 });
+let chatDocument = null;
 function renderArtifact() {
   const body = $('#artBody');
   if (!body) return;
@@ -7063,7 +7058,6 @@ function renderArtifact() {
       }
     }
   }
-  body.textContent = '';
   // 头部只保留属于当前产物的控件
   if (artKind !== 'design') {
     const stale = document.querySelector('.art-acts .design-tabs');
@@ -7084,6 +7078,9 @@ function renderArtifact() {
   // 画布工具条只属于幻灯片；文档/设计不显示（避免盖住预览/源码切换）
   if (bar) bar.hidden = !file || artKind !== 'deck';
   if (artKind === 'deck') applyDeckZoom();
+  if (chatDocument && artKind === 'doc' && chatDocument.file === file && chatDocument.text === file.content && chatDocument.readOnly === state.streaming && body.contains(chatDocument.node)) return;
+  if (chatDocument) { chatDocument.destroy(); chatDocument = null; }
+  body.textContent = '';
   const empty = !file || !String(file.content || '').trim() || (artKind === 'deck' && parseDeck(file).slides.length === 0);
   if (empty) {
     body.append(emptyArtifactState(file));
@@ -7105,11 +7102,8 @@ function renderArtifact() {
       start.type = 'button';
       start.addEventListener('click', () => {
         body.textContent = '';
-        docEditPref = true;
-        try { localStorage.setItem('ai.docEdit', '1'); } catch {}
         renderDoc(body, file);
-        const ta = body.querySelector('.art-md');
-        if (ta) ta.focus();
+        body.querySelector('[contenteditable="true"]')?.focus();
       });
       body.querySelector('.art-empty').append(start);
     }
@@ -7140,52 +7134,65 @@ function renderCodeFile(body, file) {
   body.append(wrap);
 }
 
-/** 文档：默认只看渲染结果，需要改的时候再切「编辑」 */
-let docEditPref = (() => { try { return localStorage.getItem('ai.docEdit') === '1'; } catch { return false; } })();
 function renderDoc(body, file) {
-  const wrapBox = el('div', 'doc-wrap');
-  const bar = el('div', 'doc-bar');
-  const bPrev = el('button', 'doc-tab', '预览');
-  const bEdit = el('button', 'doc-tab', '编辑');
-  bPrev.type = 'button'; bEdit.type = 'button';
-  bar.append(bPrev, bEdit);
-
-  const wrap = el('div', 'art-doc');
-  const ta = el('textarea', 'art-md');
-  ta.value = file.content || '';
-  ta.spellcheck = false;
-  const prev = el('div', 'art-preview bd');
-  prev.innerHTML = md(file.content || '');
-  let timer = 0;
-  let docDirty = false;
-  ta.addEventListener('input', () => {
-    docDirty = true;
-    file.content = ta.value;
-    clearTimeout(timer);
-    timer = setTimeout(() => { prev.innerHTML = md(file.content || ''); hydrateCalcs(prev, null, { readOnly: true }); }, 250);
-  });
-  ta.addEventListener('blur', () => {
-    // 流式期间重渲染会把 textarea 拿掉触发 blur；此时保存会拿旧 rev 撞 409
-    if (!docDirty || state.streaming) return;
-    docDirty = false;
-    const cv = current(); if (cv) saveConv(cv).catch(() => {});
-  });
-
-  const apply = (edit) => {
-    docEditPref = edit;
-    try { localStorage.setItem('ai.docEdit', edit ? '1' : '0'); } catch {}
-    wrap.classList.toggle('view-only', !edit);
-    bPrev.classList.toggle('on', !edit);
-    bEdit.classList.toggle('on', edit);
-    if (edit) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
-  };
-  bPrev.addEventListener('click', () => apply(false));
-  bEdit.addEventListener('click', () => apply(true));
-
-  wrap.append(ta, prev);
-  wrapBox.append(bar, wrap);
-  body.append(wrapBox);
-  apply(docEditPref);
+  const cv = current(), readOnly = state.streaming, epoch = sessionEpoch;
+  const wrap = el('div','doc-wrap doc-rich'), bar = el('div','doc-bar');
+  const host = el('div','doc-editor-host'), source = el('textarea','art-md'), preview = el('div','art-preview bd');
+  const status = el('span','doc-save-status');
+  source.spellcheck = false; source.readOnly = readOnly;
+  source.setAttribute('aria-label','Markdown 源码'); status.setAttribute('role','status');
+  const modes = new Map();
+  let editor = null, timer = 0, dirty = false, mode = 'write';
+  const session = {file, text:file.content, readOnly, node:wrap, destroy() {
+    editor?.destroy(); clearTimeout(timer); if(dirty) save();
+  }};
+  chatDocument = session;
+  function save() {
+    if (!dirty || readOnly || epoch !== sessionEpoch) return;
+    dirty=false; clearTimeout(timer);
+    const writing=session.text;
+    saveConv(cv).then(result=>{
+      if (session.text === writing) status.textContent=result.ok?'已保存':result.conflict?'有编辑冲突':'保存失败';
+    });
+  }
+  function update(value) {
+    dirty=true; file.content=value; session.text=value; status.textContent='待保存';
+    if (!cv.__conflict) setSaveState(cv,'pending');
+    clearTimeout(timer); timer=setTimeout(save,550);
+  }
+  const resolveUrl=url=>/^\/(?!\/)/.test(url)?fileUrl(url):url;
+  function show(next) {
+    if(editor){editor.destroy();editor=null;}
+    mode=next; host.hidden=mode!=='write';source.hidden=mode!=='source';preview.hidden=mode!=='preview';
+    for (const [name,button] of modes) { button.classList.toggle('on',mode===name);button.setAttribute('aria-pressed',String(mode===name)); }
+    if(mode==='source'){source.value=file.content || '';return;}
+    if(mode==='preview'){preview.innerHTML=md(file.content||'');hydrateCalcs(preview,null,{readOnly:true});return;}
+    editor=mountDocEditor(host,{
+      entities:markdownEntities(file.content), readOnly, resolveUrl,
+      onChange:rows=>update(documentMarkdown(rows)), onOpenCard:figure=>spacesApi.openDocumentFigure(figure),
+      actions:readOnly?[]:[{label:'插入画布图片',async run(view){
+        const figures=await spacesApi.pickDocumentFigures();
+        if(figures.length && view===editor) view.insertFigures(figures);
+      }}]
+    });
+  }
+  for (const [key,label] of [['write','文档'],['preview','预览'],['source','Markdown 源码']]) {
+    const button=el('button','doc-tab',label);button.type='button';button.onclick=()=>show(key);modes.set(key,button);bar.append(button);
+  }
+  for (const format of ['pdf','docx']) {
+    const button=el('button','doc-tab','导出 '+format.toUpperCase());button.type='button';
+    button.onclick=async()=>{
+      button.disabled=true;
+      const snapshot=markdownEntities(file.content);
+      try { await exportDocument(format,{title:spaceTitleOf(file.name),entities:snapshot,api,base}); }
+      catch(error) { flashHint('导出失败：'+error.message); }
+      finally { button.disabled=false; }
+    };
+    bar.append(button);
+  }
+  source.oninput=()=>update(source.value);
+  wrap.addEventListener('focusout',()=>queueMicrotask(()=>{ if(!wrap.contains(document.activeElement)) save(); }));
+  bar.append(status); wrap.append(bar,host,source,preview); body.append(wrap); show('write');
 }
 
 /** 幻灯片：左缩略图 + 右画布；数据是 {slides:[{title,bullets}]} */

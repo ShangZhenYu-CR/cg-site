@@ -1,3 +1,7 @@
+import { mountDocEditor } from './doc-editor.js?v=20261123docs1';
+import { exportDocument } from './doc-export.js?v=20261123docs1';
+
+import {pickSourceFiles} from './source-import.js?v=20261123docs1';
 export function mountSpaces(ctx) {
   const { api, el, $, state, renderAll, openListPanel, flashHint, openPluginViewer, base } = ctx;
   const S = { spaces: null, space: null, resource: null, tab: 'comments', activeEntity: null, saveTimer: null, saving: false, conflict: false, comments: [] };
@@ -150,7 +154,7 @@ export function mountSpaces(ctx) {
       const values = () => { const v = {}; for (const [k, i] of Object.entries(inputs)) v[k] = i.getValue ? i.getValue() : String(i.value || '').trim(); return v; };
       let closed = false;
       function close(result) {
-        if (closed) return;
+        if (closed || (o.dismissible && !o.dismissible())) return;
         closed = true;
         ov.remove();
         document.removeEventListener('keydown', onKey, true);
@@ -341,7 +345,13 @@ export function mountSpaces(ctx) {
     applyLayout();
   });
   function setTree(open) { S.treeOpen = !!open; if (!narrow()) writeLS('ai.spaceTree', open ? '1' : '0'); applyLayout(); }
-  function setSide(open) { S.sideOpen = !!open; applyLayout(); if (open) renderSide(); }
+  function setSide(open) {
+    S.sideOpen=!!open; applyLayout();
+    if (open) {
+      renderSide();
+      if (S.resource?.type==='page' && S.tab==='comments') loadComments();
+    }
+  }
   function renderTabs() {
     const box = $('#spaceTabs');
     if (!box) return;
@@ -445,6 +455,7 @@ export function mountSpaces(ctx) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { flashHint(j.error || '打不开页面'); return; }
     S.resource = j.resource;
+    S.comments = [];
     S.activeEntity = (j.resource.entities || [])[0] ? j.resource.entities[0].id : null;
     S.conflict = false;
     writeLS('ai.lastRes.' + S.space.id, rid);
@@ -482,15 +493,60 @@ export function mountSpaces(ctx) {
     }
     if (!(S.space.resources || []).length) box.append(el('div', 'set-hint', '还没有页面，点上方 ＋ 新建页面或画布。'));
   }
-  function autosize(ta) {
-    ta.style.height = 'auto';
-    ta.style.height = (ta.scrollHeight + 2) + 'px';
+  const documentImageUrl = url => /^\/(files|oss)\//.test(url) ? base() + url : fixWikiThumb(url);
+  function imageOfCard(e) {
+    const p = e?.payload;
+    if (!p) return '';
+    if (p.type === 'img-search') return p.results?.[p.picked]?.url || '';
+    if (p.type === 'annot') return p.url || p.src || '';
+    return p.type === 'image' || p.type === 'ai-image' ? p.url || '' : '';
   }
-  window.addEventListener('resize', () => { document.querySelectorAll('#pageEditor .page-block textarea').forEach(autosize); });
+  function sourceOfCard(p) {
+    if (/^https?:\/\//i.test(p.source)) return p.source;
+    if (/^https?:\/\//i.test(p.ref)) return p.ref;
+    const m = /^https?:\/\/(?:upload|thumb)\.wikimedia\.org\/wikipedia\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/?#]+)/i.exec(p.url || '');
+    return m ? 'https://commons.wikimedia.org/wiki/File:' + m[1] : '';
+  }
+  async function pickDocumentFigures(spaceId) {
+    if (!spaceId) {
+      const spaces = await loadSpaces(true);
+      if (!spaces.length) { flashHint('当前没有可访问的空间'); return []; }
+      const got = await ask({title:'选取空间素材', fields:[{name:'id',type:'select',label:'空间',options:spaces.map(s=>[s.id,s.title])}], ok:'选择画布'});
+      if (!got) return [];
+      spaceId = got.id;
+    }
+    const spacePath = '/spaces/' + encodeURIComponent(spaceId);
+    const list = await api(spacePath);
+    const spaceData = await list.json();
+    if (!list.ok) { flashHint(spaceData.error); return []; }
+    const boards = spaceData.space.resources.filter(r => r.type === 'canvas');
+    if (!boards.length) { flashHint('这个空间里还没有画布'); return []; }
+    const chosen = await ask({title:'插入画布图', fields:[{name:'id',type:'select',label:'画布',options:boards.map(r=>[r.id,r.title])}],ok:'挑图'});
+    if (!chosen) return [];
+    const response = await api(spacePath + '/resources/' + encodeURIComponent(chosen.id));
+    const data = await response.json();
+    if (!response.ok) { flashHint(data.error); return []; }
+    const figures = data.resource.entities.filter(imageOfCard).map(e => {
+      const p = e.payload, result = p.type === 'img-search' && p.results[p.picked];
+      return {spaceId, canvasId:chosen.id, cardId:e.id, url:imageOfCard(e), source:result?.source || sourceOfCard(p), caption:result?.title || p.text || ''};
+    });
+    if (!figures.length) { flashHint('这张画布还没有可插入的图片'); return []; }
+    const images = figures.map(f=>({src:documentImageUrl(f.url), label:f.caption}));
+    const got = await ask({title:'选择文档图片',sub:'选中的图片并排插入，可在文档里修改图注。', fields:[{name:'images',type:'images',images,value:[]}],ok:'插入',validate:v=>v.images.length?'':'请选择图片'});
+    return got ? got.images.map(i=>figures[i]) : [];
+  }
+  async function openDocumentFigure(figure) {
+    await openPage(figure.spaceId, figure.canvasId);
+    if (S.space?.id === figure.spaceId && cv?.res.id === figure.canvasId) cv.focusCard(figure.cardId);
+  }
+  const canComment = () => canEdit(S.space) || S.space.role === 'commenter';
+  const pagePath = res => '/spaces/' + encodeURIComponent(res.spaceId) + '/resources/' + encodeURIComponent(res.id);
+  let docEditor = null, commentSelection = null, pageConflict = null, pageBaseline = null;
   function renderEditor() {
     const box = $('#pageEditor');
     const title = $('#spaceResTitle');
     if (!box) return;
+    docEditor?.destroy(); docEditor = null; commentSelection = null; pageConflict = null; composingDocument=false; hideSelBar();
     if (cv && cv.cleanup) { cv.cleanup(); cv = null; }
     const res = S.resource;
     box.textContent = '';
@@ -502,42 +558,33 @@ export function mountSpaces(ctx) {
       $('#addBlockBtn').hidden = true;
       return;
     }
-    title.disabled = false;
+    title.disabled = res.type === 'page' && !canEdit(S.space);
     title.value = res.title || '';
     const isCanvas = res.type === 'canvas';
     box.classList.toggle('canvas-board', isCanvas);
-    $('#addBlockBtn').hidden = isCanvas;
+    $('#addBlockBtn').hidden = isCanvas || !canEdit(S.space);
     $('#canvasFullBtn').hidden = !isCanvas;
     $('#canvasFullBtn').textContent = S.canvasFocus ? '退出全屏' : '⤢ 全屏';
     if (isCanvas) { box.tabIndex = 0; renderCanvas(box, res); return; }
     box.removeAttribute('tabindex');
-    for (const e of (res.entities || [])) {
-      const row = el('div', 'page-block');
-      const ta = document.createElement('textarea');
-      ta.value = (e.payload && e.payload.text) || '';
-      ta.dataset.eid = e.id || '';
-      ta.dataset.rev = String(e.revision || 0);
-      ta.placeholder = '写点什么…';
-      ta.rows = 1;
-      ta.addEventListener('focus', () => { S.activeEntity = e.id; });
-      ta.addEventListener('input', () => {
-        e.payload = { text: ta.value };
-        autosize(ta);
-        scheduleSave();
-      });
-      const del = el('button', 'blk-del', '×');
-      del.type = 'button';
-      del.title = '删除这个块';
-      del.addEventListener('click', () => {
-        S.resource.entities = (S.resource.entities || []).filter((x) => x !== e);
-        renderEditor();
-        scheduleSave();
-      });
-      row.append(ta, del);
-      box.append(row);
-    }
-    requestAnimationFrame(() => box.querySelectorAll('.page-block textarea').forEach(autosize));
-    $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
+    pageBaseline = structuredClone(res);
+    const editable = canEdit(S.space);
+    const actions = [
+      { label: '问 AI', run: () => runDocumentAI('ask') },
+      ...(editable ? [{ label: 'AI 修改', run: () => runDocumentAI('edit') }, { label: '插入画布图', run: async editor => {
+        const figures = await pickDocumentFigures(S.space.id);
+        if (docEditor === editor && figures.length) editor.insertFigures(figures);
+      } }] : []),
+      ...(canComment() ? [{ label: '批注原句', run: () => startDocumentComment() }] : []),
+      { label: '版本历史', run: pageHistory },
+      ...[['pdf', '导出 PDF'], ['docx', '导出 Word']].map(([kind, label]) => ({label, run: () =>
+        exportDocument(kind, {title: title.value, entities: res.entities, root: box, api, base}).catch(err => flashHint(err.message))})),
+    ];
+    docEditor = mountDocEditor(box, {
+      entities: res.entities, readOnly: !editable, actions, resolveUrl: documentImageUrl, onOpenCard: openDocumentFigure,
+      onChange: scheduleSave, onSelection: selectDocumentText,
+    });
+    $('#spaceSaveState').textContent = '';
   }
 
   /* ---------------- 画布：主流白板操作（滚轮平移、Ctrl+滚轮缩放、框选、拖圆点连线、撤销） ---------------- */
@@ -910,15 +957,6 @@ export function mountSpaces(ctx) {
       }
       return out;
     }
-    /** 一张卡能拿出的图片：图片卡、生图结果、标注成图（没有就用原图）、搜图选中的那张 */
-    function imageOfCard(e) {
-      const p = e && e.payload;
-      if (!p) return '';
-      if ((p.type === 'image' || p.type === 'ai-image') && p.url) return p.url;
-      if (p.type === 'annot') return p.url || p.src || '';
-      if (p.type === 'img-search') { const r = (p.results || [])[p.picked]; return (r && r.url) || ''; }
-      return '';
-    }
     function textOfCard(e) {
       const p = e && e.payload;
       if (!p) return '';
@@ -926,15 +964,7 @@ export function mountSpaces(ctx) {
       if (p.type === 'ai-text') return p.output || '';
       return '';
     }
-    /** 图片卡的来源页：搜图时记下的 source / ref；还是维基外链时直接从地址推算文件页 */
-    function sourceOfCard(p) {
-      if (!p) return '';
-      if (/^https?:\/\//i.test(p.source || '')) return p.source;
-      if (/^https?:\/\//i.test(p.ref || '')) return p.ref;
-      const m = /^https?:\/\/(?:upload|thumb)\.wikimedia\.org\/wikipedia\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/?#]+)/i.exec(p.url || '');
-      return m ? 'https://commons.wikimedia.org/wiki/File:' + m[1] : '';
-    }
-    const shownUrl = (u) => (/^\/(files|oss)\//.test(u || '') ? base() + u : fixWikiThumb(u || ''));
+    const shownUrl = documentImageUrl;
     /** 图片的高宽比：先看卡片上已加载的图，再看搜图结果里的尺寸 */
     function ratioOfCard(e) {
       const c = st.cards.get(keyOf(e));
@@ -1903,6 +1933,7 @@ export function mountSpaces(ctx) {
         items.push({ label: '下载图片', onClick: () => downloadImage(u, promptOfCard(e).slice(0, 40) || '图片') });
         const src = p.type === 'img-search' ? ((p.results || [])[p.picked] || {}).source : (p.type === 'image' ? sourceOfCard(p) : '');
         if (src) items.push({ label: '原图页面', onClick: () => window.open(src, '_blank', 'noopener,noreferrer') });
+        if (p.type==='image' && /^https?:\/\//i.test(p.originalUrl) && p.originalUrl!==src) items.push({label:'打开网站原图',onClick:()=>window.open(p.originalUrl,'_blank','noopener,noreferrer')});
       }
       items.push({ label: '创建副本', sub: 'Ctrl+D', onClick: () => duplicate() });
       items.push({ label: '删除', sub: 'Delete', onClick: () => deleteSelected() });
@@ -2390,6 +2421,14 @@ export function mountSpaces(ctx) {
       st.sel = new Set(sectionCards(id).map(keyOf));
       clearEdgeSel(); refresh();
     }
+    st.focusCard = id => {
+      const card = ents().find(e => e.id === id);
+      if (!card) { flashHint('原卡已移除'); return; }
+      const b = cardBounds([card]), r = rect();
+      view = {z: 1, x: r.width/2-(b.x0+b.x1)/2, y: r.height/2-(b.y0+b.y1)/2};
+      st.locatedSection = true;
+      st.sel = new Set([id]); clearEdgeSel(); refresh(); applyView();
+    };
     st.focusSection = id => {
       const list = sectionCards(id);
       if (!list.length) { flashHint('这个分区已移除'); return false; }
@@ -2772,19 +2811,51 @@ export function mountSpaces(ctx) {
       if (edit && e.payload.type === 'text') setTimeout(() => startEdit(keyOf(e)), 0);
       return e;
     }
+    const sourceKey = 'ai.importSource.' + S.space.id + '.' + res.id;
+    const pendingSource = el('button','cv-import-pending','继续导入作品页原图');
+    pendingSource.type='button';
+    pendingSource.hidden=!canEdit(S.space) || !sessionStorage.getItem(sourceKey);
+    pendingSource.onclick=()=>startSourceImport(sessionStorage.getItem(sourceKey),viewCenter());
+    box.append(pendingSource);
+    async function startSourceImport(source,point,files) {
+      if(!source) {
+        const got=await ask({title:'从作品页带回原图',fields:[{name:'source',label:'作品页网址',placeholder:'粘贴 FilmGrab 或其他作品页地址'}],ok:'选择原图',validate:v=>URL.canParse(v.source) && /^https?:$/.test(new URL(v.source).protocol)?'':'请填写完整的网页地址'});
+        if(!got || cv!==st) return;
+        source=got.source;
+      }
+      sessionStorage.setItem(sourceKey,source);pendingSource.hidden=false;
+      let n=0;
+      await pickSourceFiles({source,target:res.title,files,el,ask,forget(){sessionStorage.removeItem(sourceKey);pendingSource.hidden=true;},async upload(file,info){
+        if(cv!==st) throw Error('画布已切换，请回到原画布继续。');
+        const url=await uploadCanvasFile(file);
+        if(cv!==st) throw Error('画布已切换，请回到原画布继续。');
+        addCard({type:'image',url,source,originalUrl:info.originalUrl,pastedText:source,text:file.name,ar:info.width/info.height,w:260,h:clamp(Math.round(260*info.height/info.width),CV.MINH,CV.MAXH)},point.x+(n%4)*276,point.y+Math.floor(n/4)*320);
+        n++;
+      }});
+    }
+    async function uploadCanvasFile(file) {
+      const response = await api('/spaces/'+S.space.id+'/resources/'+res.id+'/images', {method:'POST',raw:file,mime:file.type});
+      const result=await response.json();
+      if(!response.ok) throw Error(result.error);
+      return result.url;
+    }
     async function uploadImages(files, point) {
       const canvas = S.resource;
       for (const file of files) {
-        const response = await api('/spaces/'+S.space.id+'/resources/'+canvas.id+'/images', {method:'POST',raw:file, mime:file.type});
-        const result = await response.json();
-        if (!response.ok) { flashHint(result.error); return; }
+        const url = await uploadCanvasFile(file);
         if (S.resource?.id !== canvas.id) return;
-        addCard({type:'image',url:result.url,w:300,h:220},point.x,point.y);
+        addCard({type:'image',url,w:300,h:220},point.x,point.y);
         point = {x:point.x+24,y:point.y+24};
       }
     }
     on(box,'dragover',ev=>{ if (ev.dataTransfer.types.includes('Files')) ev.preventDefault(); });
-    on(box,'drop',ev=>{ if (!ev.dataTransfer.files.length) return; ev.preventDefault(); uploadImages(ev.dataTransfer.files,toWorld(ev.clientX,ev.clientY)); });
+    on(box,'drop',ev=>{
+      if (!ev.dataTransfer.files.length) return;
+      ev.preventDefault();
+      if (!canEdit(S.space)) return;
+      const files=Array.from(ev.dataTransfer.files), point=toWorld(ev.clientX,ev.clientY), source=sessionStorage.getItem(sourceKey);
+      (source ? startSourceImport(source,point,files) : uploadImages(files,point)).catch(e=>flashHint(e.message));
+    });
     function viewCenter() { const r = rect(); return toWorld(r.left + r.width / 2, r.top + (r.height - 50) / 2); }
     function addAtCenter(extra, edit) {
       const c = viewCenter();
@@ -2999,9 +3070,10 @@ export function mountSpaces(ctx) {
         { label: '上传本地图片', sub: 'PNG / JPG / WebP / GIF', onClick: () => {
           const picker = document.createElement('input');
           picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp,image/gif'; picker.multiple = true;
-          picker.onchange = () => { if (picker.files.length) { flashHint('正在上传 ' + picker.files.length + ' 张图片…'); uploadImages(picker.files, at()); } };
+          picker.onchange = () => { if (picker.files.length) { flashHint('正在上传 ' + picker.files.length + ' 张图片…'); uploadImages(picker.files, at()).catch(e=>flashHint(e.message)); } };
           picker.click();
         } },
+        { label:'从作品页带回原图',sub:'打开来源网页，挑图后拖回画布',onClick:()=>startSourceImport('',at()) },
         { label: '用图片链接', sub: 'https://… 或站内 /files/…', onClick: async () => {
           const got = await ask({ title: '用图片链接', fields: [{ name: 'url', label: '图片链接', placeholder: 'https://… 或 /files/…', maxLength: 500 }], ok: '放到画布', validate: (v) => /^(https?:\/\/|\/files\/|\/oss\/)\S+$/i.test(v.url) ? '' : '请填写 http(s):// 或 /files/ 开头的图片链接' });
           if (got) { const p = at(); addCard({ type: 'image', url: got.url, w: 300, h: 220 }, p.x, p.y); }
@@ -3031,7 +3103,7 @@ export function mountSpaces(ctx) {
     /* 指针：平移、移动、改大小、连线、框选、双指缩放 */
     const pointers = new Map();
     let pinch = null;
-    const isUi = (t) => !!(t.closest && t.closest('.cv-tools,.cv-cardbar,.cv-help,.cv-helpbox,.cv-menu,.cv-label-input,.cv-comment-pin'));
+    const isUi = (t) => !!(t.closest && t.closest('.cv-tools,.cv-cardbar,.cv-help,.cv-helpbox,.cv-menu,.cv-label-input,.cv-comment-pin,.cv-import-pending'));
     on(box, 'pointerdown', (ev) => {
       if (isUi(ev.target)) return;
       if (st.editing && ev.target.closest('.canvas-card.editing')) return;
@@ -3363,8 +3435,11 @@ export function mountSpaces(ctx) {
       const got=await ask({title:images.length?'选要放进画布的图片':'保留网页链接',sub:images.length?'点选需要的图，保存网页实际提供的尺寸。':j.error || '网页没有提供可提取的图片。',fields:[
         ...(images.length?[{name:'picked',type:'images',images,value:images.length===1?[0]:[]}]:[]),
         {name:'keepText',type:'check',text:'将原链接保存为文字卡',value:!images.length}
-      ],validate:v=>v.keepText || v.picked?.length?'':'请选择图片或保留文字链接',ok:'放入画布'});
+      ],extra:close=>{
+        const b=el('button','ghost','打开作品页，手动挑原图');b.type='button';b.onclick=()=>close({manual:true});return b;
+      },validate:v=>v.keepText || v.picked?.length?'':'请选择图片或保留文字链接',ok:'放入画布'});
       if (!got || cv!==st) return;
+      if (got.manual) {await startSourceImport(j.source || link.url,at);return;}
       if(got.keepText) addCard({text,pastedText:text,w:300,h:160},at.x,at.y);
       const failures=[];
       for(const [n,index] of (got.picked||[]).entries()){
@@ -3564,8 +3639,9 @@ export function mountSpaces(ctx) {
   }
 
   let dirty = false;
-  let pendingSave;
+  let pendingSave, applyingSuggestion;
   async function flushSave() {
+    if (applyingSuggestion) await applyingSuggestion;
     clearTimeout(S.saveTimer);
     if (!pendingSave && dirty) {
       pendingSave = (async () => {
@@ -3580,6 +3656,7 @@ export function mountSpaces(ctx) {
   }
   function scheduleSave() {
     dirty = true;
+    if (pageConflict) { showPageConflict(); return; }
     if (S.saveTimer) clearTimeout(S.saveTimer);
     $('#spaceSaveState').textContent = '未保存…';
     S.saveTimer = setTimeout(() => { flushSave().catch(() => {}); }, 650);
@@ -3598,11 +3675,8 @@ export function mountSpaces(ctx) {
         edgesOut = S.resource.edges.filter((x) => known.has(resolveKey(x.from)) && known.has(resolveKey(x.to))).map((x) => ({ ...x, from: resolveKey(x.from), to: resolveKey(x.to) }));
       }
     } else {
-      blocks = [...document.querySelectorAll('#pageEditor .page-block textarea')].map((ta) => ({
-        id: ta.dataset.eid || undefined,
-        expectedRevision: Number(ta.dataset.rev) || 0,
-        payload: { text: ta.value },
-      }));
+      if (pageConflict) return false;
+      blocks = S.resource.entities.map(e => ({id: e.id || undefined, expectedRevision: e.revision, payload: e.payload}));
     }
     const submitted = [...S.resource.entities];
     const sentPayloads = submitted.map(e => structuredClone(e.payload));
@@ -3623,7 +3697,11 @@ export function mountSpaces(ctx) {
         dirty = true;
         return true;
       }
-      if (r.status === 409) { S.conflict = true; $('#spaceSaveState').textContent = '有冲突，已保留你的输入'; flashHint(j.error || '页面已被其他人修改'); return; }
+      if (r.status === 409) {
+        const latest = await api(pagePath(S.resource));
+        if (!latest.ok) { showPageConflict(); return false; }
+        return reconcilePage((await latest.json()).resource);
+      }
       if (!r.ok) { $('#spaceSaveState').textContent = '保存失败'; flashHint(j.error || '保存失败'); return; }
       S.resource.revision = j.resource.revision;
       // 按 id 对回：已有的按 id 找，新建的按顺序领取服务器新分配的 id
@@ -3641,14 +3719,15 @@ export function mountSpaces(ctx) {
           if (oldKey && canvasRekey(oldKey, saved.id)) edgesChanged = true;
         }
         entity.revision = saved.revision;
-        if (S.resource.type === 'canvas') {
-          for (const field of new Set([...Object.keys(sentPayloads[index]), ...Object.keys(saved.payload)])) {
-            if (JSON.stringify(entity.payload[field]) !== JSON.stringify(sentPayloads[index][field])) continue;
-            if (field in saved.payload) entity.payload[field] = structuredClone(saved.payload[field]);
-            else delete entity.payload[field];
-          }
-          normPayload(entity);
+        for (const field of new Set([...Object.keys(sentPayloads[index]), ...Object.keys(saved.payload)])) {
+          if (JSON.stringify(entity.payload[field]) !== JSON.stringify(sentPayloads[index][field])) continue;
+          // 已显示且未变化的图组保留对象引用，图注输入框会继续写入同一张图。
+          if (S.resource.type==='page' && field==='figures' && entity.payload.figures?.length===saved.payload.figures?.length) {
+            entity.payload.figures?.forEach((figure,n)=>Object.assign(figure,saved.payload.figures[n]));
+          } else if (field in saved.payload) entity.payload[field] = structuredClone(saved.payload[field]);
+          else delete entity.payload[field];
         }
+        if (S.resource.type === 'canvas') normPayload(entity);
       }
       if (S.resource.type === 'canvas') {
         if (cv && cv.syncRevs) cv.syncRevs();
@@ -3661,16 +3740,120 @@ export function mountSpaces(ctx) {
         // 连线里还有临时 id：再存一次，把正式 id 写进连线
         if (edgesChanged) dirty = true;
       } else {
-        const tas = document.querySelectorAll('#pageEditor .page-block textarea');
-        (S.resource.entities || []).forEach((en, i) => { if (tas[i]) { tas[i].dataset.eid = en.id || ''; tas[i].dataset.rev = String(en.revision || 0); } });
+        pageBaseline = structuredClone(j.resource);
+        if (S.comments.some(c=>c.anchor)) loadComments();
+        S.resource.title = titleEl.value;
+        const treeRow = S.space.resources.find(row => row.id === S.resource.id);
+        if (treeRow) treeRow.title = j.resource.title;
       }
       S.conflict = false;
       $('#spaceSaveState').textContent = '已保存';
-      setTimeout(() => { const x = $('#spaceSaveState'); if (x) x.textContent = ''; }, 1200);
+      setTimeout(() => { const x = $('#spaceSaveState'); if (x?.textContent === '已保存') x.textContent = ''; }, 1200);
       renderTree();
       return true;
     } finally { S.saving = false; }
   }
+  function pageMerge(remote, choices=new Map()) {
+    const res = S.resource;
+    const before = {...pageBaseline,edges:[]}, mine = {...res,title:$('#spaceResTitle').value,edges:[]};
+    const joined = mergeCanvas(before,mine,{...remote,edges:[]},choices);
+    const baseline = before.entities.map(keyOf), local = mine.entities.map(keyOf), latest = remote.entities.map(keyOf);
+    const common = new Set(baseline.filter(id=>local.includes(id) && latest.includes(id)));
+    const order = ids=>ids.filter(id=>common.has(id)).join(',');
+    const myOrder = order(local), remoteOrder = order(latest), oldOrder = order(baseline);
+    const both = myOrder!==oldOrder && remoteOrder!==oldOrder && myOrder!==remoteOrder;
+    if (both && !choices.has('段落顺序')) joined.conflicts.push({label:'段落顺序',mine:local,theirs:latest});
+    const takeRemote = both ? choices.get('段落顺序')==='remote' : myOrder===oldOrder;
+    const primary=takeRemote?latest:local, secondary=takeRemote?local:latest;
+    const byId=new Map(joined.entities.map(e=>[keyOf(e),e]));
+    const ids=primary.filter(id=>byId.has(id));
+    for (let i=secondary.length-1;i>=0;i--) {
+      const id=secondary[i];
+      if (!byId.has(id) || ids.includes(id)) continue;
+      const next=secondary.slice(i+1).find(x=>ids.includes(x));
+      ids.splice(next ? ids.indexOf(next) : ids.length,0,id);
+    }
+    joined.entities=ids.map(id=>byId.get(id));
+    return joined;
+  }
+  function showPageConflict() {
+    pageConflict = S.resource;
+    const holder = $('#spaceSaveState'), btn=el('button','doc-conflict','比较并合并');
+    btn.type='button'; btn.onclick=resolvePageConflict;
+    holder.replaceChildren(document.createTextNode('他人也修改了文档，你的输入已保留。'),btn);
+  }
+  function reconcilePage(remote, choices=new Map()) {
+    const res=S.resource;
+    const merged=pageMerge(remote,choices);
+    if (merged.conflicts.length) { showPageConflict(); return false; }
+    // 他人已删的段落经用户选择保留，会作为新段落领取新编号。
+    for (const e of merged.entities) if (e.id && !remote.entities.some(x=>x.id===e.id)) {e.id=''; e.revision=0;}
+    const editorRoot=$('#pageEditor'), scroll=editorRoot.scrollTop;
+    const selected=editorRoot.contains(document.activeElement) ? docEditor.getSelection() : null;
+    const originals=new Map(res.entities.map(e=>[keyOf(e),e]));
+    const next=merged.entities.map(e=>Object.assign(originals.get(keyOf(e)) || e,e));
+    res.entities.splice(0,res.entities.length,...next);
+    res.revision=remote.revision; res.title=merged.title;
+    $('#spaceResTitle').value=merged.title;
+    pageBaseline=structuredClone(remote); pageConflict=null;
+    docEditor.refresh();
+    if (selected?.id && res.entities.find(e=>e.id===selected.id)?.payload.text?.slice(selected.from,selected.to)===selected.text) {
+      docEditor.focusSelection(selected.id,selected.from,selected.to);
+    }
+    editorRoot.scrollTop=scroll;
+    dirty = merged.title!==remote.title || JSON.stringify(merged.entities.map(e=>[e.id,e.payload]))!==JSON.stringify(remote.entities.map(e=>[e.id,e.payload]));
+    $('#spaceSaveState').textContent=dirty?'已合并，正在保存…':'已同步';
+    loadComments();
+    return true;
+  }
+  let checkingDocument = false, composingDocument = false;
+  const editorBox=$('#pageEditor');
+  editorBox.addEventListener('compositionstart',()=>{composingDocument=true;});
+  editorBox.addEventListener('compositionend',()=>{composingDocument=false;});
+  async function syncVisibleDocument() {
+    const res=S.resource;
+    if (checkingDocument || composingDocument || document.hidden || state.view!=='spaces' || res?.type!=='page' || !docEditor || pageConflict || applyingSuggestion || S.saving) return;
+    checkingDocument=true;
+    try {
+      const revision=res.revision;
+      const reply=await api(pagePath(res)+'?since='+revision);
+      if (S.resource!==res) return;
+      if (!reply.ok) { $('#spaceSaveState').textContent='文档同步失败（'+reply.status+'）'; return; }
+      const data=await reply.json();
+      if (S.resource!==res || S.saving || applyingSuggestion || pageConflict || composingDocument || res.revision!==revision) return;
+      if (data.resource && data.resource.revision!==revision) {
+        if (reconcilePage(data.resource) && dirty) scheduleSave();
+      } else if (S.sideOpen && S.tab==='comments') await loadComments();
+    } finally {checkingDocument=false;}
+  }
+  window.addEventListener('focus',syncVisibleDocument);
+  document.addEventListener('visibilitychange',syncVisibleDocument);
+  const documentSyncTimer=setInterval(syncVisibleDocument,4500);
+  window.addEventListener('pagehide',event=>{if (!event.persisted) clearInterval(documentSyncTimer);},{once:true});
+  async function resolvePageConflict() {
+    const res=S.resource;
+    const reply=await api(pagePath(res));
+    const data=await reply.json();
+    if (!reply.ok) { flashHint(data.error); return; }
+    if (pageConflict!==res) return;
+    const merged=pageMerge(data.resource);
+    const choices=new Map();
+    if (merged.conflicts.length) {
+      const draft = JSON.stringify([$('#spaceResTitle').value,res.entities]);
+      const describe=v=>v===undefined?'已删除':typeof v==='string'?v:JSON.stringify(v,null,2);
+      const got=await ask({title:'选择要保留的修改',fields:merged.conflicts.map((c,i)=>{
+        const id=/^卡片 ([^ ]+)/.exec(c.label)?.[1];
+        const pos=id?[...new Set([...res.entities.map(keyOf),...data.resource.entities.map(keyOf)])].indexOf(id)+1:0;
+        const label=pos?'段落 '+pos+' · '+(c.label.includes(' / figures')?'图组':'内容'):c.label==='画布名称'?'文档标题':c.label;
+        return {name:'choice'+i,type:'choice',label,options:[['mine','我的修改',describe(c.mine)],['remote','对方的修改',describe(c.theirs)]]};
+      }),ok:'合并'});
+      if (!got || pageConflict!==res) return;
+      if (draft!==JSON.stringify([$('#spaceResTitle').value,res.entities])) {flashHint('草稿已变化，请重新比较');return;}
+      merged.conflicts.forEach((c,i)=>choices.set(c.label,got['choice'+i]));
+    }
+    if (reconcilePage(data.resource,choices) && dirty) scheduleSave();
+  }
+
   let commentRead = 0;
   async function loadComments() {
     if (!S.space || !S.resource) return;
@@ -3802,54 +3985,249 @@ export function mountSpaces(ctx) {
       return;
     }
     if (!S.resource) { box.append(el('div', 'set-hint', '先打开一个页面。')); return; }
-    const list = el('div', 'space-comment-list');
-    for (const c of (S.comments || [])) {
-      const row = el('div', 'space-comment');
-      row.dataset.comment=c.id; row.tabIndex=-1;
-      row.append(el('div', 'cm-meta', (c.authorName || '成员') + ' · ' + new Date(c.createdAt).toLocaleString() + (c.resolved ? ' · 已解决' : '')));
-      row.append(el('div', 'cm-body', c.body || ''));
-      const act = el('button', 'cm-act', c.resolved ? '重新打开' : '标记解决');
-      act.type = 'button';
-      act.addEventListener('click', async () => {
-        const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/comments/' + encodeURIComponent(c.id), { method: 'PATCH', body: { resolved: !c.resolved } });
-        if (r.ok) loadComments(); else flashHint('操作失败');
-      });
-      row.append(act);
+    const res = S.resource, isPage = res.type === 'page';
+    const list = el('div','space-comment-list');
+    for (const c of S.comments) {
+      const row = el('div','space-comment');
+      row.dataset.comment = c.id; row.tabIndex = -1;
+      function message(m) {
+        const block = el('div','cm-message');
+        const names = (m.mentions || []).map(id=>S.space.members.find(member=>member.userId===id)?.name || id);
+        block.append(el('div','cm-meta',(m.authorName || '成员')+' · '+new Date(m.createdAt).toLocaleString()+(m.resolved?' · 已解决':'')),el('div','cm-body',m.body));
+        if (names.length) block.append(el('div','doc-mentions',names.map(n=>'@'+n).join(' ')));
+        return block;
+      }
+      const anchor = c.anchor;
+      if (isPage && anchor?.quote) {
+        const locate = el('button','doc-comment-anchor',anchor.detached?'原句已变更 · '+anchor.quote:'“'+anchor.quote+'”');
+        locate.type = 'button'; locate.title = '定位到原句';
+        locate.disabled = !!anchor.detached;
+        locate.onclick = () => {
+          const block = res.entities.find(e=>e.id===anchor.entityId);
+          const text = block?.payload.text || '';
+          let from = anchor.from;
+          if (text.slice(from,anchor.to)!==anchor.quote || !Number.isInteger(from)) {
+            from=text.indexOf(anchor.quote);
+            if (from<0 || text.indexOf(anchor.quote,from+1)!==-1) { flashHint('原句已变更，无法准确定位'); return; }
+          }
+          docEditor.focusSelection(anchor.entityId,from,from+anchor.quote.length);
+          const node=window.getSelection().anchorNode;
+          (node?.nodeType===1 ? node : node?.parentElement)?.closest('[data-unit]')?.scrollIntoView({block:'center'});
+        };
+        row.append(locate);
+      }
+      row.append(message(c));
+      for (const reply of c.replies || []) { const m=message(reply); m.classList.add('doc-reply'); row.append(m); }
+      if (canComment()) {
+        if (isPage) {
+          const reply = el('button','cm-act','回复'); reply.type='button';
+          reply.onclick=()=>composeReply(res,c);
+          row.append(reply);
+        }
+        const act = el('button','cm-act',c.resolved?'重新打开':'标记解决'); act.type='button';
+        act.onclick=async()=>{
+          const r=await api('/spaces/'+encodeURIComponent(res.spaceId)+'/comments/'+encodeURIComponent(c.id),{method:'PATCH',body:{resolved:!c.resolved}});
+          if (!r.ok) { flashHint((await r.json()).error); return; }
+          if (S.resource===res) loadComments();
+        };
+        row.append(act);
+      }
       list.append(row);
     }
-    if (!(S.comments || []).length) list.append(el('div', 'set-hint', '还没有评论。'));
+    if (!S.comments.length) list.append(el('div','set-hint','还没有评论。'));
     if (oldList) { oldList.replaceWith(list); return; }
     box.append(list);
-    const form = el('div', 'space-cmt-form');
-    const ta = document.createElement('textarea');
-    ta.placeholder = '评论这一段…（用成员列表 @）';
-    const sel = document.createElement('select');
-    sel.multiple = true;
-    sel.size = Math.min(4, Math.max(2, (S.space.members || []).length));
-    for (const m of (S.space.members || [])) {
-      const o = document.createElement('option');
-      o.value = m.userId;
-      o.textContent = '@' + (m.name || m.userId);
-      sel.append(o);
-    }
-    const btn = el('button', 'primary', '发评论');
-    btn.type = 'button';
-    btn.addEventListener('click', async () => {
-      const body = ta.value.trim();
+    if (!canComment()) return;
+    const form=el('div','space-cmt-form');
+    const selection=commentSelection;
+    if (isPage && selection) form.append(el('blockquote','doc-comment-quote',selection.text));
+    const ta=document.createElement('textarea'); ta.placeholder=isPage?(selection?'批注这句原文…':'评论这份文档…'):'评论这张卡…'; ta.maxLength=4000;
+    const sel=mentionSelect();
+    const btn=el('button','primary','发评论'); btn.type='button';
+    btn.onclick=async()=>{
+      const body=ta.value.trim();
       if (!body) { flashHint('评论不能为空'); return; }
-      const mentions = [...sel.selectedOptions].map((o) => o.value);
-      const active = (S.resource.entities || []).find((e) => e.id === S.activeEntity);
-      const r = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(S.resource.id) + '/comments', {
-        method: 'POST',
-        body: { body, mentions, anchor: active ? { entityId: active.id, quote: String((active.payload && active.payload.text) || '').slice(0, 80) } : null },
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { flashHint(j.error || '评论失败'); return; }
-      ta.value = '';
-      await loadComments();
-    });
-    form.append(ta, sel, btn);
-    box.append(form);
+      const input={body,mentions:[...sel.selectedOptions].map(o=>o.value)};
+      if (isPage && selection) {
+        if (!await flushSave() || S.resource!==res) return;
+        if (!selectionValid(res,selection) || selection.revision!==selection.entity.revision) { flashHint('原句已变更，请重新选中并批注'); return; }
+        input.anchor={entityId:selection.entity.id,from:selection.from,to:selection.to,quote:selection.text};
+        input.expectedRevision=selection.entity.revision;
+      } else if (!isPage) {
+        const active=res.entities.find(e=>e.id===S.activeEntity);
+        if (active) input.anchor={entityId:active.id,quote:String(active.payload.text || '').slice(0,80)};
+      }
+      btn.disabled=true;
+      const r=await api(pagePath(res)+'/comments',{method:'POST',body:input}).finally(()=>{btn.disabled=false;});
+      if (!r.ok) { flashHint((await r.json()).error); return; }
+      if (S.resource!==res) return;
+      ta.value=''; commentSelection=null; renderSide(); await loadComments();
+    };
+    form.append(ta,sel,btn);box.append(form);
+  }
+
+  function mentionSelect() {
+    const sel=document.createElement('select');
+    sel.multiple=true; sel.setAttribute('aria-label','提及空间成员');
+    sel.size=Math.min(4,Math.max(2,S.space.members.length));
+    S.space.members.forEach(m=>sel.add(new Option('@'+(m.name || m.userId),m.userId)));
+    return sel;
+  }
+  async function composeReply(res, thread) {
+    const members=mentionSelect();
+    const got=await ask({title:'回复'+(thread.authorName || '成员'),sub:thread.body,fields:[{name:'body',label:'回复',type:'textarea',maxLength:4000}],extra:()=>members,ok:'发送',validate:v=>v.body?'':'回复不能为空'});
+    if (!got || S.resource!==res) return;
+    const input={parentId:thread.id,body:got.body,mentions:[...members.selectedOptions].map(o=>o.value)};
+    const r=await api(pagePath(res)+'/comments',{method:'POST',body:input});
+    if (!r.ok) { flashHint((await r.json()).error); return; }
+    if (S.resource===res) await loadComments();
+  }
+  function selectionValid(res,sel) {
+    return res.entities.includes(sel.entity) && sel.entity.payload.text.slice(sel.from,sel.to)===sel.text;
+  }
+  async function savedSelection() {
+    const res=S.resource, sel=docEditor.getSelection();
+    if (!sel?.text?.trim()) { flashHint('请先在一个段落内选中原文'); return; }
+    if (!await flushSave() || S.resource!==res) return;
+    if (!selectionValid(res,sel)) { flashHint('原句已变更，请重新选择'); return; }
+    return {...sel,id:sel.entity.id,revision:sel.entity.revision};
+  }
+  async function startDocumentComment() {
+    const selection=await savedSelection();
+    if (!selection) return;
+    const draft = S.tab==='comments' ? document.querySelector('.space-cmt-form textarea')?.value : '';
+    const mentionIds = S.tab==='comments' ? [...(document.querySelector('.space-cmt-form select')?.selectedOptions || [])].map(o=>o.value) : [];
+    commentSelection=selection;
+    S.tab='comments';
+    $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on'); $('#tabApps').classList.remove('on');
+    setSide(true);
+    const textarea=document.querySelector('.space-cmt-form textarea');
+    if (draft) textarea.value=draft;
+    for (const option of document.querySelectorAll('.space-cmt-form option')) option.selected=mentionIds.includes(option.value);
+    textarea.focus();
+    hideSelBar();
+  }
+
+  function textChanges(before, after) {
+    if (before === after) return [];
+    const segmenter = new Intl.Segmenter('zh', {granularity:'word'});
+    const split = text => Array.from(segmenter.segment(text), part => part.segment);
+    const a = split(before), b = split(after), matches = [];
+    function lengths(lo, hi, start, end, reverse) {
+      const n = end - start, row = new Uint32Array(n + 1);
+      for (let i=0; i<hi-lo; i++) {
+        let diagonal = 0;
+        for (let j=1; j<=n; j++) {
+          const prev = row[j];
+          row[j] = a[reverse ? hi-i-1 : lo+i] === b[reverse ? end-j : start+j-1]
+            ? diagonal + 1 : Math.max(prev, row[j-1]);
+          diagonal = prev;
+        }
+      }
+      return row;
+    }
+    function align(lo, hi, start, end) {
+      while (lo<hi && start<end && a[lo] === b[start]) matches.push([lo++,start++]);
+      let tail = 0;
+      while (lo<hi-tail && start<end-tail && a[hi-tail-1] === b[end-tail-1]) tail++;
+      hi -= tail; end -= tail;
+      if (hi-lo === 1) {
+        const j = b.indexOf(a[lo], start);
+        if (j>=start && j<end) matches.push([lo,j]);
+      } else if (lo<hi && start<end) {
+        const mid = Math.floor((lo+hi)/2);
+        const left = lengths(lo,mid,start,end,false), right = lengths(mid,hi,start,end,true);
+        let best = 0;
+        for (let k=1; k<=end-start; k++) if (left[k]+right[end-start-k] > left[best]+right[end-start-best]) best=k;
+        align(lo,mid,start,start+best); align(mid,hi,start+best,end);
+      }
+      for (let k=0; k<tail; k++) matches.push([hi+k,end+k]);
+    }
+    align(0,a.length,0,b.length);
+    matches.push([a.length,b.length]);
+    const changes = [];
+    let i=0,j=0,pos=0;
+    for (const [x,y] of matches) {
+      if (x>i || y>j) {
+        const removed = a.slice(i,x).join(''), added = b.slice(j,y).join('');
+        changes.push({from:pos,to:pos+removed.length,removed,added});
+        pos += removed.length;
+      }
+      pos += a[x]?.length || 0; i=x+1; j=y+1;
+    }
+    return changes;
+  }
+  function displayChange(change) {
+    const row = el('div','doc-change');
+    if (change.removed) row.append(el('del',null,change.removed));
+    if (change.added) row.append(el('ins',null,change.added));
+    return row;
+  }
+  async function pageHistory() {
+    if (!await flushSave()) return;
+    const res = S.resource, path = pagePath(res) + '/history';
+    const response = await api(path);
+    const data = await response.json();
+    if (S.resource !== res) return;
+    if (!response.ok) { flashHint(data.error); return; }
+    if (!data.versions.length) { flashHint('当前还没有已保存的版本'); return; }
+    const versionLabel = v => '版本 '+v.revision+(v.name?' · '+v.name:'')+(v.actor?' · '+v.actor:'')+' · '+new Date(v.at).toLocaleString();
+    const fields = [{name:'revision',type:'select',label:'版本',options:data.versions.map(v=>[String(v.revision),versionLabel(v)])}];
+    const buttons = [['compare','比较当前文档']];
+    if (canEdit(S.space)) buttons.push(['name','命名版本'],['restore','恢复为副本']);
+    fields.push({name:'action',type:'choice',label:'操作',options:buttons});
+    const got = await ask({title:'文档版本历史',fields,ok:'继续'});
+    if (!got || S.resource !== res) return;
+    const revision = Number(got.revision);
+    if (got.action === 'compare') {
+      const reply = await api(path+'?revision='+revision);
+      const history = await reply.json();
+      if (!reply.ok) { flashHint(history.error); return; }
+      if (S.resource !== res) return;
+      const older = history.resource;
+      const nowTitle = $('#spaceResTitle').value;
+      const rows = [];
+      const add = (label, old, cur) => { if (old!==cur) rows.push({label,changes:textChanges(old,cur)}); };
+      add('标题',older.title,nowTitle);
+      const before = new Map(older.entities.map(e=>[e.id,e]));
+      const current = new Map(res.entities.map(e=>[keyOf(e),e]));
+      const figures = e=>(e.payload.figures || []).map(f=>[f.caption, f.url, f.source, f.canvasId, f.cardId].filter(Boolean).join('\n')).join('\n\n');
+      const describeBlock = e=>[e.payload.text, figures(e)].filter(Boolean).join('\n\n') || '空段落';
+      for (const id of new Set([...before.keys(),...current.keys()])) {
+        const oldBlock=before.get(id), block=current.get(id);
+        const order=(block?res.entities.indexOf(block):older.entities.indexOf(oldBlock))+1;
+        const label='第 '+order+' 块';
+        if (!oldBlock || !block) rows.push({label:label+(block?' · 新增':' · 删除'),changes:[{removed:oldBlock?describeBlock(oldBlock):'',added:block?describeBlock(block):''}]});
+        else {
+          add(label,oldBlock.payload.text,block.payload.text);
+          // 图组保留来源、图注和所在画布，逐张比较可读的实际字段。
+          add(label+' · 图片',figures(oldBlock),figures(block));
+        }
+      }
+      const commonOld = [...before.keys()].filter(id=>current.has(id)), commonNew = [...current.keys()].filter(id=>before.has(id));
+      for (const [i,id] of commonNew.entries()) {
+        const prior = commonOld.indexOf(id);
+        if (prior!==i) rows.push({label:'段落移动',changes:[{removed:'第 '+(older.entities.indexOf(before.get(id))+1)+' 块',added:'第 '+(res.entities.indexOf(current.get(id))+1)+' 块'}]});
+      }
+      await ask({title:'版本 '+revision+' 与当前文档',sub:rows.length?'删除和新增内容按段落显示。':'两个版本内容相同。',ok:'关闭',cancel:false,extra:()=>{
+        const list=el('div','doc-version-diff');
+        for (const row of rows) { list.append(el('strong',null,row.label)); for (const change of row.changes) list.append(displayChange(change)); }
+        return list;
+      }});
+      return;
+    }
+    const input = {revision};
+    if (got.action === 'name') {
+      const current = data.versions.find(v=>v.revision===revision);
+      const name = await ask({title:'命名版本 '+revision,fields:[{name:'name',label:'版本名称',value:current.name || '',maxLength:120}],validate:v=>v.name?'':'请输入名称'});
+      if (!name || S.resource!==res) return;
+      input.name=name.name;
+    }
+    const reply = await api(path,{method:'POST',body:input});
+    const changed = await reply.json();
+    if (!reply.ok) { flashHint(changed.error); return; }
+    if (got.action==='restore' && S.resource===res) await openSpace(res.spaceId,changed.resource.id);
+    flashHint(got.action==='restore'?'已恢复为新文档':'已保存版本名称');
   }
 
   function diffLines(a, b) {
@@ -4006,7 +4384,19 @@ export function mountSpaces(ctx) {
     const rows = items.map((n) => ({
       label: (n.kind === 'mention' ? '@ 提及 · ' : '') + (n.body || ''),
       sub: new Date(n.createdAt).toLocaleString() + (n.readAt ? ' · 已读' : ''),
-      onClick: async () => { closeList(); if (n.spaceId) { state.view = 'spaces'; renderAll(); await openSpace(n.spaceId, n.resourceId || undefined); } },
+      onClick: async () => {
+        closeList();
+        if (!n.spaceId) return;
+        state.view='spaces'; renderAll(); await openSpace(n.spaceId,n.resourceId || undefined);
+        if (!n.commentId || S.resource?.type!=='page' || S.resource.id!==n.resourceId) return;
+        $('#tabComments').click(); setSide(true); await loadComments();
+        const thread=$('#spaceSideBody').querySelector('[data-comment="'+CSS.escape(n.commentId)+'"]');
+        if (thread) {
+          thread.scrollIntoView({block:'nearest'});
+          const anchor=thread.querySelector('.doc-comment-anchor:not(:disabled)');
+          if (anchor) anchor.click(); else thread.focus();
+        }
+      },
     }));
     if (!rows.length) rows.push({ label: '还没有通知', sub: '' });
     openListPanel('通知', items.length ? '最近 ' + items.length + ' 条' : '空间里的 @ 会出现在这里', rows);
@@ -4071,20 +4461,13 @@ export function mountSpaces(ctx) {
   });
 
   $('#canvasFullBtn').addEventListener('click', () => toggleCanvasFocus());
-  $('#addBlockBtn').addEventListener('click', () => {
-    if (!S.resource || S.resource.type === 'canvas') return;
-    S.resource.entities = (S.resource.entities || []).concat([{ id: '', payload: { text: '' }, revision: 0 }]);
-    renderEditor();
-    scheduleSave();
-    const tas = document.querySelectorAll('#pageEditor textarea');
-    if (tas.length) tas[tas.length - 1].focus();
-  });
+  $('#addBlockBtn').addEventListener('click', () => docEditor?.addBlock({text: ''}));
   $('#spaceResTitle').addEventListener('input', () => scheduleSave());
   $('#spaceResTitle').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== 'Escape') return;
     e.preventDefault();
     const ed = $('#pageEditor');
-    const firstTa = ed && ed.querySelector('.page-block textarea');
+    const firstTa = ed && ed.querySelector('textarea, [contenteditable="true"]');
     if (firstTa) firstTa.focus(); else if (ed && ed.tabIndex >= 0) ed.focus({ preventScroll: true }); else e.target.blur();
   });
   $('#tabComments').addEventListener('click', () => { S.tab = 'comments'; $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on'); $('#tabApps').classList.remove('on'); renderSide(); });
@@ -4102,6 +4485,7 @@ export function mountSpaces(ctx) {
     ask.addEventListener('click', () => runSelectionAction('ask'));
     edit.addEventListener('click', () => runSelectionAction('edit'));
     cmt.addEventListener('click', () => {
+      if (docEditor) { if (canComment()) startDocumentComment(); return; }
       S.tab = 'comments';
       $('#tabComments').classList.add('on'); $('#tabMembers').classList.remove('on'); $('#tabApps').classList.remove('on');
       setSide(true);
@@ -4115,6 +4499,19 @@ export function mountSpaces(ctx) {
     return selBar;
   }
   function hideSelBar() { if (selBar) selBar.hidden = true; selTarget = null; }
+  function selectDocumentText(sel) {
+    if (sel) S.activeEntity=sel.entity.id;
+    const native=window.getSelection(), editor=$('#pageEditor');
+    if (!native.rangeCount || native.isCollapsed || !sel?.text.trim() || !editor.contains(native.anchorNode) || !editor.contains(native.focusNode) || editor.closest('[hidden]')) {
+      if (selTarget?.entity) hideSelBar();
+      return;
+    }
+    const bar=ensureSelBar(), bounds=native.getRangeAt(0).getBoundingClientRect();
+    selTarget=sel; bar.hidden=false;
+    bar.children[1].hidden=!canEdit(S.space); bar.children[2].hidden=!canComment();
+    bar.style.left=Math.max(8,Math.min(window.innerWidth-bar.offsetWidth-8,bounds.left))+'px';
+    bar.style.top=Math.max(8,bounds.top-bar.offsetHeight-6)+'px';
+  }
   function readSelection(ta) {
     const from = ta.selectionStart, to = ta.selectionEnd;
     if (from == null || to == null || to <= from) return null;
@@ -4127,12 +4524,71 @@ export function mountSpaces(ctx) {
     if (!sel) { hideSelBar(); return; }
     selTarget = sel;
     const bar = ensureSelBar();
+    for (const button of bar.children) button.hidden = false;
     bar.hidden = false;
     const r = ta.getBoundingClientRect();
     bar.style.left = Math.max(8, Math.min(window.innerWidth - bar.offsetWidth - 8, r.left + 8)) + 'px';
     bar.style.top = Math.max(8, r.top - 40) + 'px';
   }
+  async function runDocumentAI(action) {
+    const res = S.resource;
+    if (!docEditor || (action==='edit' && !canEdit(S.space))) return;
+    const sel = await savedSelection();
+    if (!sel) return;
+    hideSelBar();
+    const editing = action==='edit';
+    const prompt = await ask({title:editing?'用 AI 修改原句':'针对原句问 AI',sub:sel.text,
+      fields:[{name:'instruction',label:editing?'希望怎么改':'想问什么',type:'textarea',value:editing?'润色这段文字':'解释这段内容',maxLength:1000}],
+      ok:editing?'生成建议':'提问',validate:v=>v.instruction?'':'请输入要求'});
+    if (!prompt || S.resource!==res) return;
+    const valid=()=>S.resource===res && sel.revision===sel.entity.revision && selectionValid(res,sel);
+    if (!valid()) { flashHint('原句已变更，请重新选择'); return; }
+    const input={entityId:sel.id,expectedRevision:sel.revision,from:sel.from,to:sel.to,instruction:prompt.instruction};
+    flashHint(editing?'正在生成修改建议…':'AI 正在阅读所选段落…');
+    const path=pagePath(res)+'/ai';
+    const response=await api(path,{method:'POST',timeout:90000,body:{...input,action:editing?'preview':'ask'}});
+    const result=await response.json();
+    if (!response.ok) { flashHint(result.error); return; }
+    if (S.resource!==res) return;
+    if (!editing) { openListPanel('选区问答',sel.text,[{label:result.answer,sub:''}]); return; }
+    if (!valid()) { flashHint('生成期间原句已变更，请重新选择'); return; }
+    const changes=textChanges(sel.text,result.answer);
+    if (!changes.length) { flashHint('AI 建议保留原文'); return; }
+    const picked=new Set(changes);
+    const got=await ask({title:'逐条审阅修改',sub:'勾选要采用的修改。',ok:'采用勾选项',extra:()=>{
+      const list=el('div','doc-review');
+      for (const change of changes) {
+        const row=el('label','doc-review-row'), checkbox=document.createElement('input');
+        checkbox.type='checkbox'; checkbox.checked=true;
+        const index=changes.indexOf(change)+1;
+        checkbox.setAttribute('aria-label','采用第 '+index+' 项修改');
+        checkbox.onchange=()=>{if (checkbox.checked) picked.add(change); else picked.delete(change);};
+        row.append(checkbox,displayChange(change)); list.append(row);
+      }
+      return list;
+    }});
+    if (!got || !picked.size || !await flushSave()) return;
+    if (!valid()) { flashHint('原句已变更，请重新生成建议'); return; }
+    let replacement=sel.text;
+    for (const change of [...picked].sort((a,b)=>b.from-a.from)) {
+      replacement=replacement.slice(0,change.from)+change.added+replacement.slice(change.to);
+    }
+    applyingSuggestion=(async()=>{
+      const reply=await api(path,{method:'POST',body:{...input,action:'apply',replacement}});
+      const applied=await reply.json();
+      if (!reply.ok) { flashHint(applied.error); return; }
+      if (S.resource!==res) return;
+      if (reconcilePage(applied.resource)) {
+        if (dirty) scheduleSave();
+        else $('#spaceSaveState').textContent='AI 修改已保存';
+      }
+      renderTree();
+    })().finally(()=>{ applyingSuggestion=null; });
+    await applyingSuggestion;
+  }
+
   async function runSelectionAction(action) {
+    if (docEditor) return runDocumentAI(action);
     const sel = selTarget;
     if (!sel || !S.resource || !S.space) return;
     const got = await ask(action === 'ask'
@@ -4203,5 +4659,5 @@ export function mountSpaces(ctx) {
   }
   document.addEventListener('mousedown', (e) => { if (selBar && !selBar.hidden && !selBar.contains(e.target)) hideSelBar(); });
   bindSelection();
-  return { render, openSpace, openPage, openSharedSection, saveToSpace };
+  return { render, openSpace, openPage, openSharedSection, saveToSpace, pickDocumentFigures, openDocumentFigure };
 }
