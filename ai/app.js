@@ -828,11 +828,21 @@ function recentArtifacts(limit) {
 
 function openArtifact(it) {
   state.currentId = it.convId;
-  renderAll();
   const cv = current();
   if (!cv) return;
   const idx = (cv.files || []).findIndex((f) => f.name === it.name);
-  if (idx >= 0) { state.fileIdx = idx; openCodePane(); }
+  if (idx < 0) { flashHint('这个文件已删除或更名'); return; }
+  state.fileIdx = idx;
+  if (kindOfFile(it.name) === 'doc') {
+    state.view = 'chat';
+    cv.artifact = { kind: 'doc', name: it.name };
+    closeCodePane();
+    renderAll();
+    openArtifactPane('doc', it.name);
+    return;
+  }
+  renderAll();
+  openCodePane();
 }
 
 /* 图片尺寸记忆：先按已知比例占位，避免加载时才撑开导致页面跳动 */
@@ -3041,7 +3051,15 @@ function bubble(m, idx) {
       });
       bd.append(det);
     }
-    if (m.wrote && m.wrote.length) {
+    if (m.wrote?.some(name => kindOfFile(name) === 'doc')) {
+      for (const name of m.wrote) {
+        const chip = el('button', 'wrote-chip', '已写入 ' + name);
+        chip.type = 'button';
+        chip.title = '打开 ' + name;
+        chip.addEventListener('click', () => openArtifact({ convId: state.currentId, name }));
+        bd.append(chip);
+      }
+    } else if (m.wrote && m.wrote.length) {
       const chip = el('div', 'wrote-chip');
       chip.innerHTML = '已写入 <b>' + m.wrote.length + '</b> 个文件：' + esc(m.wrote.join(', '));
       chip.style.cursor = 'pointer';
@@ -4920,7 +4938,10 @@ function renderCode() {
     x.title = '删除文件';
     x.addEventListener('click', (e) => { e.stopPropagation(); deleteFile(i); });
     t.append(x);
-    t.addEventListener('click', () => { state.fileIdx = i; renderCode(); });
+    t.addEventListener('click', () => {
+      if (kindOfFile(f.name) === 'doc') openArtifact({ convId: cv.id, name: f.name });
+      else { state.fileIdx = i; renderCode(); }
+    });
     tabs.append(t);
   });
 
