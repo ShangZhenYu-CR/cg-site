@@ -3,9 +3,9 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-import { mountDocEditor, markdownEntities, documentMarkdown, documentPayloads, renderDocumentContent } from './doc-editor.js?v=20261123notion1';
-import { exportDocument } from './doc-export.js?v=20261123notion1';
-const APP_BUILD = '2026-11-23 文档分栏与块编辑';
+import { mountDocEditor, markdownEntities, documentMarkdown, documentPayloads, renderDocumentContent } from './doc-editor.js?v=20261123notion2';
+import { exportDocument } from './doc-export.js?v=20261123notion2';
+const APP_BUILD = '2026-11-23 文档分栏与图集导出';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -6696,7 +6696,7 @@ $('#artExport').addEventListener('click', () => {
   openListPanel('导出文档',spaceTitleOf(f.name),[
     ...[['pdf','PDF'],['docx','Word']].map(([kind,label])=>({label:'导出 '+label,onClick:()=>{
       $('#dlgList').hidden=true;
-      exportDocument(kind,{title:spaceTitleOf(f.name),entities:markdownEntities(f.content),api,base}).catch(e=>flashHint(e.message));
+      exportDocument(kind,{title:spaceTitleOf(f.name),entities:markdownEntities(f.content),root:chatDocument?.node,api,base}).catch(e=>flashHint(e.message));
     }})),
     {label:'下载 Markdown 源文件',onClick:()=>{ $('#dlgList').hidden=true;downloadSource(); }},
   ]);

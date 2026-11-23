@@ -1,5 +1,5 @@
-import { mountDocEditor } from './doc-editor.js?v=20261123notion1';
-import { exportDocument } from './doc-export.js?v=20261123notion1';
+import { mountDocEditor } from './doc-editor.js?v=20261123notion2';
+import { exportDocument } from './doc-export.js?v=20261123notion2';
 
 import {pickSourceFiles} from './source-import.js?v=20261123docs1';
 export function mountSpaces(ctx) {

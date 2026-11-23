@@ -1,4 +1,4 @@
-import {renderDocumentContent} from './doc-editor.js?v=20261123notion1';
+import {renderDocumentContent} from './doc-editor.js?v=20261123notion2';
 
 function runs(node, style={}) {
   if(node.nodeType===Node.TEXT_NODE) return node.textContent ? [{...style,text:node.textContent}] : [];
@@ -16,7 +16,38 @@ function runs(node, style={}) {
   return [...node.childNodes].flatMap(n=>runs(n,next));
 }
 
-export function exportBlocks(entities) {
+const galleryKey=p=>JSON.stringify([p.layout?.group,p.layout?.column,p.indent,p.figures.map(f=>f.url)]);
+
+function galleryTracks(entities,root) {
+  const counts=new Map();
+  const needed=entities.map(e=>e.payload).filter(p=>p.figures?.length);
+  function measure(container){
+    for(const gallery of container.querySelectorAll('.md-figures')){
+      if(!gallery.offsetWidth || !gallery._figurePayload)continue;
+      const key=galleryKey(gallery._figurePayload);
+      if(counts.has(key))continue;
+      const figures=[...gallery.children],top=figures[0].getBoundingClientRect().top;
+      counts.set(key,figures.filter(f=>Math.abs(f.getBoundingClientRect().top-top)<1).length);
+    }
+  }
+  if(root)measure(root);
+  if(needed.some(p=>!counts.has(galleryKey(p)))){
+    // Measure folded galleries in an offscreen copy with the same editor padding and container queries.
+    const editor=root?.querySelector('.md-writing-surface');
+    const preview=editor?.offsetWidth ? editor.cloneNode(true) : renderDocumentContent(entities,{resolveUrl:()=>''});
+    if(editor?.offsetWidth){
+      const sources=editor.querySelectorAll('.md-figures');
+      preview.querySelectorAll('.md-figures').forEach((g,i)=>{g._figurePayload=sources[i]._figurePayload;});
+      preview.querySelectorAll('.md-section[hidden],.md-figures[hidden]').forEach(el=>{el.hidden=false;});
+    }
+    const width=editor?.getBoundingClientRect().width || root?.clientWidth || document.documentElement.clientWidth;
+    Object.assign(preview.style,{position:'fixed',left:'-100000px',top:'0',visibility:'hidden',width:width+'px'});
+    document.body.append(preview);measure(preview);preview.remove();
+  }
+  return counts;
+}
+
+export function exportBlocks(entities,counts=new Map()) {
   const blocks=[];
   function collect(node) {
     const tag=node.tagName;
@@ -50,7 +81,7 @@ export function exportBlocks(entities) {
   for(const entry of entities){
     const start=blocks.length;
     if(entry.payload?.text) collect(renderDocumentContent([{payload:{text:entry.payload.text}}]));
-    if(entry.payload?.figures?.length) blocks.push({figures:entry.payload.figures.map(({url,caption,source})=>({url,caption,source}))});
+    if(entry.payload?.figures?.length) blocks.push({figures:entry.payload.figures.map(({url,caption,source})=>({url,caption,source})),figureColumns:counts.get(galleryKey(entry.payload))});
     if(blocks.length===start && entry.payload) blocks.push({runs:[{text:''}]});
     for(let i=start;i<blocks.length;i++) {
       if(entry.payload.layout) blocks[i].layout={...entry.payload.layout};
@@ -60,8 +91,8 @@ export function exportBlocks(entities) {
   return blocks;
 }
 
-export async function exportDocument(kind,{title,entities,api}) {
-  const response=await api('/export',{method:'POST',body:{kind,title,document:exportBlocks(entities)},timeout:180000});
+export async function exportDocument(kind,{title,entities,root,api}) {
+  const response=await api('/export',{method:'POST',body:{kind,title,document:exportBlocks(entities,galleryTracks(entities,root))},timeout:180000});
   if(!response.ok) throw Error((await response.json()).error);
   const href=URL.createObjectURL(await response.blob());
   const link=document.createElement('a');

@@ -50,7 +50,7 @@
 .md-doc-controls .md-more-actions{border:0;background:transparent;color:var(--muted,#777);padding:2px 6px;font:inherit;cursor:pointer;letter-spacing:2px}
 .md-layout .md-block [data-unit]{min-height:1.6em}.md-layout:focus{outline:none}
 .md-layout .md-block p:empty:before{content:' ';white-space:pre;pointer-events:none}
-.md-layout .md-section:only-child .md-block p:empty:before{content:'开始写作，或输入 / 插入内容';color:var(--muted,#868580)}
+.md-layout>.md-section:only-child:not(:has(.md-figures)) .md-block p:empty:before{content:'开始写作，或输入 / 插入内容';color:var(--muted,#868580)}
 .md-layout .md-block li[data-checked]{list-style:none}
 .md-block li[data-checked] input{margin-inline:0 .45em;vertical-align:middle;accent-color:var(--accent,#265eb3)}
 .md-block li[data-checked=true]{color:var(--muted,#888);text-decoration:line-through}

@@ -1,4 +1,4 @@
-import {mountBlockLayout} from './doc-layout.js?v=20261123notion1';
+import {mountBlockLayout} from './doc-layout.js?v=20261123notion2';
 
 const element = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -333,6 +333,7 @@ function bodyMap(root) {
 
 function renderFigures(payload,{resolveUrl,onOpenCard,editable,changed,repaint}) {
   const group = element('div','md-figures');
+  group._figurePayload=payload;
   group.contentEditable='false';
   for (const figure of payload.figures) {
     const figureBox = element('figure');
