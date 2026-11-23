@@ -3,7 +3,7 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-const APP_BUILD = '2026-11-20 10:32';
+const APP_BUILD = '2026-11-23 09:00';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -8029,7 +8029,15 @@ $('#privateBtn').addEventListener('click', async () => {
 });
 
 $('#q').addEventListener('input', renderSide);
-$('#burger').addEventListener('click', () => document.body.classList.toggle('nav'));
+const narrowSidebar = window.matchMedia('(max-width:820px)');
+$('#burger').addEventListener('click', () => {
+  document.body.classList.toggle('nav');
+  applySide();
+});
+narrowSidebar.addEventListener('change', () => {
+  closeNav();
+  applySide();
+});
 function labelNavRows() {
   const map = [['#navProjects', '项目'], ['#navFiles', '文件'], ['#navPrefs', '自定义']];
   for (const pair of map) {
@@ -8052,23 +8060,21 @@ sideEl.addEventListener('touchmove', (e) => {
   if (dx < -60) { closeNav(); swipeStartX = null; }
 }, { passive: true });
 sideEl.addEventListener('touchend', () => { swipeStartX = null; }, { passive: true });
-function closeNav() { document.body.classList.remove('nav'); }
+function closeNav() {
+  document.body.classList.remove('nav');
+  $('#burger').setAttribute('aria-expanded', 'false');
+}
 
 /* 侧栏收起 / 展开（桌面端，状态记在本机） */
 function applySide() {
-  const open = LS.side;
-  document.body.classList.toggle('noside', !open);
+  const narrow = narrowSidebar.matches;
+  const open = narrow ? document.body.classList.contains('nav') : LS.side;
+  document.body.classList.toggle('noside', !narrow && !open);
   labelNavRows();
-  const b = $('#sideToggle');
-  b.textContent = open ? '«' : '»';
-  b.title = open ? '收起侧栏' : '展开侧栏';
-
-  const narrow = window.matchMedia('(max-width:820px)').matches;
-  const c = $('#sideCollapse');
-  if (c) {
-    c.textContent = narrow ? '×' : (open ? '«' : '»');
-    c.title = narrow ? '关闭侧栏' : (open ? '收起侧栏' : '展开侧栏');
-  }
+  $('#burger').setAttribute('aria-expanded', String(narrow && open));
+  $('#sideToggle').setAttribute('aria-expanded', String(open));
+  $('#sideCollapse').title = narrow ? '关闭侧栏' : '收起侧栏';
+  $('#sideCollapse').setAttribute('aria-label', $('#sideCollapse').title);
 }
 
 $('#sideToggle').addEventListener('click', () => {
@@ -8078,7 +8084,7 @@ $('#sideToggle').addEventListener('click', () => {
 
 /* 侧栏内的收起按钮：窄屏关抽屉，宽屏收起整列 */
 $('#sideCollapse').addEventListener('click', () => {
-  if (window.matchMedia('(max-width:820px)').matches) { closeNav(); return; }
+  if (narrowSidebar.matches) { closeNav(); return; }
   // 收起态下点它就是展开回来
   LS.side = !LS.side;
   applySide();
