@@ -42,3 +42,30 @@
 .doc-rich>.doc-bar { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
 .doc-rich>[hidden] { display:none!important }
 .doc-rich .art-md { box-sizing:border-box; display:block; width:100%; min-height:45vh; resize:vertical; padding:12px; font:14px/1.6 ui-monospace,monospace; }
+
+.md-doc-controls{max-width:864px;margin:0 auto;min-height:28px;padding-inline:36px 10px;box-sizing:border-box;display:flex;gap:7px;justify-content:flex-end;align-items:flex-start;position:relative;z-index:4}
+.md-doc-controls .md-outline{position:relative;padding:2px 5px;margin:0;border:0;font-size:13px;color:var(--muted,#797874)}
+.md-doc-controls .md-outline summary{list-style:none;cursor:pointer}.md-doc-controls .md-outline summary::-webkit-details-marker{display:none}
+.md-doc-controls .md-outline[open]>div{position:absolute;right:0;top:100%;min-width:185px;padding:7px;max-height:45vh;overflow:auto;background:var(--panel,var(--bg,#fff));border:1px solid var(--line,#ddd);border-radius:7px;box-shadow:0 6px 22px #0002}
+.md-doc-controls .md-more-actions{border:0;background:transparent;color:var(--muted,#777);padding:2px 6px;font:inherit;cursor:pointer;letter-spacing:2px}
+.md-layout .md-block [data-unit]{min-height:1.6em}.md-layout:focus{outline:none}
+.md-layout .md-block p:empty:before{content:' ';white-space:pre;pointer-events:none}
+.md-layout .md-section:only-child .md-block p:empty:before{content:'开始写作，或输入 / 插入内容';color:var(--muted,#868580)}
+.md-layout .md-block li[data-checked]{list-style:none}
+.md-block li[data-checked] input{margin-inline:0 .45em;vertical-align:middle;accent-color:var(--accent,#265eb3)}
+.md-block li[data-checked=true]{color:var(--muted,#888);text-decoration:line-through}
+.md-block mark{border-radius:2px;background:#f8e9a5;color:#342f21;padding:0 .08em}
+.md-float,.md-popover,.md-cell-tools{position:fixed;z-index:1010;box-sizing:border-box;max-width:calc(100vw - 16px);color:var(--text,var(--fg,#202020));background:var(--panel,var(--bg,#fff));border:1px solid var(--line,#d5d3d0);border-radius:9px;box-shadow:0 4px 17px #0002,0 1px 3px #0001;font-family:inherit;font-size:13px;line-height:1.5}
+.md-float,.md-cell-tools{display:flex;align-items:center;flex-wrap:wrap;padding:4px;gap:1px}
+.md-popover{width:min(266px,calc(100vw - 16px));padding:6px;}
+.md-float[hidden],.md-popover[hidden],.md-cell-tools[hidden]{display:none!important}
+.md-float button,.md-popover button,.md-cell-tools button{cursor:pointer;color:inherit;background:transparent;border:0;border-radius:5px;font:inherit;padding:5px 9px;line-height:1.4;text-align:start}
+.md-format-bold{font-weight:700!important}.md-format-italic{font-style:italic!important}
+.md-popover button{width:100%;display:flex;align-items:center;gap:10px;min-height:34px}
+.md-popover .md-cmd-icon{width:24px;height:24px;display:grid;place-items:center;background:var(--hover,#8881);border:1px solid var(--line,#ddd);border-radius:4px;color:var(--muted,#74716c);font:600 12px/1 system-ui}
+.md-popover [aria-selected=true],.md-popover button:hover,.md-cell-tools button:hover,.md-float button:hover,.md-more-actions:hover{background:var(--hover,rgba(128,128,128,.13))}
+.md-cmd-list{max-height:min(43vh,316px);overflow-y:auto;overscroll-behavior:contain}
+.md-cmd-empty{padding:8px;color:var(--muted,#888)}
+.md-link-form label{display:grid;gap:6px}.md-link-form input,.md-command-filter{width:100%;box-sizing:border-box;padding:7px 8px;font:inherit;border:1px solid var(--line,#ddd);border-radius:4px;background:var(--bg,#fff);color:inherit}
+.md-command-filter{margin-bottom:5px}.md-link-form button{justify-content:center;margin-top:7px;color:var(--accent,#255699)}
+.md-read-columns{display:flex;gap:18px;margin:.5em 0}.md-read-column{flex:1;min-width:0}

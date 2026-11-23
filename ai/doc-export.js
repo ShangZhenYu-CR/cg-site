@@ -1,14 +1,17 @@
-import {renderDocumentContent} from './doc-editor.js?v=20261123docs1';
+import {renderDocumentContent} from './doc-editor.js?v=20261123notion1';
 
 function runs(node, style={}) {
   if(node.nodeType===Node.TEXT_NODE) return node.textContent ? [{...style,text:node.textContent}] : [];
   const tag=node.tagName;
   if(tag==='BR') return [{...style,text:'\n'}];
   if(tag==='IMG') return [{image:node.getAttribute('src'),caption:node.alt || ''}];
+  if(tag==='INPUT') return [];
   const next={...style};
   if(tag==='STRONG'||tag==='B') next.bold=true;
   if(tag==='EM'||tag==='I') next.italic=true;
   if(tag==='CODE'||tag==='PRE') next.code=true;
+  if(tag==='MARK') next.highlight=true;
+  if(tag==='S'||tag==='DEL') next.strike=true;
   if(tag==='A'&&node.href) next.href=node.href;
   return [...node.childNodes].flatMap(n=>runs(n,next));
 }
@@ -21,7 +24,9 @@ export function exportBlocks(entities) {
     if(tag==='UL'||tag==='OL') {
       for(const [i,li] of [...node.children].entries()){
         const children=[...li.childNodes].filter(n=>!['UL','OL'].includes(n.tagName));
-        addRuns(children.flatMap(n=>runs(n)),{prefix:tag==='OL'?String(i+(node.start || 1))+'. ':'• '});
+        const prefix=li.hasAttribute('data-checked') ? (li.dataset.checked==='true'?'☑ ':'☐ ') :
+          tag==='OL'?String(li.hasAttribute('value')?li.value:i+(node.start || 1))+'. ':'• ';
+        addRuns(children.flatMap(n=>runs(n)),{prefix});
         [...li.children].filter(n=>['UL','OL'].includes(n.tagName)).forEach(collect);
       }
       return;
@@ -43,8 +48,14 @@ export function exportBlocks(entities) {
     flush();
   }
   for(const entry of entities){
+    const start=blocks.length;
     if(entry.payload?.text) collect(renderDocumentContent([{payload:{text:entry.payload.text}}]));
     if(entry.payload?.figures?.length) blocks.push({figures:entry.payload.figures.map(({url,caption,source})=>({url,caption,source}))});
+    if(blocks.length===start && entry.payload) blocks.push({runs:[{text:''}]});
+    for(let i=start;i<blocks.length;i++) {
+      if(entry.payload.layout) blocks[i].layout={...entry.payload.layout};
+      if(entry.payload.indent) blocks[i].indent=entry.payload.indent;
+    }
   }
   return blocks;
 }

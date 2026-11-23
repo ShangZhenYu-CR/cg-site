@@ -1,5 +1,5 @@
-import { mountDocEditor } from './doc-editor.js?v=20261123docs1';
-import { exportDocument } from './doc-export.js?v=20261123docs1';
+import { mountDocEditor } from './doc-editor.js?v=20261123notion1';
+import { exportDocument } from './doc-export.js?v=20261123notion1';
 
 import {pickSourceFiles} from './source-import.js?v=20261123docs1';
 export function mountSpaces(ctx) {
@@ -549,6 +549,9 @@ export function mountSpaces(ctx) {
     docEditor?.destroy(); docEditor = null; commentSelection = null; pageConflict = null; composingDocument=false; hideSelBar();
     if (cv && cv.cleanup) { cv.cleanup(); cv = null; }
     const res = S.resource;
+    const crumb = $('#spacePageCrumb');
+    crumb.after(title);
+    crumb.hidden = true;
     box.textContent = '';
     box.removeAttribute('style');
     if (!res) {
@@ -562,25 +565,30 @@ export function mountSpaces(ctx) {
     title.value = res.title || '';
     const isCanvas = res.type === 'canvas';
     box.classList.toggle('canvas-board', isCanvas);
-    $('#addBlockBtn').hidden = isCanvas || !canEdit(S.space);
+    $('#addBlockBtn').hidden = true;
     $('#canvasFullBtn').hidden = !isCanvas;
     $('#canvasFullBtn').textContent = S.canvasFocus ? '退出全屏' : '⤢ 全屏';
     if (isCanvas) { box.tabIndex = 0; renderCanvas(box, res); return; }
     box.removeAttribute('tabindex');
+    crumb.textContent = S.space.title;
+    crumb.hidden = false;
+    const heading=el('div','notion-page-heading'), editorHost=el('div','notion-page-body');
+    heading.append(title);
+    box.append(heading,editorHost);
     pageBaseline = structuredClone(res);
     const editable = canEdit(S.space);
     const actions = [
-      { label: '问 AI', run: () => runDocumentAI('ask') },
-      ...(editable ? [{ label: 'AI 修改', run: () => runDocumentAI('edit') }, { label: '插入画布图', run: async editor => {
+      { id:'ask', position:'selection', label: '问 AI', run: () => runDocumentAI('ask') },
+      ...(editable ? [{ id:'review', position:'selection', label: 'AI 改写', run: () => runDocumentAI('edit') }, { id:'figures', position:'insert', label: '画布图', run: async editor => {
         const figures = await pickDocumentFigures(S.space.id);
         if (docEditor === editor && figures.length) editor.insertFigures(figures);
       } }] : []),
-      ...(canComment() ? [{ label: '批注原句', run: () => startDocumentComment() }] : []),
-      { label: '版本历史', run: pageHistory },
-      ...[['pdf', '导出 PDF'], ['docx', '导出 Word']].map(([kind, label]) => ({label, run: () =>
+      ...(canComment() ? [{id:'comment',position:'selection', label: '批注', run: () => startDocumentComment() }] : []),
+      { id:'history',position:'page',label: '版本历史', run: pageHistory },
+      ...[['pdf', '导出 PDF'], ['docx', '导出 Word']].map(([kind, label]) => ({id:'export-'+kind,position:'page',label, run: () =>
         exportDocument(kind, {title: title.value, entities: res.entities, root: box, api, base}).catch(err => flashHint(err.message))})),
     ];
-    docEditor = mountDocEditor(box, {
+    docEditor = mountDocEditor(editorHost, {
       entities: res.entities, readOnly: !editable, actions, resolveUrl: documentImageUrl, onOpenCard: openDocumentFigure,
       onChange: scheduleSave, onSelection: selectDocumentText,
     });
@@ -3797,9 +3805,7 @@ export function mountSpaces(ctx) {
     $('#spaceResTitle').value=merged.title;
     pageBaseline=structuredClone(remote); pageConflict=null;
     docEditor.refresh();
-    if (selected?.id && res.entities.find(e=>e.id===selected.id)?.payload.text?.slice(selected.from,selected.to)===selected.text) {
-      docEditor.focusSelection(selected.id,selected.from,selected.to);
-    }
+    if (selected) docEditor.restoreSelection(selected);
     editorRoot.scrollTop=scroll;
     dirty = merged.title!==remote.title || JSON.stringify(merged.entities.map(e=>[e.id,e.payload]))!==JSON.stringify(remote.entities.map(e=>[e.id,e.payload]));
     $('#spaceSaveState').textContent=dirty?'已合并，正在保存…':'已同步';
@@ -3812,7 +3818,7 @@ export function mountSpaces(ctx) {
   editorBox.addEventListener('compositionend',()=>{composingDocument=false;});
   async function syncVisibleDocument() {
     const res=S.resource;
-    if (checkingDocument || composingDocument || document.hidden || state.view!=='spaces' || res?.type!=='page' || !docEditor || pageConflict || applyingSuggestion || S.saving) return;
+    if (checkingDocument || composingDocument || document.hidden || state.view!=='spaces' || res?.type!=='page' || !docEditor || docEditor.isInteracting() || pageConflict || applyingSuggestion || S.saving) return;
     checkingDocument=true;
     try {
       const revision=res.revision;
@@ -3820,7 +3826,7 @@ export function mountSpaces(ctx) {
       if (S.resource!==res) return;
       if (!reply.ok) { $('#spaceSaveState').textContent='文档同步失败（'+reply.status+'）'; return; }
       const data=await reply.json();
-      if (S.resource!==res || S.saving || applyingSuggestion || pageConflict || composingDocument || res.revision!==revision) return;
+      if (S.resource!==res || S.saving || applyingSuggestion || pageConflict || composingDocument || docEditor.isInteracting() || res.revision!==revision) return;
       if (data.resource && data.resource.revision!==revision) {
         if (reconcilePage(data.resource) && dirty) scheduleSave();
       } else if (S.sideOpen && S.tab==='comments') await loadComments();
@@ -4200,6 +4206,8 @@ export function mountSpaces(ctx) {
         if (!oldBlock || !block) rows.push({label:label+(block?' · 新增':' · 删除'),changes:[{removed:oldBlock?describeBlock(oldBlock):'',added:block?describeBlock(block):''}]});
         else {
           add(label,oldBlock.payload.text,block.payload.text);
+          const placement=p=>[p.layout?'第 '+(p.layout.column+1)+' 栏':'通栏',p.indent?'缩进 '+p.indent+' 层':''].filter(Boolean).join('，');
+          add(label+' · 排版',placement(oldBlock.payload),placement(block.payload));
           // 图组保留来源、图注和所在画布，逐张比较可读的实际字段。
           add(label+' · 图片',figures(oldBlock),figures(block));
         }
@@ -4501,16 +4509,7 @@ export function mountSpaces(ctx) {
   function hideSelBar() { if (selBar) selBar.hidden = true; selTarget = null; }
   function selectDocumentText(sel) {
     if (sel) S.activeEntity=sel.entity.id;
-    const native=window.getSelection(), editor=$('#pageEditor');
-    if (!native.rangeCount || native.isCollapsed || !sel?.text.trim() || !editor.contains(native.anchorNode) || !editor.contains(native.focusNode) || editor.closest('[hidden]')) {
-      if (selTarget?.entity) hideSelBar();
-      return;
-    }
-    const bar=ensureSelBar(), bounds=native.getRangeAt(0).getBoundingClientRect();
-    selTarget=sel; bar.hidden=false;
-    bar.children[1].hidden=!canEdit(S.space); bar.children[2].hidden=!canComment();
-    bar.style.left=Math.max(8,Math.min(window.innerWidth-bar.offsetWidth-8,bounds.left))+'px';
-    bar.style.top=Math.max(8,bounds.top-bar.offsetHeight-6)+'px';
+    selTarget=sel;
   }
   function readSelection(ta) {
     const from = ta.selectionStart, to = ta.selectionEnd;
@@ -4530,6 +4529,30 @@ export function mountSpaces(ctx) {
     bar.style.left = Math.max(8, Math.min(window.innerWidth - bar.offsetWidth - 8, r.left + 8)) + 'px';
     bar.style.top = Math.max(8, r.top - 40) + 'px';
   }
+  async function reviewDocumentChanges(before,after) {
+    const changes=textChanges(before,after);
+    if (!changes.length) { flashHint('AI 建议保留原文'); return null; }
+    const picked=new Set(changes);
+    const got=await ask({title:'逐条审阅修改',sub:'勾选要采用的修改。',ok:'采用勾选项',extra:()=>{
+      const list=el('div','doc-review');
+      for (const change of changes) {
+        const row=el('label','doc-review-row'), checkbox=document.createElement('input');
+        checkbox.type='checkbox'; checkbox.checked=true;
+        const index=changes.indexOf(change)+1;
+        checkbox.setAttribute('aria-label','采用第 '+index+' 项修改');
+        checkbox.onchange=()=>{if (checkbox.checked) picked.add(change); else picked.delete(change);};
+        row.append(checkbox,displayChange(change)); list.append(row);
+      }
+      return list;
+    }});
+    if (!got || !picked.size) return null;
+    let replacement=before;
+    for (const change of [...picked].sort((a,b)=>b.from-a.from)) {
+      replacement=replacement.slice(0,change.from)+change.added+replacement.slice(change.to);
+    }
+    return replacement;
+  }
+
   async function runDocumentAI(action) {
     const res = S.resource;
     if (!docEditor || (action==='edit' && !canEdit(S.space))) return;
@@ -4552,27 +4575,9 @@ export function mountSpaces(ctx) {
     if (S.resource!==res) return;
     if (!editing) { openListPanel('选区问答',sel.text,[{label:result.answer,sub:''}]); return; }
     if (!valid()) { flashHint('生成期间原句已变更，请重新选择'); return; }
-    const changes=textChanges(sel.text,result.answer);
-    if (!changes.length) { flashHint('AI 建议保留原文'); return; }
-    const picked=new Set(changes);
-    const got=await ask({title:'逐条审阅修改',sub:'勾选要采用的修改。',ok:'采用勾选项',extra:()=>{
-      const list=el('div','doc-review');
-      for (const change of changes) {
-        const row=el('label','doc-review-row'), checkbox=document.createElement('input');
-        checkbox.type='checkbox'; checkbox.checked=true;
-        const index=changes.indexOf(change)+1;
-        checkbox.setAttribute('aria-label','采用第 '+index+' 项修改');
-        checkbox.onchange=()=>{if (checkbox.checked) picked.add(change); else picked.delete(change);};
-        row.append(checkbox,displayChange(change)); list.append(row);
-      }
-      return list;
-    }});
-    if (!got || !picked.size || !await flushSave()) return;
+    const replacement=await reviewDocumentChanges(sel.text,result.answer);
+    if (replacement===null || !await flushSave()) return;
     if (!valid()) { flashHint('原句已变更，请重新生成建议'); return; }
-    let replacement=sel.text;
-    for (const change of [...picked].sort((a,b)=>b.from-a.from)) {
-      replacement=replacement.slice(0,change.from)+change.added+replacement.slice(change.to);
-    }
     applyingSuggestion=(async()=>{
       const reply=await api(path,{method:'POST',body:{...input,action:'apply',replacement}});
       const applied=await reply.json();
@@ -4659,5 +4664,5 @@ export function mountSpaces(ctx) {
   }
   document.addEventListener('mousedown', (e) => { if (selBar && !selBar.hidden && !selBar.contains(e.target)) hideSelBar(); });
   bindSelection();
-  return { render, openSpace, openPage, openSharedSection, saveToSpace, pickDocumentFigures, openDocumentFigure };
+  return { render, openSpace, openPage, openSharedSection, saveToSpace, pickDocumentFigures, openDocumentFigure, documentDialog:ask, reviewDocumentChanges };
 }

@@ -3,9 +3,9 @@
  * 认证：昵称+口令 → token；会话/项目存服务器；私人对话只有创建者+管理员可见。
  */
 
-import { mountDocEditor, markdownEntities, documentMarkdown, documentPayloads } from './doc-editor.js?v=20261123docs1';
-import { exportDocument } from './doc-export.js?v=20261123docs1';
-const APP_BUILD = '2026-11-23 文档与作品页导入';
+import { mountDocEditor, markdownEntities, documentMarkdown, documentPayloads, renderDocumentContent } from './doc-editor.js?v=20261123notion1';
+import { exportDocument } from './doc-export.js?v=20261123notion1';
+const APP_BUILD = '2026-11-23 文档分栏与块编辑';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */
@@ -1408,7 +1408,8 @@ async function doSaveConv(conv, extra) {
       const mergedMsgs = serverMsgs.concat(localMsgs.filter((m) => !seen.has(key(m)))).slice(-400);
       const serverFiles = Array.isArray(srv.files) ? srv.files : [];
       if ((conv.files || []).some(local => serverFiles.some(remote =>
-        remote.name === local.name && (remote.content !== local.content || remote.url !== local.url)))) {
+        remote.name === local.name && (remote.content !== local.content || remote.url !== local.url ||
+          JSON.stringify(remote.docComments || []) !== JSON.stringify(local.docComments || []))))) {
         conv.__conflict = true;
         conv.__serverRev = srv.rev;
         setSaveState(conv, 'conflict', '同名文件内容不同', { serverRev: srv.rev });
@@ -3492,6 +3493,7 @@ function syncArtifactPane() {
   }
   // 手机上不自动铺开整屏产物面板（会把刚点开的对话盖住）；底部「产物」按钮仍可打开
   if (window.innerWidth < 900) {
+    if (!pane.hidden && artKind === 'doc' && chatDocument?.convId === cv.id) { renderArtifact(); return; }
     if (!pane.hidden) closeArtifactPane();
     artKind = cv.artifact.kind;
     artName = cv.artifact.name;
@@ -3499,7 +3501,7 @@ function syncArtifactPane() {
   }
   if (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name) {
     openArtifactPane(cv.artifact.kind, cv.artifact.name);
-  }
+  } else if (artKind === 'doc') renderArtifact();
 }
 
 let spacesApi = null;
@@ -6685,12 +6687,19 @@ $('#artPublish').addEventListener('click', publishDesignArtifact);
 $('#artExport').addEventListener('click', () => {
   const f = currentArtifactFile();
   if (!f) { flashHint('还没有内容'); return; }
-  const blob = new Blob([f.content || ''], { type: 'text/plain;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = artName;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  const downloadSource=()=>{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([f.content || ''],{type:'text/plain;charset=utf-8'}));
+    a.download=f.name; a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  };
+  if(artKind!=='doc'){downloadSource();return;}
+  openListPanel('导出文档',spaceTitleOf(f.name),[
+    ...[['pdf','PDF'],['docx','Word']].map(([kind,label])=>({label:'导出 '+label,onClick:()=>{
+      $('#dlgList').hidden=true;
+      exportDocument(kind,{title:spaceTitleOf(f.name),entities:markdownEntities(f.content),api,base}).catch(e=>flashHint(e.message));
+    }})),
+    {label:'下载 Markdown 源文件',onClick:()=>{ $('#dlgList').hidden=true;downloadSource(); }},
+  ]);
 });
 function toggleArtFull() {
   const pane = $('#artPane');
@@ -7099,9 +7108,14 @@ function renderArtifact() {
   // 画布工具条只属于幻灯片；文档/设计不显示（避免盖住预览/源码切换）
   if (bar) bar.hidden = !file || artKind !== 'deck';
   if (artKind === 'deck') applyDeckZoom();
-  if (chatDocument && artKind === 'doc' && chatDocument.file === file && chatDocument.text === file.content && chatDocument.readOnly === state.streaming && body.contains(chatDocument.node)) return;
+  if (chatDocument && artKind === 'doc' && file && chatDocument.convId === current().id &&
+      chatDocument.file.name === file.name && chatDocument.readOnly === state.streaming && body.contains(chatDocument.node)) {
+    if (chatDocument.busy()) return;
+    if (chatDocument.text === file.content) { chatDocument.rebind(current(),file); return; }
+  }
   if (chatDocument) { chatDocument.destroy(); chatDocument = null; }
   body.textContent = '';
+  if (file && artKind === 'doc') { renderDoc(body,file); return; }
   const empty = !file || !String(file.content || '').trim() || (artKind === 'deck' && parseDeck(file).slides.length === 0);
   if (empty) {
     body.append(emptyArtifactState(file));
@@ -7117,16 +7131,6 @@ function renderArtifact() {
         renderArtifact();
       });
       body.querySelector('.art-empty').append(blank);
-    }
-    if (artKind === 'doc' && file) {
-      const start = el('button', 'art-start', '开始写');
-      start.type = 'button';
-      start.addEventListener('click', () => {
-        body.textContent = '';
-        renderDoc(body, file);
-        body.querySelector('[contenteditable="true"]')?.focus();
-      });
-      body.querySelector('.art-empty').append(start);
     }
     return;
   }
@@ -7156,15 +7160,25 @@ function renderCodeFile(body, file) {
 }
 
 function renderDoc(body, file) {
-  const cv = current(), readOnly = state.streaming, epoch = sessionEpoch;
+  let cv = current();
+  const readOnly = state.streaming, epoch = sessionEpoch;
   const wrap = el('div','doc-wrap doc-rich'), bar = el('div','doc-bar');
   const host = el('div','doc-editor-host'), source = el('textarea','art-md'), preview = el('div','art-preview bd');
   const status = el('span','doc-save-status');
+  const title=el('h1','chat-document-title',spaceTitleOf(file.name));
+  const notes=el('details','chat-document-notes');
   source.spellcheck = false; source.readOnly = readOnly;
   source.setAttribute('aria-label','Markdown 源码'); status.setAttribute('role','status');
   const modes = new Map();
   let editor = null, timer = 0, dirty = false, mode = 'write';
-  const session = {file, text:file.content, readOnly, node:wrap, destroy() {
+  let rows=[];
+  const session = {file, convId:cv.id, text:file.content, readOnly, node:wrap,
+    busy:()=>dirty || editor?.isInteracting(),
+    rebind(nextConv,nextFile) {
+      const changed=JSON.stringify(file.docComments || []) !== JSON.stringify(nextFile.docComments || []);
+      cv=nextConv; session.file=file=nextFile;
+      if(changed) paintNotes();
+    }, destroy() {
     editor?.destroy(); clearTimeout(timer); if(dirty) save();
   }};
   chatDocument = session;
@@ -7182,16 +7196,60 @@ function renderDoc(body, file) {
     clearTimeout(timer); timer=setTimeout(save,550);
   }
   const resolveUrl=url=>/^\/(?!\/)/.test(url)?fileUrl(url):url;
+  function paintNotes() {
+    const all=file.docComments || [];
+    notes.hidden=!all.length || mode!=='write';
+    notes.replaceChildren(el('summary',null,'批注 · '+all.length));
+    for(const comment of all) {
+      const row=el('div','chat-document-note'), quote=el('button','doc-comment-anchor',comment.quote);
+      quote.type='button';quote.title='定位原句';
+      const block=rows.find(e=>e.payload.docKey===comment.key), text=block?.payload.text || '';
+      const first=text.indexOf(comment.quote);
+      const at=text.slice(comment.from,comment.from+comment.quote.length)===comment.quote ? comment.from :
+        first!==-1 && first===text.lastIndexOf(comment.quote) ? first : -1;
+      quote.disabled=!block || at===-1;
+      if(quote.disabled)quote.title='这段原文已变更';
+      quote.onclick=()=>editor.focusSelection(block,at,at+comment.quote.length);
+      row.append(quote,el('span',null,comment.author+' · '+comment.text));notes.append(row);
+    }
+  }
+  const stillSelected=(view,sel)=>editor===view && rows.includes(sel.entity) &&
+    sel.entity.payload.text.slice(sel.from,sel.to)===sel.text;
+  async function annotate(view,sel) {
+    const got=await spacesApi.documentDialog({title:'批注',sub:sel.text,fields:[{name:'note',type:'textarea',label:'批注内容'}],ok:'添加批注',validate:v=>v.note?'':'请输入批注'});
+    if(!got) return;
+    if(!stillSelected(view,sel)){flashHint('原句已变化，请重新选择');return;}
+    const p=sel.entity.payload;p.docKey ||= crypto.randomUUID();
+    (file.docComments ||= []).push({key:p.docKey,from:sel.from,quote:sel.text,text:got.note,author:LS.name});
+    update(documentMarkdown(rows)); paintNotes(); notes.open=true;
+  }
+  async function review(view,sel) {
+    const got=await spacesApi.documentDialog({title:'用 AI 改写',sub:sel.text,fields:[{name:'instruction',type:'textarea',label:'希望怎么改',value:'润色这段文字'}],ok:'生成建议',validate:v=>v.instruction?'':'请输入修改要求'});
+    if(!got || !stillSelected(view,sel))return;
+    if(!(await saveConv(cv)).ok){flashHint('请先解决文档保存冲突');return;}
+    flashHint('正在生成修改建议…');
+    const r=await api('/chat',{method:'POST',body:{convId:cv.id,documentReview:{fileName:file.name,quote:sel.text,instruction:got.instruction}},timeout:90000});
+    const result=await r.json();
+    if(!r.ok){flashHint(result.error);return;}
+    if(!stillSelected(view,sel)){flashHint('原句已变化，请重新选择');return;}
+    const replacement=await spacesApi.reviewDocumentChanges(sel.text,result.answer);
+    if(replacement===null) return;
+    if(stillSelected(view,sel))view.applySelectionText(sel,replacement);
+    else flashHint('原句已变化，请重新选择');
+  }
   function show(next) {
     if(editor){editor.destroy();editor=null;}
     mode=next; host.hidden=mode!=='write';source.hidden=mode!=='source';preview.hidden=mode!=='preview';
     for (const [name,button] of modes) { button.classList.toggle('on',mode===name);button.setAttribute('aria-pressed',String(mode===name)); }
+    rows=markdownEntities(file.content);paintNotes();
     if(mode==='source'){source.value=file.content || '';return;}
-    if(mode==='preview'){preview.innerHTML=md(file.content||'');hydrateCalcs(preview,null,{readOnly:true});return;}
+    if(mode==='preview'){preview.replaceChildren(renderDocumentContent(rows,{resolveUrl}));return;}
     editor=mountDocEditor(host,{
-      entities:markdownEntities(file.content), readOnly, resolveUrl,
-      onChange:rows=>update(documentMarkdown(rows)), onOpenCard:figure=>spacesApi.openDocumentFigure(figure),
-      actions:readOnly?[]:[{label:'插入画布图片',async run(view){
+      entities:rows, readOnly, resolveUrl,
+      onChange:entities=>{update(documentMarkdown(entities));if(file.docComments?.length) paintNotes();}, onOpenCard:figure=>spacesApi.openDocumentFigure(figure),
+      actions:readOnly?[]:[{id:'comment',position:'selection',label:'批注',run:annotate},
+        {id:'review',position:'selection',label:'AI 改写',run:review},
+        {id:'figures',position:'insert',label:'画布图',async run(view){
         const figures=await spacesApi.pickDocumentFigures();
         if(figures.length && view===editor) view.insertFigures(figures);
       }}]
@@ -7200,20 +7258,9 @@ function renderDoc(body, file) {
   for (const [key,label] of [['write','文档'],['preview','预览'],['source','Markdown 源码']]) {
     const button=el('button','doc-tab',label);button.type='button';button.onclick=()=>show(key);modes.set(key,button);bar.append(button);
   }
-  for (const format of ['pdf','docx']) {
-    const button=el('button','doc-tab','导出 '+format.toUpperCase());button.type='button';
-    button.onclick=async()=>{
-      button.disabled=true;
-      const snapshot=markdownEntities(file.content);
-      try { await exportDocument(format,{title:spaceTitleOf(file.name),entities:snapshot,api,base}); }
-      catch(error) { flashHint('导出失败：'+error.message); }
-      finally { button.disabled=false; }
-    };
-    bar.append(button);
-  }
   source.oninput=()=>update(source.value);
   wrap.addEventListener('focusout',()=>queueMicrotask(()=>{ if(!wrap.contains(document.activeElement)) save(); }));
-  bar.append(status); wrap.append(bar,host,source,preview); body.append(wrap); show('write');
+  bar.append(status); wrap.append(bar,title,host,source,preview,notes); body.append(wrap); show('write');
 }
 
 /** 幻灯片：左缩略图 + 右画布；数据是 {slides:[{title,bullets}]} */
@@ -8234,7 +8281,7 @@ async function loadConvsMeta() {
     const old = before.get(s.id);
     if (!old) { changed = true; return { ...s, messages: [], files: s.files || [] }; }
     const revChanged = Number(s.rev || 0) !== Number(old.rev || 0);
-    const merged = { ...old, ...s, messages: old.messages || [], files: s.files && s.files.length ? s.files : (old.files || []) };
+    const merged = { ...old, ...s, messages: old.messages || [], files: old.files || s.files || [] };
     if (revChanged) { merged.__stale = true; changed = true; }
     return merged;
   });
@@ -8293,6 +8340,7 @@ function startSync() {
     }
     const changed = await loadConvsMeta();
     if (changed) { renderAll(); loadRuns(); }
+    else if (chatDocument && state.view === 'chat' && !$('#artPane').hidden) renderArtifact();
   }, 1200);
 }
 function stopSync() {

@@ -1,4 +1,19 @@
 #pageEditor .md-document { flex: none; }
+.doc-crumb{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px;color:var(--muted)}
+#pageEditor:has(>.notion-page-body){display:block;padding:clamp(22px,4vw,52px) clamp(12px,4vw,52px) 20vh;scroll-padding-top:32px}
+.notion-page-heading,.notion-page-body{max-width:920px;margin-inline:auto;width:100%;min-width:0}
+.notion-page-heading,.doc-rich .chat-document-title{box-sizing:border-box;max-width:864px;padding-inline:44px 10px;margin-inline:auto;width:100%}
+.notion-page-heading .space-title-input,.chat-document-title{color:var(--text);font-size:clamp(24px,3.5vw,37px);font-weight:680;letter-spacing:-.035em;line-height:1.26}
+.notion-page-heading .space-title-input{display:block;width:100%;padding:0 0 16px}
+.doc-rich .chat-document-title{margin-block:8px 18px}
+.doc-rich .doc-bar{align-self:flex-start;border:0;gap:3px;padding:0 0 8px}
+.doc-rich .doc-bar .doc-tab{color:var(--muted);font-size:12px;padding:4px 8px}
+.doc-rich .doc-bar .doc-tab.on{color:var(--text);background:var(--hover);font-weight:600}
+.chat-document-notes{margin:18px 0 10px;padding-top:12px;border-top:1px solid var(--line);font-size:13px}
+.chat-document-note{display:grid;justify-items:start;margin:8px 0}
+.doc-rich .art-preview{padding:0;min-width:0}
+@media (max-width:700px){#pageEditor:has(>.notion-page-body){padding-inline:12px}}
+@media (hover:hover){.md-layout[contenteditable=true] .md-figures figure:not(:hover):not(:focus-within) .md-figure-actions button:last-child:not(:only-child){opacity:0}}
 .doc-review, .doc-version-diff { display: grid; gap: 8px; max-height: 55vh; overflow: auto; }
 .doc-review-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
 .doc-review-row input { margin-top: .4em; accent-color: var(--accent); }
