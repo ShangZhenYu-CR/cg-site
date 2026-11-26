@@ -1969,7 +1969,7 @@ export function mountSpaces(ctx) {
       const dpr = window.devicePixelRatio || 1;
       for (const im of world.querySelectorAll('.sn-item img[data-full]')) {
         if (im.dataset.up || !im.naturalWidth || !im.clientWidth) continue;
-        const need = Math.max(im.clientWidth / im.naturalWidth, im.clientHeight / im.naturalHeight) * view.z * dpr;
+        const need = Math.min(im.clientWidth / im.naturalWidth, im.clientHeight / im.naturalHeight) * view.z * dpr;
         if (need <= 1.2) continue;
         im.dataset.up = '1';
         const full = im.dataset.full;
@@ -2007,9 +2007,18 @@ export function mountSpaces(ctx) {
       let ar = clamp(Number(e.payload.ar) || 0.75, 0.1, 10);
       const ed = el('div', 'ann-editor');
       ed.setAttribute('role', 'dialog'); ed.setAttribute('aria-modal', 'true'); ed.setAttribute('aria-label', '标注图片');
+      ed.tabIndex = -1;
       const barE = el('div', 'ae-bar');
-      const TOOLS = [['select', '选择'], ['arrow', '箭头'], ['rect', '方框'], ['ellipse', '椭圆'], ['pen', '画笔'], ['text', '文字'], ['num', '序号']];
-      const toolBtns = TOOLS.map(([v, t]) => { const b = el('button', 'ae-tool', t); b.type = 'button'; b.dataset.v = v; b.addEventListener('click', () => { tool = v; selIdx = -1; sync(); }); return b; });
+      const TOOLS = [['select', '选择', 'v'], ['arrow', '箭头', 'a'], ['rect', '方框', 'r'], ['ellipse', '椭圆', 'e'], ['pen', '画笔', 'b'], ['text', '文字', 't'], ['num', '序号', 'n']];
+      const selectTool = (value) => { tool = value; selIdx = -1; sync(); };
+      const toolBtns = TOOLS.map(([value, label, key]) => {
+        const b = el('button', 'ae-tool', label);
+        b.type = 'button'; b.dataset.v = value;
+        b.title = label + '（' + key.toUpperCase() + '）';
+        b.setAttribute('aria-keyshortcuts', key.toUpperCase());
+        b.addEventListener('click', () => selectTool(value));
+        return b;
+      });
       const colorBtns = ANN_COLORS.map((c) => { const b = el('button', 'ae-color'); b.type = 'button'; b.style.background = c; b.title = c; b.addEventListener('click', () => { color = c; if (selIdx >= 0) { push(); list[selIdx].c = c; } sync(); }); return b; });
       const widthBtns = [[2, '细'], [4, '中'], [8, '粗']].map(([v, t]) => { const b = el('button', 'ae-tool', t); b.type = 'button'; b.dataset.w = String(v); b.addEventListener('click', () => { lw = v; if (selIdx >= 0) { push(); list[selIdx].lw = v; } sync(); }); return b; });
       const bUndo = el('button', 'ae-tool', '撤销'), bRedo = el('button', 'ae-tool', '重做'), bClear = el('button', 'ae-tool', '清空'), bDel = el('button', 'ae-tool', '删除选中');
@@ -2042,7 +2051,11 @@ export function mountSpaces(ctx) {
         svgE.innerHTML = annotSvg(cur ? list.concat([cur]) : list, ar) + extra;
       };
       const sync = () => {
-        toolBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === tool));
+        toolBtns.forEach((b) => {
+          const active = b.dataset.v === tool;
+          b.classList.toggle('on', active);
+          b.setAttribute('aria-pressed', String(active));
+        });
         colorBtns.forEach((b) => b.classList.toggle('on', b.title === color));
         widthBtns.forEach((b) => b.classList.toggle('on', Number(b.dataset.w) === lw));
         bUndo.disabled = !undo.length; bRedo.disabled = !redo.length; bClear.disabled = !list.length; bDel.disabled = selIdx < 0;
@@ -2122,10 +2135,15 @@ export function mountSpaces(ctx) {
       bDel.addEventListener('click', () => { if (selIdx < 0) return; push(); list.splice(selIdx, 1); selIdx = -1; sync(); });
       const close = () => { ed.remove(); window.removeEventListener('resize', fit); document.removeEventListener('keydown', onKey, true); try { if (back && back.focus) back.focus({ preventScroll: true }); else box.focus({ preventScroll: true }); } catch (er) {} };
       const onKey = (ev) => {
-        if (ev.target && ev.target.classList && ev.target.classList.contains('ae-text-input')) return;
+        if (ev.isComposing || ev.target?.classList?.contains('ae-text-input')) return;
         if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); return; }
         if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); ev.stopPropagation(); (ev.shiftKey ? bRedo : bUndo).click(); return; }
-        if ((ev.key === 'Delete' || ev.key === 'Backspace') && selIdx >= 0) { ev.preventDefault(); ev.stopPropagation(); bDel.click(); }
+        if ((ev.key === 'Delete' || ev.key === 'Backspace') && selIdx >= 0) { ev.preventDefault(); ev.stopPropagation(); bDel.click(); return; }
+        if (ev.ctrlKey || ev.metaKey || ev.altKey || cur || drag) return;
+        const match = TOOLS.find(([, , key]) => key === ev.key.toLowerCase());
+        if (!match) return;
+        ev.preventDefault(); ev.stopPropagation();
+        selectTool(match[0]);
       };
       document.addEventListener('keydown', onKey, true);
       window.addEventListener('resize', fit);
@@ -2154,6 +2172,7 @@ export function mountSpaces(ctx) {
         if (n3) { renderAnnotNode(n3); refresh({ keepEdges: true }); }
       });
       fit(); sync();
+      ed.focus({ preventScroll: true });
     }
 
     function placeCard(e) {
