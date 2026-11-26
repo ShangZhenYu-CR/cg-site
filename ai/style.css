@@ -869,7 +869,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 #pageEditor.canvas-board.panning:active{cursor:grabbing}
 .cv-world{position:absolute;left:0;top:0;transform-origin:0 0}
 .cv-world.moving{will-change:transform}
-.cv-bounds{position:absolute;left:0;top:0;border:1px solid var(--line);border-radius:6px;pointer-events:none;background-color:var(--bg);background-image:radial-gradient(color-mix(in srgb,var(--faint) 50%,transparent) 1.2px,transparent 1.4px);background-size:24px 24px}
+.cv-bounds{position:absolute;left:0;top:0;border:1px solid var(--line);border-radius:6px;pointer-events:none;background-color:var(--bg);background-image:radial-gradient(color-mix(in srgb,var(--faint) 50%,transparent) 1.2px,transparent 1.4px)}
 .cv-edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 .cv-edges .ed{fill:none;stroke:color-mix(in srgb,var(--dim) 70%,transparent);stroke-width:1.75;transition:stroke var(--dur-fast)}
 .cv-edges .edge:hover .ed{stroke:color-mix(in srgb,var(--accent) 70%,var(--dim))}

@@ -601,7 +601,7 @@ export function mountSpaces(ctx) {
 
   /* ---------------- 画布：主流白板操作（滚轮平移、Ctrl+滚轮缩放、框选、拖圆点连线、撤销） ---------------- */
   // 后端限制：x、y 在 0–4000，宽 120–800，高 80–600
-  const CV = { MIN_Z: 0.1, MAX_Z: 3, WORLD: 32000, MINW: 120, MAXW: 800, MINH: 80, MAXH: 600 };
+  const CV = { MIN_Z: 0.1, MAX_Z: 3, WORLD: 32000, GRID: 24, MINW: 120, MAXW: 800, MINH: 80, MAXH: 600 };
   const CARD_COLORS = [['', '#ffffff', '白色'], ['yellow', '#fff3b0', '黄色'], ['green', '#d5f2d8', '绿色'], ['blue', '#d7e8fb', '蓝色'], ['pink', '#fbdbe6', '粉色'], ['purple', '#e6dcfa', '紫色']];
   const SVGNS = 'http://www.w3.org/2000/svg';
   let cv = null;
@@ -632,6 +632,45 @@ export function mountSpaces(ctx) {
     // Grow by whole columns while keeping the saved width as the user's baseline.
     const w = Math.max(SEARCH_MIN_WIDTH, p.w) + Math.max(0, cols - 5) * 100;
     return { w, h: w * 3 / 4 };
+  }
+  function nearestClearDrop(moved, fixed) {
+    const gap = CV.GRID * 2;
+    const minX = -Math.min(...moved.map(p => p.x)), maxX = CV.WORLD - Math.max(...moved.map(p => p.x));
+    const minY = -Math.min(...moved.map(p => p.y)), maxY = CV.WORLD - Math.max(...moved.map(p => p.y));
+    if (!moved.some(p => fixed.some(q => p.x < q.x + q.w + gap && p.x + p.w + gap > q.x && p.y < q.y + q.h + gap && p.y + p.h + gap > q.y))) return { x: 0, y: 0 };
+    // Each pair rules out a rectangle of possible integer offsets for the entire selection.
+    const blocked = moved.flatMap(p => fixed.map(q => ({
+      left: Math.floor(q.x - p.x - p.w - gap) + 1,
+      right: Math.ceil(q.x + q.w + gap - p.x) - 1,
+      top: Math.floor(q.y - p.y - p.h - gap) + 1,
+      bottom: Math.ceil(q.y + q.h + gap - p.y) - 1,
+    }))).filter(r => r.left <= maxX && r.right >= minX && r.top <= maxY && r.bottom >= minY);
+    // Between obstacle edges the same vertical intervals are blocked. Only check their closest columns.
+    const columns = new Set([0]);
+    for (const r of blocked) {
+      if (r.left - 1 >= minX) columns.add(r.left - 1);
+      if (r.right + 1 <= maxX) columns.add(r.right + 1);
+    }
+    const topDown = blocked.sort((a, b) => a.top - b.top);
+    const bottomUp = [...blocked].sort((a, b) => b.bottom - a.bottom);
+    let best = null, distanceSquared = Infinity;
+    for (const x of [...columns].sort((a, b) => Math.abs(a) - Math.abs(b))) {
+      if (x * x >= distanceSquared) break;
+      let down = 0, up = 0;
+      for (const r of topDown) {
+        if (r.top > down || down > maxY) break;
+        if (x >= r.left && x <= r.right && down <= r.bottom) down = r.bottom + 1;
+      }
+      for (const r of bottomUp) {
+        if (r.bottom < up || up < minY) break;
+        if (x >= r.left && x <= r.right && up >= r.top) up = r.top - 1;
+      }
+      for (const y of [up, down]) {
+        const d2 = x * x + y * y;
+        if (y >= minY && y <= maxY && d2 < distanceSquared) { best = { x, y }; distanceSquared = d2; }
+      }
+    }
+    return best;
   }
   /** 节点类卡片：AI 节点、搜图、标注 */
   const isNodeType = (t) => /^(ai-|img-search$|annot$)/.test(String(t || ''));
@@ -732,6 +771,7 @@ export function mountSpaces(ctx) {
     const bounds = el('div', 'cv-bounds');
     bounds.style.width = (CV.WORLD + CV.MAXW) + 'px';
     bounds.style.height = (CV.WORLD + CV.MAXH) + 'px';
+    bounds.style.backgroundSize = `${CV.GRID}px ${CV.GRID}px`;
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('class', 'cv-edges');
     svg.setAttribute('width', String(CV.WORLD + CV.MAXW));
@@ -2367,6 +2407,22 @@ export function mountSpaces(ctx) {
         g.append(grp);
       });
     }
+    function settleDrop(g, cancelled) {
+      const moving = new Set(g.items.map(it => it.e));
+      const fixed = ents().filter(e => !moving.has(e)).map(cardGeometry);
+      const offset = cancelled ? null : nearestClearDrop([...moving].map(cardGeometry), fixed);
+      if (!cancelled && !offset) flashHint('画布上没有满足两格间距的空位');
+      let changed = false;
+      for (const { e, ox, oy } of g.items) {
+        const p = e.payload;
+        const x = offset ? p.x + offset.x : ox;
+        const y = offset ? p.y + offset.y : oy;
+        if (x !== p.x || y !== p.y) { e.payload = { ...p, x, y }; placeCard(e); }
+        if (x !== ox || y !== oy) changed = true;
+      }
+      if (changed) { pushUndo(g.s); scheduleSave(); }
+      box.focus({ preventScroll: true });
+    }
     /** 拖动时和其他卡片的左 / 中 / 右、上 / 中 / 下对齐；返回需要补的位移和要画的辅助线 */
     function snapMove(g, mx, my) {
       if (!g.box0) {
@@ -3370,7 +3426,7 @@ export function mountSpaces(ctx) {
       // 没有手势（比如点的是浮动工具条上的按钮）：什么都不重画，否则按钮在 click 之前就被换掉了
       if (!g) return;
       if (g.type === 'move') {
-        if (g.moved) { pushUndo(g.s); scheduleSave(); }
+        if (g.moved) settleDrop(g, ev.type === 'pointercancel');
         else if (!(ev.shiftKey || ev.metaKey || ev.ctrlKey) && st.sel.size > 1) st.sel = new Set([g.k]);
       } else if (g.type === 'resize') {
         if (g.moved) { pushUndo(g.s); scheduleSave(); }
@@ -3784,7 +3840,12 @@ export function mountSpaces(ctx) {
     let blocks;
     let edgesOut = null;
     if (S.resource.type === 'canvas') {
-      blocks = (S.resource.entities || []).map((e) => ({ id: e.id || undefined, expectedRevision: Number(e.revision) || 0, payload: e.payload || {} }));
+      const drag = cv?.res === S.resource && cv.gesture?.type === 'move' ? cv.gesture : null;
+      const origins = new Map(drag?.items.map(({ e, ox, oy }) => [e, { x: ox, y: oy }]));
+      blocks = (S.resource.entities || []).map((e) => ({
+        id: e.id || undefined, expectedRevision: Number(e.revision) || 0,
+        payload: origins.has(e) ? { ...e.payload, ...origins.get(e) } : e.payload || {},
+      }));
       S.resource.edges = S.resource.edges || [];
       if (cv && cv.res === S.resource) {
         const known = new Set((S.resource.entities || []).map((e) => e.id).filter(Boolean));
