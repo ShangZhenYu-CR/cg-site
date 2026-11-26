@@ -707,6 +707,11 @@ export function mountSpaces(ctx) {
     const hist = cvHist.get(res.id);
     if (hist.revision != null && hist.revision !== res.revision) { hist.undo.length = 0; hist.redo.length = 0; }
     const st = cv = { res, sel: new Set(), edgeSel: -1, edgeSet: new Set(), running: new Set(), errors: new Map(), rel: null, editing: null, cards: new Map(), spaceDown: false, gesture: null };
+    const cardGeometry = (e) => {
+      const p = e.payload;
+      if (p.type !== 'img-search') return p;
+      return { ...p, h: st.cards.get(keyOf(e))?.offsetHeight || p.h };
+    };
     let view = cvViews.get(res.id) || (() => { try { const v = JSON.parse(readLS('ai.canvasView.' + res.id) || 'null'); return v && isFinite(v.x) && isFinite(v.y) && isFinite(v.z) ? v : null; } catch (e) { return null; } })();
     const needFit = !view;
     if (!view) view = { x: 40, y: 40, z: 1 };
@@ -772,8 +777,7 @@ export function mountSpaces(ctx) {
       const r = rect();
       const list = ents();
       if (!list.length || !r.width) { view = { x: 40, y: 40, z: 1 }; applyView(); return; }
-      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const e of list) { const p = e.payload; x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h); }
+      const { x0, y0, x1, y1 } = cardBounds(list);
       const pad = 60;
       const z = clamp(Math.min((r.width - pad * 2) / (x1 - x0), (r.height - pad * 2 - 50) / (y1 - y0)), 0.2, 1);
       view = { z, x: (r.width - (x1 - x0) * z) / 2 - x0 * z, y: (r.height - 50 - (y1 - y0) * z) / 2 - y0 * z };
@@ -862,10 +866,19 @@ export function mountSpaces(ctx) {
       }
     }
     st.paintCommentPins=()=>{for(const e of ents()){const card=st.cards.get(keyOf(e));if(card)paintPins(e,card);}};
-    const pinSizes=new ResizeObserver(entries=>{
+    const cardSizes = new ResizeObserver(entries => {
+      let searchResized = false;
       for(const {target} of entries){
-        const e=byKey(target.dataset.key);if(e && target.isConnected) paintPins(e,target);else pinSizes.unobserve(target);
+        const e = byKey(target.dataset.key);
+        if (st.cards.get(target.dataset.key) !== target || !e || !target.isConnected) cardSizes.unobserve(target);
+        else if (e.payload.type === 'img-search') searchResized = true;
+        else paintPins(e, target);
       }
+      if (!searchResized) return;
+      drawEdges();
+      paintSections();
+      placeBar();
+      sharpenSoon();
     });
     async function commentOnImage(e, point) {
       const sid=S.space.id, rid=res.id;
@@ -883,7 +896,7 @@ export function mountSpaces(ctx) {
       card.dataset.key = k;
       card.dataset.eid = e.id || '';
       if (p.type==='image' || p.type==='ai-image') {
-        pinSizes.observe(card);
+        cardSizes.observe(card);
         card.addEventListener('load',()=>paintPins(e,card),true);
       }
       if (p.type === 'image' && p.url) {
@@ -895,6 +908,7 @@ export function mountSpaces(ctx) {
         buildAiNode(e, card);
       } else if (p.type === 'img-search') {
         buildSearchNode(e, card);
+        cardSizes.observe(card);
       } else if (p.type === 'annot') {
         buildAnnotNode(e, card);
       } else if (p.type === 'page') {
@@ -923,7 +937,7 @@ export function mountSpaces(ctx) {
       }
       for (const side of ['t', 'r', 'b', 'l']) { const pt = el('div', 'cc-port ' + side); pt.dataset.port = side; pt.title = '拖到另一张卡片上连线'; card.append(pt); }
       const rz = el('div', 'cc-resize');
-      rz.title = '拖动改大小';
+      rz.title = p.type === 'img-search' ? '拖动改宽度，高度随图片数量调整' : '拖动改大小';
       card.append(rz);
       st.cards.set(k, card);
       placeCard(e);
@@ -1384,7 +1398,7 @@ export function mountSpaces(ctx) {
     }
     /** 找一个不压住已有卡片的位置：从卡片右边发起时先往下找，否则先往右找 */
     function freeSpot(x, y, w, h, down) {
-      const hit = (ax, ay) => ents().some((e) => { const q = e.payload; return ax < q.x + q.w + 24 && ax + w + 24 > q.x && ay < q.y + q.h + 24 && ay + h + 24 > q.y; });
+      const hit = (ax, ay) => ents().some((e) => { const q = cardGeometry(e); return ax < q.x + q.w + 24 && ax + w + 24 > q.x && ay < q.y + q.h + 24 && ay + h + 24 > q.y; });
       for (let i = 0; i < 40; i++) {
         const nx = down ? x + Math.floor(i / 8) * (w + 40) : x + (i % 8) * 40 + Math.floor(i / 8) * (w + 40);
         const ny = down ? y + (i % 8) * 60 : y + Math.floor(i / 8) * 0;
@@ -1496,7 +1510,7 @@ export function mountSpaces(ctx) {
     const srcOf = (p) => (SEARCH_SOURCES.some((x) => x[0] === p.provider) ? p.provider : 'commons');
     const lastSource = () => { const v = readLS('ai.searchSource'); return SEARCH_SOURCES.some((x) => x[0] === v) ? v : 'openverse'; };
     function createSearchNode(at, src, query) {
-      const w = 620, h = 590;
+      const w = 620, h = 180;
       let pos;
       if (src && at) pos = dropPlace(at, src, w, h);
       else { const c = at || viewCenter(); pos = freeSpot(c.x - w / 2, c.y - h / 2, w, h, false); }
@@ -1525,7 +1539,7 @@ export function mountSpaces(ctx) {
         else if (ev.key === 'Enter') { ev.preventDefault(); ta.blur(); runSearch(card.dataset.key); }
         ev.stopPropagation();
       });
-      const grid = el('div', 'sn-grid an-ui an-scroll');
+      const grid = el('div', 'sn-grid an-ui');
       const foot = el('div', 'an-inputs sn-foot');
       wrap.append(head, ta, grid, foot);
       on(grid, 'dblclick', (ev) => {
@@ -1538,7 +1552,6 @@ export function mountSpaces(ctx) {
         if (cur.payload.picked !== i) { cur.payload = { ...cur.payload, picked: i }; renderSearchNode(cur); refresh({ keepEdges: true }); scheduleSave(); }
         previewCard(cur, i);
       });
-      if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => sharpenSoon()).observe(grid);
       card.append(wrap);
       prov.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -2184,7 +2197,8 @@ export function mountSpaces(ctx) {
       const textBox = card.querySelector('textarea');
       if (textBox) { textBox.style.fontSize = p.fontSize ? p.fontSize + 'px' : ''; textBox.style.textAlign = p.align || ''; }
       card.style.left = p.x + 'px'; card.style.top = p.y + 'px';
-      card.style.width = p.w + 'px'; card.style.height = p.h + 'px';
+      card.style.width = p.w + 'px';
+      card.style.height = p.type === 'img-search' ? '' : p.h + 'px';
     }
     function rebuild() {
       for (const c of st.cards.values()) c.remove();
@@ -2264,6 +2278,8 @@ export function mountSpaces(ctx) {
       return curve(sideAnchor(pa, sa), sideAnchor(pb, sb));
     }
     function drawEdges() {
+      const worldBottom = Math.max(CV.WORLD + CV.MAXH, ...ents().filter(e => e.payload.type === 'img-search').map(e => e.payload.y + cardGeometry(e).h));
+      bounds.style.height = worldBottom + 'px';
       const g = svg.querySelector('.eg');
       g.textContent = '';
       st.edgeMid = null;
@@ -2271,7 +2287,7 @@ export function mountSpaces(ctx) {
       edges().forEach((ed, i) => {
         const a = byKey(ed.from), b = byKey(ed.to);
         if (!a || !b) return;
-        const { d, mid } = edgeGeom(a.payload, b.payload);
+        const { d, mid } = edgeGeom(cardGeometry(a), cardGeometry(b));
         const on = edgeOn(i);
         st.edgeMids[i] = mid;
         if (on) st.edgeMid = mid;
@@ -2303,10 +2319,10 @@ export function mountSpaces(ctx) {
     function snapMove(g, mx, my) {
       if (!g.box0) {
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        for (const it of g.items) { const p = it.e.payload; x0 = Math.min(x0, it.ox); y0 = Math.min(y0, it.oy); x1 = Math.max(x1, it.ox + p.w); y1 = Math.max(y1, it.oy + p.h); }
+        for (const it of g.items) { const p = cardGeometry(it.e); x0 = Math.min(x0, it.ox); y0 = Math.min(y0, it.oy); x1 = Math.max(x1, it.ox + p.w); y1 = Math.max(y1, it.oy + p.h); }
         g.box0 = { x0, y0, x1, y1 };
         const moving = new Set(g.items.map((it) => it.e));
-        g.others = ents().filter((e) => !moving.has(e)).map((e) => e.payload);
+        g.others = ents().filter((e) => !moving.has(e)).map(cardGeometry);
       }
       const b = g.box0;
       const th = 6 / view.z;
@@ -2410,7 +2426,7 @@ export function mountSpaces(ctx) {
     on(document, 'pointerdown', (ev) => { if (menuEl && !menuEl.contains(ev.target)) closeMenu(); }, { capture: true });
     function sectionCards(id) { return ents().filter(e => e.payload.section === id); }
     function cardBounds(list) {
-      const cards = list.map(e=>e.payload);
+      const cards = list.map(cardGeometry);
       return {x0:Math.min(...cards.map(p=>p.x)), y0:Math.min(...cards.map(p=>p.y)),
         x1:Math.max(...cards.map(p=>p.x+p.w)), y1:Math.max(...cards.map(p=>p.y+p.h))};
     }
@@ -2566,7 +2582,7 @@ export function mountSpaces(ctx) {
       const members=new Set(list.map(keyOf));
       for(const link of edges()){
         if(!members.has(resolveKey(link.from)) || !members.has(resolveKey(link.to)))continue;
-        const start=byKey(link.from).payload,end=byKey(link.to).payload;
+        const start=cardGeometry(byKey(link.from)),end=cardGeometry(byKey(link.to));
         const shape=edgeGeom(start,end);
         ctx2.strokeStyle='#7c8794';ctx2.lineWidth=2;ctx2.setLineDash(link.dashed?[7,5]:[]);
         ctx2.stroke(new Path2D(shape.d));
@@ -2581,7 +2597,7 @@ export function mountSpaces(ctx) {
       }
       ctx2.setLineDash([]);
       for(const e of [...list].sort((a,b)=>(a.payload.layer || 0)-(b.payload.layer || 0))){
-        const p=e.payload, url=imageOfCard(e);
+        const p=cardGeometry(e), url=imageOfCard(e);
         const card=st.cards.get(keyOf(e));
         ctx2.save();ctx2.beginPath();ctx2.rect(p.x,p.y,p.w,p.h);ctx2.clip();
         ctx2.fillStyle=card?getComputedStyle(card).backgroundColor:'#f4f3ef';ctx2.fillRect(p.x,p.y,p.w,p.h);
@@ -2651,7 +2667,7 @@ export function mountSpaces(ctx) {
     }
     function selBox() {
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const k of st.sel) { const e = byKey(k); if (!e) continue; const p = e.payload; x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h); }
+      for (const k of st.sel) { const e = byKey(k); if (!e) continue; const p = cardGeometry(e); x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h); }
       return x0 === Infinity ? null : { x0, y0, x1, y1 };
     }
     function buildBar() {
@@ -3243,7 +3259,10 @@ export function mountSpaces(ctx) {
       }
       if (g.type === 'resize') {
         g.moved = true;
-        g.e.payload = { ...g.e.payload, w: clamp(Math.round(g.ow + dx / view.z), CV.MINW, CV.MAXW), h: clamp(Math.round(g.oh + dy / view.z), CV.MINH, CV.MAXH) };
+        const p = g.e.payload;
+        const w = clamp(Math.round(g.ow + dx / view.z), CV.MINW, CV.MAXW);
+        const h = p.type === 'img-search' ? p.h : clamp(Math.round(g.oh + dy / view.z), CV.MINH, CV.MAXH);
+        g.e.payload = { ...p, w, h };
         placeCard(g.e); drawEdges(); bar.style.display = 'none';
         return;
       }
@@ -3256,7 +3275,7 @@ export function mountSpaces(ctx) {
         const a = { x: (x0 - view.x) / view.z, y: (y0 - view.y) / view.z };
         const b = { x: a.x + w / view.z, y: a.y + h / view.z };
         st.sel = new Set(g.base);
-        for (const e of ents()) { const p = e.payload; if (p.x < b.x && p.x + p.w > a.x && p.y < b.y && p.y + p.h > a.y) st.sel.add(keyOf(e)); }
+        for (const e of ents()) { const p = cardGeometry(e); if (p.x < b.x && p.x + p.w > a.x && p.y < b.y && p.y + p.h > a.y) st.sel.add(keyOf(e)); }
         st.edgeSel = -1;
         st.edgeSet = new Set(g.baseEdges);
         (st.edgeMids || []).forEach((m, i) => { if (m && m.x >= a.x && m.x <= b.x && m.y >= a.y && m.y <= b.y) st.edgeSet.add(i); });
@@ -3275,11 +3294,13 @@ export function mountSpaces(ctx) {
       const over = document.elementFromPoint(ev.clientX, ev.clientY);
       const tc = over && over.closest && over.closest('.canvas-card');
       const target = tc && tc.dataset.key !== g.from ? byKey(tc.dataset.key) : null;
+      const from = cardGeometry(a);
       let geo;
       if (target) {
-        const sides = pickSides(a.payload, target.payload);
-        geo = curve(sideAnchor(a.payload, g.side || sides[0]), sideAnchor(target.payload, sides[1]));
-      } else geo = curve(sideAnchor(a.payload, g.side || sideToward(a.payload, w)), { x: w.x, y: w.y, nx: 0, ny: 0 });
+        const to = cardGeometry(target);
+        const sides = pickSides(from, to);
+        geo = curve(sideAnchor(from, g.side || sides[0]), sideAnchor(to, sides[1]));
+      } else geo = curve(sideAnchor(from, g.side || sideToward(from, w)), { x: w.x, y: w.y, nx: 0, ny: 0 });
       const tmp = svg.querySelector('.tmp');
       tmp.style.display = '';
       tmp.setAttribute('d', geo.d);
@@ -3313,7 +3334,11 @@ export function mountSpaces(ctx) {
           // 在空白处松手：就在松手的位置问「要做什么」
           const src = byKey(g.from);
           const w = toWorld(ev.clientX, ev.clientY);
-          if (src && Math.hypot(w.x - (src.payload.x + src.payload.w / 2), w.y - (src.payload.y + src.payload.h / 2)) > Math.max(src.payload.w, src.payload.h) / 2 + 20) {
+          const from = src && cardGeometry(src);
+          const far = from && (from.type === 'img-search'
+            ? Math.hypot(Math.max(0, from.x - w.x, w.x - from.x - from.w), Math.max(0, from.y - w.y, w.y - from.y - from.h)) > 20
+            : Math.hypot(w.x - (from.x + from.w / 2), w.y - (from.y + from.h / 2)) > Math.max(from.w, from.h) / 2 + 20);
+          if (far) {
             const tmp = svg.querySelector('.tmp');
             tmp.style.display = '';
             linkMenu(src, w, { x: ev.clientX, y: ev.clientY }, () => { tmp.style.display = 'none'; });
@@ -3636,7 +3661,7 @@ export function mountSpaces(ctx) {
     }
     st.checkRemote = checkRemote;
     const poll = setInterval(() => checkRemote().catch(() => { if (cv === st) status.textContent = '连接中断，正在重试'; }), 1500);
-    st.cleanup = () => { hist.revision = res.revision; clearInterval(poll); resolveButton.remove(); pinSizes.disconnect(); ac.abort(); clearTimeout(viewTimer); };
+    st.cleanup = () => { hist.revision = res.revision; clearInterval(poll); resolveButton.remove(); cardSizes.disconnect(); ac.abort(); clearTimeout(viewTimer); };
     st.fit = fit;
     st.view = () => ({ ...view });
     rebuild();
