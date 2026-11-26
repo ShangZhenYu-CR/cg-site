@@ -1522,22 +1522,6 @@ function persistSettings() {
 const RETIRED_DEFAULT_RE = /gpt-5\.6-(terra|luna)/i;
 
 function applyConvSettings(cv) {
-  // 这个会话带产物（文档/幻灯片/设计）就顺手把右侧面板打开
-  // 手机上不自动铺开：整屏面板会把刚点开的对话盖住，底部的「产物」按钮仍可手动打开
-  const narrow = window.innerWidth < 900;
-  if (cv && cv.artifact && cv.artifact.kind) {
-    const pane = $('#artPane');
-    // 换会话时按它自己的产物类型重开，避免沿用上一个面板
-    if (!narrow && pane && (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name)) {
-      openArtifactPane(cv.artifact.kind, cv.artifact.name);
-    } else if (narrow) {
-      closeArtifactPane();
-      artKind = cv.artifact.kind;
-      artName = cv.artifact.name;
-    }
-  } else if (cv && !cv.artifact) {
-    closeArtifactPane();
-  }
   const s = cv && cv.settings;
   if (!s) return;
   // 空会话不吃历史设置：新对话一律用当前默认（6.1 Terra / 中等）
@@ -3487,21 +3471,23 @@ function syncArtifactPane() {
   const cv = current();
   const pane = $('#artPane');
   if (!pane) return;
-  if (state.view !== 'chat' || !cv || !cv.artifact || !cv.artifact.kind) {
+  if (state.view !== 'chat' || !cv) {
     if (!pane.hidden) closeArtifactPane();
     return;
   }
-  // 手机上不自动铺开整屏产物面板（会把刚点开的对话盖住）；底部「产物」按钮仍可打开
-  if (window.innerWidth < 900) {
-    if (!pane.hidden && artKind === 'doc' && chatDocument?.convId === cv.id) { renderArtifact(); return; }
-    if (!pane.hidden) closeArtifactPane();
-    artKind = cv.artifact.kind;
-    artName = cv.artifact.name;
+  const artifact = cv.artifact;
+  const matchesSelection = (artifact?.kind === artKind && artifact.name === artName)
+    || cv.files?.some((file) => file.name === artName);
+  if (!pane.hidden && artConvId === cv.id && matchesSelection) {
+    if (artKind === 'doc') renderArtifact();
     return;
   }
-  if (pane.hidden || artKind !== cv.artifact.kind || artName !== cv.artifact.name) {
-    openArtifactPane(cv.artifact.kind, cv.artifact.name);
-  } else if (artKind === 'doc') renderArtifact();
+  // 手机上进新对话不自动铺开整屏产物；当前手动打开的产物经同步仍保留。
+  if (!artifact?.kind || window.innerWidth < 900) {
+    if (!pane.hidden) closeArtifactPane();
+    return;
+  }
+  openArtifactPane(artifact.kind, artifact.name);
 }
 
 let spacesApi = null;
@@ -6897,6 +6883,7 @@ const ART_KINDS = {
 
 let artKind = 'doc';
 let artName = '';
+let artConvId = null;
 
 function currentArtifactFile() {
   const cv = current();
@@ -7001,10 +6988,12 @@ function initArtResizer() {
   });
 }
 function openArtifactPane(kind, name) {
-  artKind = kind;
-  artName = name || ('未命名' + (ART_KINDS[kind] ? ART_KINDS[kind].ext : '.md'));
   const pane = $('#artPane');
   if (!pane) return;
+  closeArtMenu();
+  artConvId = state.currentId;
+  artKind = kind;
+  artName = name || ('未命名' + (ART_KINDS[kind] ? ART_KINDS[kind].ext : '.md'));
   pane.hidden = false;
   document.body.classList.add('artopen');
   initArtResizer();
@@ -7022,6 +7011,8 @@ function openArtifactPane(kind, name) {
 
 function closeArtifactPane() {
   if (chatDocument) { chatDocument.destroy(); chatDocument = null; }
+  closeArtMenu();
+  artConvId = null;
   const pane = $('#artPane');
   if (pane) { pane.hidden = true; pane.classList.remove('expanded'); }
   document.body.classList.remove('artopen', 'artfull');
