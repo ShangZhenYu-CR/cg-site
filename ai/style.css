@@ -985,7 +985,7 @@ button,.nav-row,.kid,.proj,.chips button{transition:background var(--dur-fast) v
 .sp-dlg .card{width:min(560px,calc(100vw - 32px))}
 /* 搜图节点、标注节点、标注编辑器（T-0034） */
 .sn-q.an-ins{flex:0 0 36px;min-height:36px}
-.sn-grid{flex:1;min-height:80px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(max(92px,calc(25% - 6px)),1fr));grid-auto-rows:max-content;gap:6px;padding:2px;border-radius:7px;background:var(--panel2);align-content:start}
+.sn-grid{flex:1;min-height:80px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,max(160px,calc(25% - 6px))),1fr));grid-auto-rows:max-content;gap:6px;padding:2px;border-radius:7px;background:var(--panel2);align-content:start}
 .sn-grid .an-status,.sn-grid .an-err,.sn-grid .an-empty{grid-column:1 / -1}
 .sn-item{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;cursor:grab;border:2px solid transparent;background:var(--bg)}
 .sn-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}

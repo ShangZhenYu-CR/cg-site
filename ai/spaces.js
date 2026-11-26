@@ -1496,7 +1496,7 @@ export function mountSpaces(ctx) {
     const srcOf = (p) => (SEARCH_SOURCES.some((x) => x[0] === p.provider) ? p.provider : 'commons');
     const lastSource = () => { const v = readLS('ai.searchSource'); return SEARCH_SOURCES.some((x) => x[0] === v) ? v : 'openverse'; };
     function createSearchNode(at, src, query) {
-      const w = 440, h = 470;
+      const w = 620, h = 590;
       let pos;
       if (src && at) pos = dropPlace(at, src, w, h);
       else { const c = at || viewCenter(); pos = freeSpot(c.x - w / 2, c.y - h / 2, w, h, false); }
