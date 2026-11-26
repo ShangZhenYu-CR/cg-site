@@ -1,3 +1,5 @@
+import {annotationSignature,annotationText,drawAnnotations,prepareSmartErase} from './annotation.js?v=20261126a2';
+import {openAnnotation} from './annotation-editor.js?v=20261126a3';
 import { mountDocEditor } from './doc-editor.js?v=20261123notion2';
 import { exportDocument } from './doc-export.js?v=20261123notion2';
 
@@ -1043,7 +1045,8 @@ export function mountSpaces(ctx) {
         else if ((sp.type === 'text' || sp.type === 'file') && (sp.text || '').trim()) out.push({ type: 'text', text: sp.text, from });
         else if (sp.type === 'annot' && (sp.url || sp.src)) {
           out.push({ type: 'image', url: fixWikiThumb(sp.url || sp.src), from });
-          const notes = (sp.annots || []).filter((a) => a.t === 'text' && a.s).map((a) => a.s);
+          const notes = (sp.annots || []).filter(a => annotationText.has(a.t) && a.s)
+            .map(a => a.t === 'num' ? a.n + '：' + a.s : a.s);
           const nums = (sp.annots || []).filter((a) => a.t === 'num').length;
           if (notes.length || nums) out.push({ type: 'text', text: '图上的标注：' + notes.map((t, i) => (i + 1) + '. ' + t).join('；') + (nums ? '（图中有 ' + nums + ' 个序号标记）' : ''), from });
         } else if (sp.type === 'img-search') { const r = (sp.results || [])[sp.picked]; if (r && r.url) out.push({ type: 'image', url: fixWikiThumb(r.url), from }); }
@@ -1809,7 +1812,6 @@ export function mountSpaces(ctx) {
     }
 
     /* ---------------- 标注节点 ---------------- */
-    const ANN_COLORS = ['#e5484d', '#f5a524', '#30a46c', '#0090ff', '#ffffff', '#111111'];
     function createAnnot(src, at) {
       const url = imageOfCard(src);
       if (!url) { flashHint('这张卡里没有图片'); return null; }
@@ -1842,7 +1844,7 @@ export function mountSpaces(ctx) {
       const stage = el('div', 'ann-stage');
       const boxEl = el('div', 'ann-box');
       const img = document.createElement('img'); img.draggable = false; img.alt = '原图'; img.referrerPolicy = 'no-referrer';
-      const ov = document.createElementNS(SVGNS, 'svg'); ov.setAttribute('class', 'ann-svg'); ov.setAttribute('preserveAspectRatio', 'none');
+      const ov = el('canvas', 'ann-svg');
       boxEl.append(img, ov);
       stage.append(boxEl);
       const foot = el('div', 'an-inputs ann-foot');
@@ -1851,28 +1853,6 @@ export function mountSpaces(ctx) {
       ed.addEventListener('click', (ev) => { ev.stopPropagation(); openAnnotEditor(card.dataset.key); });
       renderAnnotNode(e);
     }
-    /** 标注画成 SVG（视图宽 1000，高按比例） */
-    function annotSvg(list, ar) {
-      const W = 1000, H = 1000 * ar;
-      const esc2 = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-      let out = '';
-      for (const a of list || []) {
-        const c = esc2(a.c || '#e5484d'), lw = (a.lw || 4) * 1.5;
-        const X = (v) => (v * W).toFixed(1), Y = (v) => (v * H).toFixed(1);
-        if (a.t === 'rect') out += '<rect x="' + X(Math.min(a.x1, a.x2)) + '" y="' + Y(Math.min(a.y1, a.y2)) + '" width="' + X(Math.abs(a.x2 - a.x1)) + '" height="' + Y(Math.abs(a.y2 - a.y1)) + '" fill="none" stroke="' + c + '" stroke-width="' + lw + '" rx="4"/>';
-        else if (a.t === 'ellipse') out += '<ellipse cx="' + X((a.x1 + a.x2) / 2) + '" cy="' + Y((a.y1 + a.y2) / 2) + '" rx="' + X(Math.abs(a.x2 - a.x1) / 2) + '" ry="' + Y(Math.abs(a.y2 - a.y1) / 2) + '" fill="none" stroke="' + c + '" stroke-width="' + lw + '"/>';
-        else if (a.t === 'arrow') {
-          const x1 = a.x1 * W, y1 = a.y1 * H, x2 = a.x2 * W, y2 = a.y2 * H;
-          const ang = Math.atan2(y2 - y1, x2 - x1), hl = 10 + lw * 3;
-          const p1 = [x2 - hl * Math.cos(ang - 0.45), y2 - hl * Math.sin(ang - 0.45)], p2 = [x2 - hl * Math.cos(ang + 0.45), y2 - hl * Math.sin(ang + 0.45)];
-          out += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="' + c + '" stroke-width="' + lw + '" stroke-linecap="round"/>';
-          out += '<polygon points="' + x2.toFixed(1) + ',' + y2.toFixed(1) + ' ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + '" fill="' + c + '"/>';
-        } else if (a.t === 'pen' && a.pts && a.pts.length) out += '<polyline points="' + a.pts.map((q) => X(q[0]) + ',' + Y(q[1])).join(' ') + '" fill="none" stroke="' + c + '" stroke-width="' + lw + '" stroke-linecap="round" stroke-linejoin="round"/>';
-        else if (a.t === 'text') out += '<text x="' + X(a.x1) + '" y="' + Y(a.y1) + '" fill="' + c + '" font-size="' + (22 + (a.lw || 4) * 4) + '" font-weight="700" font-family="sans-serif" paint-order="stroke" stroke="' + (c.toLowerCase() === '#ffffff' ? '#000' : '#fff') + '" stroke-width="5" stroke-linejoin="round">' + esc2(a.s || '') + '</text>';
-        else if (a.t === 'num') { const r = 16 + (a.lw || 4) * 2; out += '<circle cx="' + X(a.x1) + '" cy="' + Y(a.y1) + '" r="' + r + '" fill="' + c + '" stroke="#fff" stroke-width="3"/><text x="' + X(a.x1) + '" y="' + Y(a.y1) + '" fill="' + (c.toLowerCase() === '#ffffff' ? '#000' : '#fff') + '" font-size="' + r * 1.2 + '" font-weight="700" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">' + (a.n || 1) + '</text>'; }
-      }
-      return out;
-    }
     function renderAnnotNode(e) {
       const card = st.cards.get(keyOf(e));
       if (!card || !card.querySelector('.ann-box')) return;
@@ -1880,12 +1860,29 @@ export function mountSpaces(ctx) {
       const ar = clamp(Number(p.ar) || 0.75, 0.1, 10);
       const img = card.querySelector('.ann-box img');
       const want = shownUrl(p.src);
-      if (img.getAttribute('src') !== want) img.src = want;
       card.querySelector('.ann-box').style.aspectRatio = (1 / ar).toFixed(4);
-      const svgEl = card.querySelector('.ann-svg');
-      svgEl.setAttribute('viewBox', '0 0 1000 ' + (1000 * ar).toFixed(1));
-      const sig = JSON.stringify(p.annots || []);
-      if (card._annSig !== sig) { card._annSig = sig; svgEl.innerHTML = annotSvg(p.annots, ar); }
+      const surface = card.querySelector('.ann-svg');
+      const list = p.annots || [];
+      const sig = JSON.stringify([want, ar, list, p.url]);
+      if (card._annSig !== sig) {
+        card._annSig = sig;
+        img.style.visibility = '';
+        img.src = p.url ? shownUrl(p.url) : want;
+        surface.width = Math.max(1, Math.round(640 / Math.max(1, ar)));
+        surface.height = Math.max(1, Math.round(surface.width * ar));
+        drawAnnotations(surface, null, p.url ? [] : list, ar);
+        if (!p.url && list.some(a => a.v === 2 && (a.t === 'magnifier' || /^(filter|erase)/.test(a.t)))) {
+          loadImageBlob(p.src).then(blob => createImageBitmap(blob)).then(async image => {
+            try {
+              const patches = await prepareSmartErase(image,list,ar);
+              if (card._annSig === sig) {
+                drawAnnotations(surface, image, list, ar, patches);
+                img.style.visibility = 'hidden';
+              }
+            } finally { image.close(); }
+          }).catch(error => { if (card._annSig === sig) card.querySelector('.ann-foot').textContent = error.message; });
+        }
+      }
       const n = (p.annots || []).length;
       card.querySelector('.ann-count').textContent = n ? n + ' 处标注' : '还没标注';
       card.querySelector('.ann-foot').textContent = st.running.has(keyOf(e)) ? '正在生成带标注的图…' : (p.url ? '原图不变 · 下游节点拿到的是带标注的图' : (n ? '原图不变 · 带标注的图还没生成（下游会用原图）' : '原图不变 · 双击或点「编辑标注」开始'));
@@ -2100,194 +2097,54 @@ export function mountSpaces(ctx) {
       const scale = Math.min(1, 2048 / Math.max(bmp.width, bmp.height));
       const W = Math.round(bmp.width * scale), H = Math.round(bmp.height * scale);
       const cnv = document.createElement('canvas'); cnv.width = W; cnv.height = H;
-      const ctx2 = cnv.getContext('2d');
-      ctx2.drawImage(bmp, 0, 0, W, H);
-      const svgText = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 1000 ' + (1000 * H / W).toFixed(1) + '" preserveAspectRatio="none">' + annotSvg(p.annots, H / W) + '</svg>';
-      const ov = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText); });
-      ctx2.drawImage(ov, 0, 0, W, H);
+      try {
+        const patches = await prepareSmartErase(bmp, p.annots, H / W);
+        drawAnnotations(cnv, bmp, p.annots, H / W, patches);
+      } finally { bmp.close(); }
       const png = await new Promise((ok) => cnv.toBlob(ok, 'image/png'));
       const up = await api('/spaces/' + encodeURIComponent(S.space.id) + '/resources/' + encodeURIComponent(res.id) + '/images', { method: 'POST', raw: png, mime: 'image/png', timeout: 120000 });
       const j = await up.json().catch(() => ({}));
       if (!up.ok || !j.url) throw new Error(j.error || ('HTTP ' + up.status));
       return { url: j.url, ar: H / W };
     }
-    /** 全屏标注编辑器 */
     function openAnnotEditor(k0) {
       const e = byKey(k0);
       if (!e || e.payload.type !== 'annot') return;
       const k = keyOf(e);
-      let list = JSON.parse(JSON.stringify(e.payload.annots || []));
-      const undo = [], redo = [];
-      let tool = 'arrow', color = ANN_COLORS[0], lw = 4, selIdx = -1, cur = null;
-      let ar = clamp(Number(e.payload.ar) || 0.75, 0.1, 10);
-      const ed = el('div', 'ann-editor');
-      ed.setAttribute('role', 'dialog'); ed.setAttribute('aria-modal', 'true'); ed.setAttribute('aria-label', '标注图片');
-      ed.tabIndex = -1;
-      const barE = el('div', 'ae-bar');
-      const TOOLS = [['select', '选择', 'v'], ['arrow', '箭头', 'a'], ['rect', '方框', 'r'], ['ellipse', '椭圆', 'e'], ['pen', '画笔', 'b'], ['text', '文字', 't'], ['num', '序号', 'n']];
-      const selectTool = (value) => { tool = value; selIdx = -1; sync(); };
-      const toolBtns = TOOLS.map(([value, label, key]) => {
-        const b = el('button', 'ae-tool', label);
-        b.type = 'button'; b.dataset.v = value;
-        b.title = label + '（' + key.toUpperCase() + '）';
-        b.setAttribute('aria-keyshortcuts', key.toUpperCase());
-        b.addEventListener('click', () => selectTool(value));
-        return b;
+      openAnnotation({
+        src: shownUrl(e.payload.src), aspect: clamp(Number(e.payload.ar) || 0.75, 0.1, 10),
+        items: e.payload.annots || [], el,
+        readImage: async () => createImageBitmap(await loadImageBlob(e.payload.src)),
+        save: async (annots, ar) => {
+          const node = byKey(k);
+          if (!node) return;
+          const before = snap();
+          const rev = annotationSignature(annots);
+          node.payload = { ...node.payload, annots, ar, url: '' };
+          pushUndo(before);
+          renderAnnotNode(node);
+          scheduleSave();
+          if (!annots.length) return;
+          const kk = keyOf(node);
+          st.running.add(kk);
+          renderAnnotNode(node);
+          try {
+            const out = await flattenAnnot(node.payload);
+            const current = byKey(kk);
+            if (current && cv === st && annotationSignature(current.payload.annots) === rev) {
+              current.payload = { ...current.payload, url: out.url };
+              scheduleSave();
+            }
+          } catch (error) {
+            console.warn('生成带标注的图失败', error);
+            flashHint('标注已保存，但没能生成带标注的图（' + String(error.message).slice(0, 60) + '）');
+          } finally {
+            st.running.delete(kk);
+            const current = byKey(kk);
+            if (current && cv === st) { renderAnnotNode(current); refresh({ keepEdges: true }); }
+          }
+        },
       });
-      const colorBtns = ANN_COLORS.map((c) => { const b = el('button', 'ae-color'); b.type = 'button'; b.style.background = c; b.title = c; b.addEventListener('click', () => { color = c; if (selIdx >= 0) { push(); list[selIdx].c = c; } sync(); }); return b; });
-      const widthBtns = [[2, '细'], [4, '中'], [8, '粗']].map(([v, t]) => { const b = el('button', 'ae-tool', t); b.type = 'button'; b.dataset.w = String(v); b.addEventListener('click', () => { lw = v; if (selIdx >= 0) { push(); list[selIdx].lw = v; } sync(); }); return b; });
-      const bUndo = el('button', 'ae-tool', '撤销'), bRedo = el('button', 'ae-tool', '重做'), bClear = el('button', 'ae-tool', '清空'), bDel = el('button', 'ae-tool', '删除选中');
-      const bCancel = el('button', 'ghost', '取消'), bDone = el('button', 'primary', '完成');
-      [bUndo, bRedo, bClear, bDel, bCancel, bDone].forEach((b) => { b.type = 'button'; });
-      const grp = (...xs) => { const g = el('div', 'ae-grp'); g.append(...xs); return g; };
-      barE.append(grp(...toolBtns), grp(...colorBtns), grp(...widthBtns), grp(bUndo, bRedo, bDel, bClear), el('span', 'an-gap'), grp(bCancel, bDone));
-      const stageE = el('div', 'ae-stage');
-      const boxE = el('div', 'ae-box');
-      const imgE = document.createElement('img'); imgE.src = shownUrl(e.payload.src); imgE.draggable = false; imgE.alt = '原图'; imgE.referrerPolicy = 'no-referrer';
-      const svgE = document.createElementNS(SVGNS, 'svg'); svgE.setAttribute('class', 'ae-svg'); svgE.setAttribute('preserveAspectRatio', 'none');
-      boxE.append(imgE, svgE);
-      stageE.append(boxE);
-      const tip = el('div', 'ae-tip', '在图上拖动来画；文字和序号点一下放置；「选择」可以拖动、删除；Ctrl + Z 撤销，Esc 取消');
-      ed.append(barE, stageE, tip);
-      document.body.append(ed);
-      const back = document.activeElement;
-      const fit = () => {
-        const r = stageE.getBoundingClientRect();
-        let w = r.width - 32, h = w * ar;
-        if (h > r.height - 32) { h = r.height - 32; w = h / ar; }
-        boxE.style.width = Math.max(50, w) + 'px'; boxE.style.height = Math.max(50, h) + 'px';
-        svgE.setAttribute('viewBox', '0 0 1000 ' + (1000 * ar).toFixed(1));
-      };
-      imgE.addEventListener('load', () => { if (imgE.naturalWidth) { ar = clamp(imgE.naturalHeight / imgE.naturalWidth, 0.1, 10); fit(); draw(); } });
-      const push = () => { undo.push(JSON.stringify(list)); if (undo.length > 100) undo.shift(); redo.length = 0; };
-      const draw = () => {
-        let extra = '';
-        if (selIdx >= 0 && list[selIdx]) { const b = bboxOf(list[selIdx]); extra = '<rect x="' + (b.x0 * 1000 - 8).toFixed(1) + '" y="' + (b.y0 * 1000 * ar - 8).toFixed(1) + '" width="' + ((b.x1 - b.x0) * 1000 + 16).toFixed(1) + '" height="' + ((b.y1 - b.y0) * 1000 * ar + 16).toFixed(1) + '" fill="none" stroke="#0090ff" stroke-width="2" stroke-dasharray="6 4"/>'; }
-        svgE.innerHTML = annotSvg(cur ? list.concat([cur]) : list, ar) + extra;
-      };
-      const sync = () => {
-        toolBtns.forEach((b) => {
-          const active = b.dataset.v === tool;
-          b.classList.toggle('on', active);
-          b.setAttribute('aria-pressed', String(active));
-        });
-        colorBtns.forEach((b) => b.classList.toggle('on', b.title === color));
-        widthBtns.forEach((b) => b.classList.toggle('on', Number(b.dataset.w) === lw));
-        bUndo.disabled = !undo.length; bRedo.disabled = !redo.length; bClear.disabled = !list.length; bDel.disabled = selIdx < 0;
-        boxE.dataset.tool = tool;
-        draw();
-      };
-      function bboxOf(a) {
-        if (a.t === 'pen') { const xs = a.pts.map((q) => q[0]), ys = a.pts.map((q) => q[1]); return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) }; }
-        if (a.t === 'text') { const wd = Math.max(0.04, (a.s || '').length * (22 + (a.lw || 4) * 4) / 1000 * 0.95); return { x0: a.x1, y0: a.y1 - (26 + (a.lw || 4) * 4) / 1000 / ar, x1: a.x1 + wd, y1: a.y1 + 0.01 }; }
-        if (a.t === 'num') { const r = (16 + (a.lw || 4) * 2) / 1000; return { x0: a.x1 - r, y0: a.y1 - r / ar, x1: a.x1 + r, y1: a.y1 + r / ar }; }
-        return { x0: Math.min(a.x1, a.x2), y0: Math.min(a.y1, a.y2), x1: Math.max(a.x1, a.x2), y1: Math.max(a.y1, a.y2) };
-      }
-      const norm = (ev) => { const r = boxE.getBoundingClientRect(); return { x: clamp((ev.clientX - r.left) / r.width, 0, 1), y: clamp((ev.clientY - r.top) / r.height, 0, 1) }; };
-      const nextNum = () => list.filter((a) => a.t === 'num').reduce((m, a) => Math.max(m, a.n || 0), 0) + 1;
-      let drag = null;
-      svgE.addEventListener('pointerdown', (ev) => {
-        if (ev.button !== 0) return;
-        ev.preventDefault();
-        const q = norm(ev);
-        if (tool === 'select') {
-          selIdx = -1;
-          for (let i = list.length - 1; i >= 0; i--) { const b = bboxOf(list[i]); const pad = 0.015; if (q.x >= b.x0 - pad && q.x <= b.x1 + pad && q.y >= b.y0 - pad && q.y <= b.y1 + pad) { selIdx = i; break; } }
-          if (selIdx >= 0) { drag = { q, orig: JSON.stringify(list[selIdx]), moved: false }; svgE.setPointerCapture(ev.pointerId); }
-          sync();
-          return;
-        }
-        if (tool === 'text') {
-          const inp = el('input', 'ae-text-input');
-          const r = boxE.getBoundingClientRect();
-          inp.style.left = (ev.clientX - r.left) + 'px'; inp.style.top = (ev.clientY - r.top) + 'px';
-          inp.placeholder = '输入标注文字，回车确定';
-          inp.maxLength = 200;
-          boxE.append(inp);
-          // 立刻聚焦：点完马上打字时第一个字不能丢（按下时已 preventDefault，焦点不会被抢回去）
-          inp.focus();
-          setTimeout(() => { if (document.activeElement !== inp && inp.isConnected) inp.focus(); }, 0);
-          let done = false;
-          const fin = (ok) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); if (ok && v) { push(); list.push({ t: 'text', x1: q.x, y1: q.y, s: v, c: color, lw }); } sync(); };
-          inp.addEventListener('keydown', (k2) => { k2.stopPropagation(); if (k2.key === 'Enter') fin(true); if (k2.key === 'Escape') fin(false); });
-          inp.addEventListener('blur', () => fin(true));
-          return;
-        }
-        if (tool === 'num') { push(); list.push({ t: 'num', x1: q.x, y1: q.y, n: nextNum(), c: color, lw }); sync(); return; }
-        cur = tool === 'pen' ? { t: 'pen', pts: [[q.x, q.y]], c: color, lw } : { t: tool, x1: q.x, y1: q.y, x2: q.x, y2: q.y, c: color, lw };
-        svgE.setPointerCapture(ev.pointerId);
-      });
-      svgE.addEventListener('pointermove', (ev) => {
-        const q = norm(ev);
-        if (drag && selIdx >= 0) {
-          const dx = q.x - drag.q.x, dy = q.y - drag.q.y;
-          if (!drag.moved && Math.hypot(dx, dy) < 0.003) return;
-          if (!drag.moved) { undo.push(JSON.stringify(list)); redo.length = 0; drag.moved = true; }
-          const o = JSON.parse(drag.orig), a = list[selIdx];
-          if (o.t === 'pen') a.pts = o.pts.map((pt) => [clamp(pt[0] + dx, 0, 1), clamp(pt[1] + dy, 0, 1)]);
-          else { a.x1 = clamp(o.x1 + dx, 0, 1); a.y1 = clamp(o.y1 + dy, 0, 1); if (o.x2 != null) { a.x2 = clamp(o.x2 + dx, 0, 1); a.y2 = clamp(o.y2 + dy, 0, 1); } }
-          draw();
-          return;
-        }
-        if (!cur) return;
-        if (cur.t === 'pen') { const l = cur.pts[cur.pts.length - 1]; if (Math.hypot(q.x - l[0], q.y - l[1]) > 0.003 && cur.pts.length < 600) cur.pts.push([q.x, q.y]); }
-        else { cur.x2 = q.x; cur.y2 = q.y; }
-        draw();
-      });
-      const endDraw = () => {
-        if (drag) { drag = null; sync(); return; }
-        if (!cur) return;
-        const big = cur.t === 'pen' ? cur.pts.length > 1 : Math.hypot(cur.x2 - cur.x1, cur.y2 - cur.y1) > 0.01;
-        if (big) { push(); list.push(cur); }
-        cur = null;
-        sync();
-      };
-      svgE.addEventListener('pointerup', endDraw);
-      svgE.addEventListener('pointercancel', endDraw);
-      bUndo.addEventListener('click', () => { if (!undo.length) return; redo.push(JSON.stringify(list)); list = JSON.parse(undo.pop()); selIdx = -1; sync(); });
-      bRedo.addEventListener('click', () => { if (!redo.length) return; undo.push(JSON.stringify(list)); list = JSON.parse(redo.pop()); selIdx = -1; sync(); });
-      bClear.addEventListener('click', () => { if (!list.length) return; push(); list = []; selIdx = -1; sync(); });
-      bDel.addEventListener('click', () => { if (selIdx < 0) return; push(); list.splice(selIdx, 1); selIdx = -1; sync(); });
-      const close = () => { ed.remove(); window.removeEventListener('resize', fit); document.removeEventListener('keydown', onKey, true); try { if (back && back.focus) back.focus({ preventScroll: true }); else box.focus({ preventScroll: true }); } catch (er) {} };
-      const onKey = (ev) => {
-        if (ev.isComposing || ev.target?.classList?.contains('ae-text-input')) return;
-        if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); return; }
-        if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); ev.stopPropagation(); (ev.shiftKey ? bRedo : bUndo).click(); return; }
-        if ((ev.key === 'Delete' || ev.key === 'Backspace') && selIdx >= 0) { ev.preventDefault(); ev.stopPropagation(); bDel.click(); return; }
-        if (ev.ctrlKey || ev.metaKey || ev.altKey || cur || drag) return;
-        const match = TOOLS.find(([, , key]) => key === ev.key.toLowerCase());
-        if (!match) return;
-        ev.preventDefault(); ev.stopPropagation();
-        selectTool(match[0]);
-      };
-      document.addEventListener('keydown', onKey, true);
-      window.addEventListener('resize', fit);
-      bCancel.addEventListener('click', close);
-      bDone.addEventListener('click', async () => {
-        close();
-        const node = byKey(k);
-        if (!node) return;
-        const s0 = snap();
-        node.payload = { ...node.payload, annots: list.slice(0, 300), ar, url: '' };
-        pushUndo(s0);
-        renderAnnotNode(node); scheduleSave();
-        if (!list.length) return;
-        const kk = keyOf(node);
-        st.running.add(kk); renderAnnotNode(node);
-        try {
-          const out = await flattenAnnot(node.payload);
-          const n2 = byKey(kk);
-          if (n2 && cv === st && JSON.stringify(n2.payload.annots) === JSON.stringify(list.slice(0, 300))) { n2.payload = { ...n2.payload, url: out.url }; scheduleSave(); }
-        } catch (er) {
-          console.warn('生成带标注的图失败', er);
-          flashHint('标注已保存，但没能生成带标注的图（' + String((er && er.message) || er).slice(0, 60) + '），下游节点会用原图');
-        }
-        st.running.delete(kk);
-        const n3 = byKey(kk);
-        if (n3) { renderAnnotNode(n3); refresh({ keepEdges: true }); }
-      });
-      fit(); sync();
-      ed.focus({ preventScroll: true });
     }
 
     function placeCard(e) {

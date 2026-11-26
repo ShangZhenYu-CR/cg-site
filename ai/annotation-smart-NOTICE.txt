@@ -1,0 +1,4 @@
+Smart Erase source adapted from Snow Apps, snow-draw-engine-gpui,
+commit 4234e42, https://github.com/mg-chao/snow-apps.
+The source is available under Apache License 2.0.
+The browser build adds a standalone WASM interface for the portable CPU solver.
