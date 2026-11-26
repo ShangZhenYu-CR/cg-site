@@ -6653,7 +6653,7 @@ $('#artTitleBtn').addEventListener('click', (e) => {
   buildArtMenu();
   menu.hidden = false;
   const btn = $('#artTitleBtn').getBoundingClientRect();
-  menu.style.left = Math.round(btn.left) + 'px';
+  menu.style.left = Math.max(8, Math.min(Math.round(btn.left), innerWidth - menu.offsetWidth - 8)) + 'px';
   menu.style.top = Math.round(btn.bottom + 6) + 'px';
 });
 document.addEventListener('click', (e) => {
