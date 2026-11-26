@@ -1754,17 +1754,33 @@ export function mountSpaces(ctx) {
           }
         }
       } catch (ex) { err = '搜索失败：' + String((ex && ex.message) || ex); }
+      while (cv === st && st.gesture?.type === 'move') await new Promise(requestAnimationFrame);
       st.running.delete(resolveKey(k)); st.running.delete(k);
       if (cv !== st) return;
       const cur = byKey(k);
       if (!cur) return;
       if (err) { st.errors.set(keyOf(cur), err); renderSearchNode(cur); return; }
       if (!progress) { renderSearchNode(cur); return; }
+      const before = cardGeometry(cur);
+      const payload = { ...cur.payload, via, searchProgress: progress, results: [...(cur.payload.results || []), ...list] };
+      const size = searchSize(payload);
+      if (size.w > before.w) {
+        const fixed = ents().filter(e => e !== cur).map(cardGeometry);
+        const offset = nearestClearDrop([{ ...payload, ...size }], fixed);
+        if (!offset) {
+          st.errors.set(keyOf(cur), '画布没有足够的空位展开搜图结果');
+          renderSearchNode(cur);
+          return;
+        }
+        payload.x += offset.x;
+        payload.y += offset.y;
+      }
       const s0 = snap();
-      cur.payload={...cur.payload,via,searchProgress:progress,results:[...(cur.payload.results || []),...list]};
+      cur.payload = payload;
       pushUndo(s0);
       placeCard(cur);
       renderSearchNode(cur);
+      drawEdges();
       if (list.length) frameSearch(cur);
       scheduleSave();
     }
@@ -2359,11 +2375,100 @@ export function mountSpaces(ctx) {
       const c1 = { x: s.x + s.nx * k, y: s.y + s.ny * k };
       const c2 = { x: t.x + (t.nx || 0) * k, y: t.y + (t.ny || 0) * k };
       const mid = { x: 0.125 * s.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * t.x, y: 0.125 * s.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * t.y };
-      return { d: 'M' + s.x + ' ' + s.y + 'C' + c1.x + ' ' + c1.y + ' ' + c2.x + ' ' + c2.y + ' ' + t.x + ' ' + t.y, mid };
+      return { d: 'M' + s.x + ' ' + s.y + 'C' + c1.x + ' ' + c1.y + ' ' + c2.x + ' ' + c2.y + ' ' + t.x + ' ' + t.y, mid, points: [s, c1, c2, t], end: t };
     }
-    function edgeGeom(pa, pb) {
+    const edgeClearance = CV.GRID / 2;
+    const edgeBox = ({ x, y, w, h }) => ({ x0: x - edgeClearance, y0: y - edgeClearance, x1: x + w + edgeClearance, y1: y + h + edgeClearance });
+    const between = (a, b, t = 0.5) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    function touchesBox(points, r) {
+      return !points.every(p => p.x <= r.x0) && !points.every(p => p.x >= r.x1)
+        && !points.every(p => p.y <= r.y0) && !points.every(p => p.y >= r.y1);
+    }
+    function curveHits([a, b, c, d], r, depth = 0) {
+      if (!touchesBox([a, b, c, d], r)) return false;
+      if (depth === 8 || [a, b, c, d].every(p => p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1)) return true;
+      const ab = between(a, b), bc = between(b, c), cd = between(c, d);
+      const left = between(ab, bc), right = between(bc, cd), center = between(left, right);
+      return curveHits([a, ab, left, center], r, depth + 1) || curveHits([center, right, cd, d], r, depth + 1);
+    }
+    function segmentHits(a, b, r) {
+      if (!touchesBox([a, b], r)) return false;
+      let enter = 0, leave = 1;
+      for (const [from, to, min, max] of [[a.x, b.x, r.x0, r.x1], [a.y, b.y, r.y0, r.y1]]) {
+        if (from === to) continue;
+        const first = (min - from) / (to - from), last = (max - from) / (to - from);
+        enter = Math.max(enter, Math.min(first, last));
+        leave = Math.min(leave, Math.max(first, last));
+      }
+      return enter < leave - 1e-8;
+    }
+    const legLength = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    function shortestDetour(start, end, walls) {
+      const points = [start, end, ...walls.flatMap(({ x0, y0, x1, y1 }) => [
+        { x: x0, y: y0 }, { x: x0, y: y1 }, { x: x1, y: y0 }, { x: x1, y: y1 },
+      ]).filter(p => walls.every(r => !touchesBox([p], r)))];
+      const distance = points.map(() => Infinity), previous = [], visited = new Set();
+      distance[0] = 0;
+      // Only rectangle corners are needed to find a shortest path around their outlines.
+      while (true) {
+        let next = -1, best = Infinity;
+        for (const [i, d] of distance.entries()) if (!visited.has(i) && d < best) { next = i; best = d; }
+        if (next === -1) return null;
+        if (next === 1) {
+          const path = [end];
+          for (let i = previous[1]; i !== undefined; i = previous[i]) path.push(points[i]);
+          return path.reverse();
+        }
+        visited.add(next);
+        const p = points[next];
+        for (const [i, q] of points.entries()) {
+          if (visited.has(i)) continue;
+          const cost = best + legLength(p, q);
+          if (cost < distance[i] && walls.every(r => !segmentHits(p, q, r))) { distance[i] = cost; previous[i] = next; }
+        }
+      }
+    }
+    function roundedDetour(points) {
+      const [start] = points, end = points.at(-1);
+      const lengths = points.slice(1).map((p, i) => legLength(points[i], p));
+      let remaining = lengths.reduce((a, b) => a + b, 0) / 2;
+      let mid = start, d = `M${start.x} ${start.y}`;
+      for (const [i, length] of lengths.entries()) {
+        if (remaining <= length) { mid = between(points[i], points[i+1], remaining / length); break; }
+        remaining -= length;
+      }
+      for (let i = 1; i < points.length - 1; i++) {
+        if (!lengths[i-1] || !lengths[i]) continue;
+        const p = points[i], radius = Math.min(edgeClearance / 2, lengths[i-1] / 3, lengths[i] / 3);
+        const a = between(p, points[i-1], radius / lengths[i-1]), b = between(p, points[i+1], radius / lengths[i]);
+        d += `L${a.x} ${a.y}Q${p.x} ${p.y} ${b.x} ${b.y}`;
+      }
+      return { d: `${d}L${end.x} ${end.y}`, mid, end };
+    }
+    function edgeGeom(pa, pb, cards, sourceSide) {
       const [sa, sb] = pickSides(pa, pb);
-      return curve(sideAnchor(pa, sa), sideAnchor(pb, sb));
+      const direct = curve(sideAnchor(pa, sourceSide || sa), sideAnchor(pb, sb));
+      const others = cards.filter(p => p !== pa && p !== pb).map(edgeBox);
+      const blockers = others.filter(r => curveHits(direct.points, r));
+      if (!blockers.length) return direct;
+      const source = edgeBox(pa), target = edgeBox(pb);
+      const startSides = sourceSide ? [sourceSide] : [sa, ...['t', 'r', 'b', 'l'].filter(side => side !== sa)];
+      const endSides = [sb, ...['t', 'r', 'b', 'l'].filter(side => side !== sb)];
+      const lead = (p) => ({ x: p.x + p.nx * edgeClearance, y: p.y + p.ny * edgeClearance });
+      for (const from of startSides) for (const to of endSides) {
+        const a = sideAnchor(pa, from), b = sideAnchor(pb, to), start = lead(a), end = lead(b);
+        if ([target, ...others].some(r => segmentHits(a, start, r)) || [source, ...others].some(r => segmentHits(end, b, r))) continue;
+        const walls = new Set([source, target, ...blockers]);
+        // Grow the set of obstacles only if a detour actually reaches another card.
+        while (true) {
+          const route = shortestDetour(start, end, [...walls]);
+          if (!route) break;
+          const crossed = others.filter(r => !walls.has(r) && route.slice(1).some((p, i) => segmentHits(route[i], p, r)));
+          if (!crossed.length) return roundedDetour([a, ...route, b]);
+          for (const r of crossed) walls.add(r);
+        }
+      }
+      return direct;
     }
     function drawEdges() {
       const searches = ents().filter(e => e.payload.type === 'img-search');
@@ -2373,13 +2478,15 @@ export function mountSpaces(ctx) {
         bounds.style.height = Math.max(CV.WORLD + CV.MAXH, y1) + 'px';
       }
       const g = svg.querySelector('.eg');
+      const geometry = new Map(ents().map(e => [keyOf(e), cardGeometry(e)]));
+      const cards = [...geometry.values()];
       g.textContent = '';
       st.edgeMid = null;
       st.edgeMids = [];
       edges().forEach((ed, i) => {
-        const a = byKey(ed.from), b = byKey(ed.to);
+        const a = geometry.get(resolveKey(ed.from)), b = geometry.get(resolveKey(ed.to));
         if (!a || !b) return;
-        const { d, mid } = edgeGeom(cardGeometry(a), cardGeometry(b));
+        const { d, mid } = edgeGeom(a, b, cards);
         const on = edgeOn(i);
         st.edgeMids[i] = mid;
         if (on) st.edgeMid = mid;
@@ -2688,14 +2795,15 @@ export function mountSpaces(ctx) {
       ctx2.translate(margin-b.x0,margin+header-b.y0);
       if(got.heading){ctx2.fillStyle='#182032';ctx2.font='bold 24px sans-serif';ctx2.fillText(sectionName,b.x0,b.y0-16,width-margin*2);}
       const members=new Set(list.map(keyOf));
+      const geometry = new Map(list.map(e => [keyOf(e), cardGeometry(e)]));
+      const cards = [...geometry.values()];
       for(const link of edges()){
         if(!members.has(resolveKey(link.from)) || !members.has(resolveKey(link.to)))continue;
-        const start=cardGeometry(byKey(link.from)),end=cardGeometry(byKey(link.to));
-        const shape=edgeGeom(start,end);
+        const shape=edgeGeom(geometry.get(resolveKey(link.from)),geometry.get(resolveKey(link.to)),cards);
         ctx2.strokeStyle='#7c8794';ctx2.lineWidth=2;ctx2.setLineDash(link.dashed?[7,5]:[]);
         ctx2.stroke(new Path2D(shape.d));
         if(link.arrow!==false){
-          const [,side]=pickSides(start,end),p=sideAnchor(end,side);
+          const p=shape.end;
           ctx2.beginPath();ctx2.moveTo(p.x,p.y);
           ctx2.lineTo(p.x+p.nx*10-p.ny*5,p.y+p.ny*10+p.nx*5);
           ctx2.lineTo(p.x+p.nx*10+p.ny*5,p.y+p.ny*10-p.nx*5);
@@ -3408,8 +3516,8 @@ export function mountSpaces(ctx) {
       let geo;
       if (target) {
         const to = cardGeometry(target);
-        const sides = pickSides(from, to);
-        geo = curve(sideAnchor(from, g.side || sides[0]), sideAnchor(to, sides[1]));
+        const cards = [from, to, ...ents().filter(e => e !== a && e !== target).map(cardGeometry)];
+        geo = edgeGeom(from, to, cards, g.side);
       } else geo = curve(sideAnchor(from, g.side || sideToward(from, w)), { x: w.x, y: w.y, nx: 0, ny: 0 });
       const tmp = svg.querySelector('.tmp');
       tmp.style.display = '';
