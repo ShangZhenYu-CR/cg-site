@@ -786,6 +786,7 @@ export function mountSpaces(ctx) {
     }
     function zoomCenter(f) { const r = rect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, view.z * f); }
     function fit() {
+      frontSearch(null);
       const r = rect();
       const list = ents();
       if (!list.length || !r.width) { view = { x: 40, y: 40, z: 1 }; applyView(); return; }
@@ -795,12 +796,20 @@ export function mountSpaces(ctx) {
       view = { z, x: (r.width - (x1 - x0) * z) / 2 - x0 * z, y: (r.height - 50 - (y1 - y0) * z) / 2 - y0 * z };
       applyView();
     }
+    function frontSearch(e) {
+      if (st.framedSearch === e) return;
+      const previous = st.framedSearch;
+      st.framedSearch = e;
+      if (previous) placeCard(previous);
+      if (e) placeCard(e);
+    }
     function frameSearch(e, force = false) {
       const r = rect();
       const p = cardGeometry(e);
       const pad = 12, toolsH = 60;
       const left = view.x + p.x * view.z, top = view.y + p.y * view.z;
       if (!r.width || !r.height) return;
+      frontSearch(e);
       if (!force && left >= pad && top >= pad && left + p.w * view.z <= r.width - pad && top + p.h * view.z <= r.height - toolsH) return;
       const z = clamp(Math.min((r.width - pad * 2) / p.w, (r.height - toolsH - pad) / p.h, force ? 1 : view.z), CV.MIN_Z, CV.MAX_Z);
       view = { z, x: (r.width - p.w * z) / 2 - p.x * z, y: (r.height - toolsH + pad - p.h * z) / 2 - p.y * z };
@@ -1586,7 +1595,7 @@ export function mountSpaces(ctx) {
       fitResults.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const cur = byKey(card.dataset.key);
-        if (cur) frameSearch(cur, true);
+        if (cur) { frameSearch(cur, true); box.focus({ preventScroll: true }); }
       });
       run.addEventListener('click', (ev) => { ev.stopPropagation(); runSearch(card.dataset.key); });
       // 结果：点一下选中，按住拖到画布上就拿出来
@@ -2230,7 +2239,8 @@ export function mountSpaces(ctx) {
       if (!card) return;
       const p = e.payload;
       card.dataset.shape = p.shape || '';
-      card.style.zIndex = String(1 + ents().filter(other => (other.payload.layer || 0) < (p.layer || 0)).length);
+      const below = e === st.framedSearch ? ents().length : ents().filter(other => (other.payload.layer || 0) < (p.layer || 0)).length;
+      card.style.zIndex = String(1 + below);
       const textBox = card.querySelector('textarea');
       if (textBox) { textBox.style.fontSize = p.fontSize ? p.fontSize + 'px' : ''; textBox.style.textAlign = p.align || ''; }
       card.style.left = p.x + 'px'; card.style.top = p.y + 'px';
@@ -3203,6 +3213,7 @@ export function mountSpaces(ctx) {
       if (st.editing) stopEdit();
       box.focus({ preventScroll: true });
       const cardEl = ev.target.closest('.canvas-card');
+      if (ev.button === 0 && !st.spaceDown && st.framedSearch && cardEl !== st.cards.get(keyOf(st.framedSearch))) frontSearch(null);
       // 节点里的按钮、提示词、结果文字：选中节点但不开始拖动，让点击和选字正常进行
       if (cardEl && ev.target.closest('.an-ui')) {
         const k = cardEl.dataset.key;
@@ -3481,7 +3492,7 @@ export function mountSpaces(ctx) {
       if (mod && k === '-') { ev.preventDefault(); zoomCenter(1 / 1.25); return; }
       if (mod && k === '0') { ev.preventDefault(); zoomCenter(1 / view.z); return; }
       if (ev.shiftKey && (k === '!' || k === '1')) { ev.preventDefault(); fit(); return; }
-      if (k === 'Escape') { st.sel.clear(); clearEdgeSel(); refresh(); return; }
+      if (k === 'Escape') { frontSearch(null); st.sel.clear(); clearEdgeSel(); refresh(); return; }
       if (k === 'Enter' && st.sel.size === 1) { ev.preventDefault(); startEdit([...st.sel][0]); return; }
       const step = ev.shiftKey ? 10 : 1;
       if (k === 'ArrowLeft') { ev.preventDefault(); nudge(-step, 0); return; }
