@@ -5,7 +5,7 @@
 
 import { mountDocEditor, markdownEntities, documentMarkdown, documentPayloads, renderDocumentContent } from './doc-editor.js?v=20261123notion2';
 import { exportDocument } from './doc-export.js?v=20261123notion2';
-const APP_BUILD = '2026-11-26 搜图节点自动展开';
+const APP_BUILD = '2026-11-26 搜图节点横向四比三';
 const DEFAULT_BACKEND = 'https://ai.coldrain-aichat.com';
 
 /* ---------------- 图标（Lucide，ISC） ---------------- */

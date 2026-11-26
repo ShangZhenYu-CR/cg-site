@@ -274,7 +274,11 @@ export function mountSpaces(ctx) {
     let added = [];
     if (res.type === 'canvas') {
       let y0 = 40;
-      for (const e of res.entities || []) { const p = e.payload || {}; y0 = Math.max(y0, (Number(p.y) || 0) + (Number(p.h) || 160) + 80); }
+      for (const e of res.entities || []) {
+        const p = e.payload || {};
+        const h = p.type === 'img-search' ? searchSize(p).h : Number(p.h) || 160;
+        y0 = Math.max(y0, (Number(p.y) || 0) + h + 80);
+      }
       y0 = Math.min(y0, CV.WORLD);
       let x = 40, y = y0;
       if (text) {
@@ -621,6 +625,14 @@ export function mountSpaces(ctx) {
   const cvViews = new Map();
   const cvHist = new Map();
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const searchColumns = (count) => Math.max(1, Math.ceil(Math.sqrt(count * 4 / 3)));
+  const SEARCH_MIN_WIDTH = 440;
+  function searchSize(p) {
+    const cols = searchColumns(p.results?.length || 0);
+    // Grow by whole columns while keeping the saved width as the user's baseline.
+    const w = Math.max(SEARCH_MIN_WIDTH, p.w) + Math.max(0, cols - 5) * 100;
+    return { w, h: w * 3 / 4 };
+  }
   /** 节点类卡片：AI 节点、搜图、标注 */
   const isNodeType = (t) => /^(ai-|img-search$|annot$)/.test(String(t || ''));
   const resolveKey = (k) => { let x = k; for (let i = 0; i < 8 && cvAlias.has(x); i++) x = cvAlias.get(x); return x; };
@@ -710,7 +722,7 @@ export function mountSpaces(ctx) {
     const cardGeometry = (e) => {
       const p = e.payload;
       if (p.type !== 'img-search') return p;
-      return { ...p, h: st.cards.get(keyOf(e))?.offsetHeight || p.h };
+      return { ...p, ...searchSize(p) };
     };
     let view = cvViews.get(res.id) || (() => { try { const v = JSON.parse(readLS('ai.canvasView.' + res.id) || 'null'); return v && isFinite(v.x) && isFinite(v.y) && isFinite(v.z) ? v : null; } catch (e) { return null; } })();
     const needFit = !view;
@@ -781,6 +793,17 @@ export function mountSpaces(ctx) {
       const pad = 60;
       const z = clamp(Math.min((r.width - pad * 2) / (x1 - x0), (r.height - pad * 2 - 50) / (y1 - y0)), 0.2, 1);
       view = { z, x: (r.width - (x1 - x0) * z) / 2 - x0 * z, y: (r.height - 50 - (y1 - y0) * z) / 2 - y0 * z };
+      applyView();
+    }
+    function frameSearch(e, force = false) {
+      const r = rect();
+      const p = cardGeometry(e);
+      const pad = 12, toolsH = 60;
+      const left = view.x + p.x * view.z, top = view.y + p.y * view.z;
+      if (!r.width || !r.height) return;
+      if (!force && left >= pad && top >= pad && left + p.w * view.z <= r.width - pad && top + p.h * view.z <= r.height - toolsH) return;
+      const z = clamp(Math.min((r.width - pad * 2) / p.w, (r.height - toolsH - pad) / p.h, force ? 1 : view.z), CV.MIN_Z, CV.MAX_Z);
+      view = { z, x: (r.width - p.w * z) / 2 - p.x * z, y: (r.height - toolsH + pad - p.h * z) / 2 - p.y * z };
       applyView();
     }
 
@@ -1510,7 +1533,7 @@ export function mountSpaces(ctx) {
     const srcOf = (p) => (SEARCH_SOURCES.some((x) => x[0] === p.provider) ? p.provider : 'commons');
     const lastSource = () => { const v = readLS('ai.searchSource'); return SEARCH_SOURCES.some((x) => x[0] === v) ? v : 'openverse'; };
     function createSearchNode(at, src, query) {
-      const w = 620, h = 180;
+      const w = 620, h = 465;
       let pos;
       if (src && at) pos = dropPlace(at, src, w, h);
       else { const c = at || viewCenter(); pos = freeSpot(c.x - w / 2, c.y - h / 2, w, h, false); }
@@ -1525,7 +1548,9 @@ export function mountSpaces(ctx) {
       const ic = el('span', 'an-ic'); ic.innerHTML = AI_ICON.search;
       const prov = el('button', 'an-chip an-ui an-prov'); prov.type = 'button'; prov.title = '搜图来源';
       const run = el('button', 'an-run an-ui'); run.type = 'button';
-      head.append(ic, el('span', 'an-title', '搜图'), el('span', 'an-gap'), prov, run);
+      const fitResults = el('button', 'an-chip an-ui sn-fit', '看全');
+      fitResults.type = 'button'; fitResults.title = '在画布上看全搜图结果'; fitResults.hidden = true;
+      head.append(ic, el('span', 'an-title', '搜图'), el('span', 'an-gap'), fitResults, prov, run);
       const ta = document.createElement('textarea');
       ta.className = 'an-ins sn-q';
       ta.value = e.payload.text || '';
@@ -1557,6 +1582,11 @@ export function mountSpaces(ctx) {
         ev.stopPropagation();
         const cur = byKey(card.dataset.key); if (!cur) return;
         popMenu(prov, SEARCH_SOURCES.map(([v, t, sub]) => ({ label: t, sub, on: srcOf(cur.payload) === v, onClick: () => { writeLS('ai.searchSource', v); if (srcOf(cur.payload) === v) return; const s0 = snap(); cur.payload = { ...cur.payload, provider: v }; pushUndo(s0); renderSearchNode(cur); scheduleSave(); } })));
+      });
+      fitResults.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const cur = byKey(card.dataset.key);
+        if (cur) frameSearch(cur, true);
       });
       run.addEventListener('click', (ev) => { ev.stopPropagation(); runSearch(card.dataset.key); });
       // 结果：点一下选中，按住拖到画布上就拿出来
@@ -1597,6 +1627,7 @@ export function mountSpaces(ctx) {
       const run = card.querySelector('.an-run');
       run.disabled = running;
       run.textContent = running ? '搜索中…' : (list.length ? '重新搜索' : '搜索');
+      card.querySelector('.sn-fit').hidden = !list.length;
       const ta = card.querySelector('.an-ins');
       if (document.activeElement !== ta && ta.value !== (p.text || '')) ta.value = p.text || '';
       const grid = card.querySelector('.sn-grid');
@@ -1604,6 +1635,10 @@ export function mountSpaces(ctx) {
       if (card._snSig !== sig) {
         card._snSig = sig;
         grid.textContent = '';
+        const cols = searchColumns(list.length);
+        const rows = Math.max(1, Math.ceil(list.length / cols));
+        grid.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
+        grid.style.gridTemplateRows = (running || err || !list.length ? 'auto ' : '') + 'repeat(' + rows + ', minmax(0, 1fr))';
         if (running) grid.append(el('div', 'an-status', '正在搜索…'));
         else if (err) { const d = el('div', 'an-err', err); d.setAttribute('role', 'alert'); grid.append(d); }
         else if (!list.length) grid.append(el('div', 'an-empty', '输入关键词后搜索，图片会排在这里'));
@@ -1679,7 +1714,9 @@ export function mountSpaces(ctx) {
       const s0 = snap();
       cur.payload={...cur.payload,via,searchProgress:progress,results:[...(cur.payload.results || []),...list]};
       pushUndo(s0);
+      placeCard(cur);
       renderSearchNode(cur);
+      if (list.length) frameSearch(cur);
       scheduleSave();
     }
     /** 把搜到的第 i 张图拿到画布上：先用原链接放卡，再在后台复制进空间 */
@@ -2197,8 +2234,9 @@ export function mountSpaces(ctx) {
       const textBox = card.querySelector('textarea');
       if (textBox) { textBox.style.fontSize = p.fontSize ? p.fontSize + 'px' : ''; textBox.style.textAlign = p.align || ''; }
       card.style.left = p.x + 'px'; card.style.top = p.y + 'px';
-      card.style.width = p.w + 'px';
-      card.style.height = p.type === 'img-search' ? '' : p.h + 'px';
+      const { w, h } = cardGeometry(e);
+      card.style.width = w + 'px';
+      card.style.height = h + 'px';
     }
     function rebuild() {
       for (const c of st.cards.values()) c.remove();
@@ -2278,8 +2316,12 @@ export function mountSpaces(ctx) {
       return curve(sideAnchor(pa, sa), sideAnchor(pb, sb));
     }
     function drawEdges() {
-      const worldBottom = Math.max(CV.WORLD + CV.MAXH, ...ents().filter(e => e.payload.type === 'img-search').map(e => e.payload.y + cardGeometry(e).h));
-      bounds.style.height = worldBottom + 'px';
+      const searches = ents().filter(e => e.payload.type === 'img-search');
+      if (searches.length) {
+        const { x1, y1 } = cardBounds(searches);
+        bounds.style.width = Math.max(CV.WORLD + CV.MAXW, x1) + 'px';
+        bounds.style.height = Math.max(CV.WORLD + CV.MAXH, y1) + 'px';
+      }
       const g = svg.querySelector('.eg');
       g.textContent = '';
       st.edgeMid = null;
@@ -3184,7 +3226,8 @@ export function mountSpaces(ctx) {
       if (rz && cardEl) {
         const e = byKey(cardEl.dataset.key);
         if (e.payload.locked) return;
-        st.gesture = { type: 'resize', e, sx: ev.clientX, sy: ev.clientY, ow: e.payload.w, oh: e.payload.h, s: snap(), moved: false };
+        const minW = e.payload.type === 'img-search' ? SEARCH_MIN_WIDTH : CV.MINW;
+        st.gesture = { type: 'resize', e, sx: ev.clientX, sy: ev.clientY, ow: Math.max(minW, e.payload.w), oh: e.payload.h, minW, s: snap(), moved: false };
         return;
       }
       if (hit) { st.sel.clear(); st.edgeSel = Number(hit.dataset.i); refresh({ keepEdges: true }); return; }
@@ -3260,7 +3303,7 @@ export function mountSpaces(ctx) {
       if (g.type === 'resize') {
         g.moved = true;
         const p = g.e.payload;
-        const w = clamp(Math.round(g.ow + dx / view.z), CV.MINW, CV.MAXW);
+        const w = clamp(Math.round(g.ow + dx / view.z), g.minW, CV.MAXW);
         const h = p.type === 'img-search' ? p.h : clamp(Math.round(g.oh + dy / view.z), CV.MINH, CV.MAXH);
         g.e.payload = { ...p, w, h };
         placeCard(g.e); drawEdges(); bar.style.display = 'none';
@@ -3666,7 +3709,17 @@ export function mountSpaces(ctx) {
     st.view = () => ({ ...view });
     rebuild();
     applyView();
-    if (needFit) requestAnimationFrame(() => { if(!st.locatedSection)fit(); });
+    requestAnimationFrame(() => {
+      if (cv !== st || st.locatedSection) return;
+      if (needFit) fit();
+      const r = rect();
+      const visible = ents().filter((e) => {
+        if (e.payload.type !== 'img-search' || !e.payload.results?.length) return false;
+        const c = st.cards.get(keyOf(e)).getBoundingClientRect();
+        return c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top;
+      });
+      if (visible.length === 1) frameSearch(visible[0]);
+    });
     $('#spaceSaveState').textContent = S.conflict ? '有冲突，请刷新' : '';
   }
 
